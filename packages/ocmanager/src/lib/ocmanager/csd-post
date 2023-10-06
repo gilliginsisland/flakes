@@ -1,0 +1,125 @@
+#!/bin/bash
+set -euo pipefail
+
+# Cisco Anyconnect CSD wrapper for OpenConnect
+#
+# Instead of actually downloading and spawning the hostscan trojan,
+# this script posts results directly. Ideally we would work out how to
+# interpret the DES-encrypted (yay Cisco!) tables.dat and basically
+# reimplement the necessary parts hostscan itself. But prepackaged
+# answers, tuned to match what the VPN server currently wants to see,
+# will work for most people. Of course it's perfectly possible to make
+# this tell the truth and not just give prepackaged answers, and most
+# people should do that rather than deliberately circumventing their
+# server's security policy with lies. This script exists as an example
+# to work from.
+
+export RESPONSE=$(mktemp /tmp/csdresponseXXXXXXX)
+export RESULT=$(mktemp /tmp/csdresultXXXXXXX)
+trap 'rm $RESPONSE $RESULT' EXIT
+
+
+cat >> $RESPONSE <<-EOF
+	endpoint.os.version="$(uname -s)";
+	endpoint.os.servicepack="$(uname -r)";
+	endpoint.os.architecture="$(uname -m)";
+	endpoint.policy.location="Default";
+	endpoint.device.protection="none";
+	endpoint.device.protection_version="4.10.01094";
+	endpoint.device.protection_extension="4.3.1858.0";
+	endpoint.enforce="success";
+	endpoint.pfw["100022"]={};
+	endpoint.pfw["100022"].exists="true";
+	endpoint.pfw["100022"].description="Mac OS X Builtin Firewall (Mac)";
+	endpoint.pfw["100022"].version="11.5.1";
+	endpoint.pfw["100022"].enabled="ok";
+	endpoint.pfw["100194"]={};
+	endpoint.pfw["100194"].exists="true";
+	endpoint.pfw["100194"].description="McAfee Endpoint Security for Mac (Mac)";
+	endpoint.pfw["100194"].version="10.7.7";
+	endpoint.pfw["100194"].enabled="ok";
+	endpoint.am["100137"]={};
+	endpoint.am["100137"].exists="true";
+	endpoint.am["100137"].description="Gatekeeper (Mac)";
+	endpoint.am["100137"].version="11.5.1";
+	endpoint.am["100137"].activescan="ok";
+	endpoint.am["100194"]={};
+	endpoint.am["100194"].exists="true";
+	endpoint.am["100194"].description="McAfee Endpoint Security for Mac (Mac)";
+	endpoint.am["100194"].version="10.7.7";
+	endpoint.am["100194"].activescan="ok";
+	endpoint.am["100194"].lastupdate="56266";
+	endpoint.am["100194"].timestamp="1629072000";
+EOF
+
+shift
+
+TICKET=
+STUB=0
+
+while [ "${1-}" ]; do
+	if [ "$1" == "-ticket" ]; then shift; TICKET=${1//\"/}; fi
+	if [ "$1" == "-stub" ];   then shift; STUB=${1//\"/};   fi
+	shift
+done
+
+URL="https://$CSD_HOSTNAME/+CSCOE+/sdesktop/token.xml?ticket=$TICKET&stub=$STUB"
+TOKEN=$(curl -v -k -s "$URL" | xmlstarlet sel -t -v /hostscan/token)
+
+URL="https://$CSD_HOSTNAME/CACHE/sdesktop/data.xml"
+curl -v -k -s "$URL" | xmlstarlet sel -t -v '/data/hostscan/field/@value' | while read -r ENTRY; do
+	# XX: How are ' and , characters escaped in this?
+	TYPE="$(sed "s/^'\(.*\)','\(.*\)','\(.*\)'$/\1/" <<< "$ENTRY")"
+	NAME="$(sed "s/^'\(.*\)','\(.*\)','\(.*\)'$/\2/" <<< "$ENTRY")"
+	VALUE="$(sed "s/^'\(.*\)','\(.*\)','\(.*\)'$/\3/" <<< "$ENTRY")"
+
+	if [ "$TYPE" == "$ENTRY" ]; then
+		echo "Unhandled hostscan field '$ENTRY'"
+		continue
+	fi
+
+	if [[ "$NAME" =~ ^((Win|Linux)|(FILE|PROC)-(LINUX|WIN)) ]]; then
+		continue
+	fi
+
+	case "$TYPE" in
+		File)
+			BASENAME="$(basename "$VALUE")"
+			TS=$(( $(date +%s) - 39115924 ))
+			LASTMOD=39115924
+			cat >> $RESPONSE <<-EOF
+				endpoint.file["$NAME"]={};
+				endpoint.file["$NAME"].path="$VALUE";
+				endpoint.file["$NAME"].name="$BASENAME";
+				endpoint.file["$NAME"].exists="true";
+				endpoint.file["$NAME"].lastmodified="$LASTMOD";
+				endpoint.file["$NAME"].timestamp="$TS";
+			EOF
+			;;
+
+		Process)
+			cat >> $RESPONSE <<-EOF
+				endpoint.process["$NAME"]={};
+				endpoint.process["$NAME"].name="$VALUE";
+				endpoint.process["$NAME"].exists="true";
+			EOF
+			;;
+
+			Registry)
+				# We silently ignore registry entry requests
+				;;
+
+			*)
+				echo "Unhandled hostscan element of type '$TYPE': '$NAME'/'$VALUE'"
+				;;
+	esac
+done
+
+COOKIE_HEADER="Cookie: sdesktop=$TOKEN"
+CONTENT_HEADER="Content-Type: text/xml"
+URL="https://$CSD_HOSTNAME/+CSCOE+/sdesktop/scan.xml?reusebrowser=1"
+curl -v -k -s -H "$CONTENT_HEADER" -H "$COOKIE_HEADER" -H 'Expect: ' --data-binary "@$RESPONSE" "$URL" > "$RESULT"
+
+cat "$RESULT" || :
+
+exit 0
