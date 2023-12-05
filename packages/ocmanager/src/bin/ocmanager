@@ -33,16 +33,21 @@ source "$CONFIG"
 
 notify "status" "Connecting..."
 
+getSecureInput() {
+	# popup to ask for password
+	osascript <<-EOF
+		set icn to path to resource "GenericNetworkIcon.icns" in bundle file ((path to "csrv" as Unicode text) & "CoreTypes.bundle")
+		set passwordPrompt to display dialog "$1\n\nPassword for ${AUTH_USER}@${SERVER_HOST}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "Cisco Openconnect VPN" with hidden answer
+		get text returned of passwordPrompt
+	EOF
+	|| exit 1
+}
+
 getCredentials() {
 	local password
 
 	# popup to ask for password
-	password="$(osascript <<-EOF
-		set icn to path to resource "GenericNetworkIcon.icns" in bundle file ((path to "csrv" as Unicode text) & "CoreTypes.bundle")
-		set passwordPrompt to display dialog "$1\n\nPassword for ${AUTH_USER}@${SERVER_HOST}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "Cisco Openconnect VPN" with hidden answer
-		get text returned of passwordPrompt
-		EOF
-	)" || exit 1
+	password="$(getSecureInput "$1")"
 
 	# save password in keychain
 	security add-generic-password -U -a "$AUTH_USER" -w "$password" -s "ocmanager:${SERVER_HOST}"
@@ -57,6 +62,8 @@ startProxy() {
 		notify "error" "No Credentials"
 		getCredentials "No Credentials In Keychain"
 	done
+
+	[ "${TOKEN_MODE-}" == "yubiotp" ] && password="${password}$(getSecureInput "Touch YubiKey")"
 
 	# only add the group arg if its set
 	args=(-u "$AUTH_USER")
