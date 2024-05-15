@@ -40,7 +40,6 @@ getSecureInput() {
 		set passwordPrompt to display dialog "$1\n\nPassword for ${AUTH_USER}@${SERVER_HOST}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "Cisco Openconnect VPN" with hidden answer
 		get text returned of passwordPrompt
 	EOF
-	|| exit 1
 }
 
 getCredentials() {
