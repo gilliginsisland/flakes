@@ -5,7 +5,7 @@ PREFIX=$(realpath -- "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")/..")
 CSD_WRAPPER="${PREFIX}/lib/ocmanager/csd-post"
 
 notify() {
-	terminal-notifier -title "${SERVER_HOST}" -group "${SERVER_HOST}-$1" -message "$2" ${3+-subtitle "$3"} -ignoreDnD -appIcon /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns
+	terminal-notifier -title "${PROFILE}" -group "${PROFILE}-$1" -message "$2" ${3+-subtitle "$3"} -ignoreDnD -appIcon /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns
 }
 
 base64_pad() {
@@ -13,31 +13,31 @@ base64_pad() {
 }
 
 usage() {
-	echo "script usage: $(basename $0) -e /path/to/env/file -c <server-cert> [-g <group>] -l <listen-port> -s <server>"
+	echo "script usage: $(basename $0) [-t] -p /path/to/profile"
 }
 
 ## opts
-while getopts 'e:c:l:s:g:h' OPTION; do
+while getopts 'p:th' OPTION; do
 	case "$OPTION" in
-		e) CONFIG="$OPTARG" ;;
-		c) SERVER_CERT="$OPTARG" ;;
-		l) LISTEN_PORT="$OPTARG" ;;
-		s) SERVER_HOST="$OPTARG" ;;
-		g) AUTH_GROUP="$OPTARG" ;;
+		p) PROFILE="$OPTARG" ;;
+		t) TOKEN_MODE="yubiotp" ;;
 		h) usage; exit 0 ;;
 		?) usage >&2; exit 1 ;;
 	esac
 done
 shift "$(($OPTIND -1))"
-source "$CONFIG"
 
-notify "status" "Connecting..."
+if [[ -z "${PROFILE-}" ]]; then
+	usage; exit 0
+fi
+
+KEYCHAIN_ACCOUNT="ocmanager:${PROFILE}"
 
 getSecureInput() {
 	# popup to ask for password
 	osascript <<-EOF
 		set icn to path to resource "GenericNetworkIcon.icns" in bundle file ((path to "csrv" as Unicode text) & "CoreTypes.bundle")
-		set passwordPrompt to display dialog "$1\n\nPassword for ${AUTH_USER}@${SERVER_HOST}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "Cisco Openconnect VPN" with hidden answer
+		set passwordPrompt to display dialog "$1\n\nPassword for ${PROFILE}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "Cisco Openconnect VPN" with hidden answer
 		get text returned of passwordPrompt
 	EOF
 }
@@ -49,47 +49,38 @@ getCredentials() {
 	password="$(getSecureInput "$1")"
 
 	# save password in keychain
-	security add-generic-password -U -a "$AUTH_USER" -w "$password" -s "ocmanager:${SERVER_HOST}"
+	security add-generic-password -U -a "$KEYCHAIN_ACCOUNT" -w "$password" -s "$KEYCHAIN_ACCOUNT"
 }
 
 startProxy() {
-	local password args pid
+	local password
 
 	## on first run there wont be a password in the keychain at all
-	until password=$(security find-generic-password -a "$AUTH_USER" -w -s "ocmanager:${SERVER_HOST}")
-	do
+	until password=$(security find-generic-password -a "$KEYCHAIN_ACCOUNT" -w -s "$KEYCHAIN_ACCOUNT"); do
 		notify "error" "No Credentials"
 		getCredentials "No Credentials In Keychain"
 	done
 
 	[ "${TOKEN_MODE-}" == "yubiotp" ] && password="${password}$(getSecureInput "Touch YubiKey")"
 
-	# only add the group arg if its set
-	args=(-u "$AUTH_USER")
-	if [[ -n "${SERVER_CERT-}" ]]; then
-		args+=(--servercert "$SERVER_CERT")
-	fi
-	if [[ -n "${AUTH_GROUP-}" ]]; then
-		args+=(--authgroup "$AUTH_GROUP");
-	fi
-	if [[ -n "${TOKEN_SECRET-}" ]]; then
-		args+=(--token-mode=totp --token-secret=sha1:base32:"$(base64_pad "$TOKEN_SECRET")");
-	fi
-	if [[ -n "${LISTEN_PORT-}" ]]; then
-		args+=(--script-tun --script "ocproxy --keepalive 10 -D \"$LISTEN_PORT\" ${PROXY_ARGS[@]-}");
-	fi
-	args+=(--passwd-on-stdin --useragent="AnyConnect Darwin_i386 4.10.01075" --csd-wrapper="$CSD_WRAPPER" --no-external-auth --non-inter "$SERVER_HOST" --allow-insecure-crypto);
+	notify "status" "Authenticating"
+	eval $(openconnect \
+		--config "$PROFILE" \
+		--csd-wrapper="$CSD_WRAPPER" \
+		--passwd-on-stdin \
+		--no-external-auth \
+		--non-inter \
+		--authenticate \
+		<<< "$password")
 
-	export CSD_HOSTNAME="${SERVER_HOST}"
-	openconnect "${args[@]}" <<< $password &
+	notify "status" "Connecting..."
+	openconnect --config "$PROFILE" \
+		--cookie-on-stdin \
+		--server "$CONNECT_URL" \
+		--servercert "$FINGERPRINT" \
+		--resolve "$RESOLVE" \
+		<<< "$COOKIE" &
 	pid=$!
-
-	while kill -0 $pid; do
-		if nc -z 127.0.0.1 $LISTEN_PORT; then
-			break;
-		fi
-		sleep 0.5
-	done
 
 	notify "status" "Connection Established"
 	wait $pid
