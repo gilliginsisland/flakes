@@ -16,6 +16,7 @@ set -euo pipefail
 
 export RESPONSE=$(mktemp /tmp/csdresponseXXXXXXX)
 export RESULT=$(mktemp /tmp/csdresultXXXXXXX)
+export PINNEDPUBKEY="-s ${CSD_SHA256:+"-k --pinnedpubkey sha256//$CSD_SHA256"}"
 trap 'rm $RESPONSE $RESULT' EXIT
 
 
@@ -63,11 +64,11 @@ while [ "${1-}" ]; do
 	shift
 done
 
-URL="https://$CSD_HOSTNAME/+CSCOE+/sdesktop/token.xml?ticket=$TICKET&stub=$STUB"
-TOKEN=$(curl -v -k -s "$URL" | xmlstarlet sel -t -v /hostscan/token)
+URL="https://${CSD_HOSTNAME}/+CSCOE+/sdesktop/token.xml?ticket=$TICKET&stub=$STUB"
+TOKEN=$(curl $PINNEDPUBKEY -v "$URL" | xmlstarlet sel -t -v /hostscan/token)
 
-URL="https://$CSD_HOSTNAME/CACHE/sdesktop/data.xml"
-curl -v -k -s "$URL" | xmlstarlet sel -t -v '/data/hostscan/field/@value' | while read -r ENTRY; do
+URL="https://${CSD_HOSTNAME}/CACHE/sdesktop/data.xml"
+curl $PINNEDPUBKEY -v "$URL" | xmlstarlet sel -t -v '/data/hostscan/field/@value' | while read -r ENTRY; do
 	# XX: How are ' and , characters escaped in this?
 	TYPE="$(sed "s/^'\(.*\)','\(.*\)','\(.*\)'$/\1/" <<< "$ENTRY")"
 	NAME="$(sed "s/^'\(.*\)','\(.*\)','\(.*\)'$/\2/" <<< "$ENTRY")"
@@ -117,8 +118,8 @@ done
 
 COOKIE_HEADER="Cookie: sdesktop=$TOKEN"
 CONTENT_HEADER="Content-Type: text/xml"
-URL="https://$CSD_HOSTNAME/+CSCOE+/sdesktop/scan.xml?reusebrowser=1"
-curl -v -k -s -H "$CONTENT_HEADER" -H "$COOKIE_HEADER" -H 'Expect: ' --data-binary "@$RESPONSE" "$URL" > "$RESULT"
+URL="https://${CSD_HOSTNAME}/+CSCOE+/sdesktop/scan.xml?reusebrowser=1"
+curl $PINNEDPUBKEY -H "$CONTENT_HEADER" -H "$COOKIE_HEADER" -H 'Expect: ' --data-binary "@$RESPONSE" "$URL" > "$RESULT"
 
 cat "$RESULT" || :
 
