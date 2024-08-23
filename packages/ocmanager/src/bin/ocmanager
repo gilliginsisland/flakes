@@ -11,10 +11,6 @@ notify() {
 	'@terminal_notifier_root@/bin/terminal-notifier' -title "${PROFILE}" -group "${PROFILE}-$1" -message "$2" ${3+-subtitle "$3"} -ignoreDnD -appIcon /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns
 }
 
-base64_pad() {
-	builtin printf "${1}%1.$((${#1}%8))s" ========;
-}
-
 usage() {
 	builtin echo "script usage: $(basename $0) [-t] -p profile"
 }
