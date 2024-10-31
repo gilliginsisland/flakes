@@ -1,3 +1,1 @@
-{ pkgs }:
-
-import ./packages { inherit pkgs; }
+import ./packages
