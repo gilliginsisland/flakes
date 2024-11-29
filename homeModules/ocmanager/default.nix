@@ -44,16 +44,26 @@ in {
   config = mkIf cfg.enable {
     home.packages = with pkgs; [ ocmanager ];
 
-    launchd.agents = mapAttrs' (name: profile:
-      nameValuePair "ocmanager.${name}" {
+    launchd.agents = concatMapAttrs (name: profile: optionalAttrs profile.proxy.ondemand {
+      "ocmanager.${name}" = {
         enable = true;
         config = toLaunchd name profile;
-      }
-    ) (filterAttrs (name: profile: profile.proxy.ondemand) cfg.profiles);
+      };
+    }) cfg.profiles;
 
     xdg.configFile = mapAttrs' (name: profile:
       nameValuePair "ocmanager/profiles/${name}.conf" {
         inherit (profile) text;
+      }
+    ) cfg.profiles;
+
+    programs.proxypac.rules = mapAttrsToList (
+      name: profile: {
+        inherit (profile) hosts;
+        proxies = [
+          "SOCKS5 127.0.0.1:${toString profile.proxy.port}"
+          "SOCKS 127.0.0.1:${toString profile.proxy.port}"
+        ];
       }
     ) cfg.profiles;
   };
