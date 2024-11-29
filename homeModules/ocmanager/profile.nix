@@ -50,6 +50,13 @@ in {
       });
     };
 
+    hosts = mkOption {
+      description = ''
+        List of domain patterns to route through the proxy.
+      '';
+      type = types.listOf types.str;
+    };
+
     config = mkOption {
       type = types.attrsOf (types.either types.str types.bool);
       default = {};
@@ -57,7 +64,6 @@ in {
 
     text = mkOption {
       type = types.lines;
-      default = "";
       internal = true;
     };
   };
