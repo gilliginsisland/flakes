@@ -25,18 +25,20 @@ let
   toPAC = rules: ''
     const rules = ${builtins.toJSON rules};
 
-    const entries = [].concat(...rules.map(
-      ({ hosts, proxies }) => hosts.map(
-        host => [host, proxies]
-      )
-    )).sort(
+    const entries = rules.flatMap(
+      ({ hosts, proxy }) => hosts.map(host => [host, proxy])
+    ).sort(
       ([a], [b]) => b.length - a.length
-    )
+    );
 
     function FindProxyForURL(_, host) {
-      for (const [shExp, proxies] of entries) {
+      for (const [shExp, proxy] of entries) {
         if (shExpMatch(host, shExp)) {
-          return proxies.join(';');
+          const { type, address, port } = proxy;
+
+          if (type === "socks5") {
+            return ["SOCKS5", "SOCKS"].map(scheme => `''${scheme} ''${address}:''${port}`).join(";");
+          }
         }
       }
       return 'DIRECT';
@@ -76,11 +78,34 @@ in
             type = types.listOf types.str;
           };
 
-          proxies = mkOption {
+          proxy = mkOption {
             description = ''
-              Proxy destination lines.
+              Proxy configuration.
             '';
-            type = types.listOf types.str;
+            type = types.submodule {
+              options = {
+                type = mkOption {
+                  type = types.enum [ "socks5" ];
+                  default = "socks5";
+                  description = "The type of proxy.";
+                };
+
+                address = mkOption {
+                  type = types.str;
+                  default = "127.0.0.1";
+                  description = ''
+                    The address of the proxy to connect to.
+                  '';
+                };
+
+                port = mkOption {
+                  type = types.port;
+                  description = ''
+                    The port of the proxy to connect to.
+                  '';
+                };
+              };
+            };
           };
         };
       });
@@ -113,5 +138,16 @@ in
     };
 
     xdg.configFile."proxypac/proxy.pac".text = toPAC cfg.rules;
+
+    programs.ssh.matchBlocks = listToAttrs (imap1 (n: rule:
+      let
+        inherit (rule) hosts;
+        inherit (rule.proxy) address port;
+      in
+        nameValuePair "proxypac:${builtins.toString n}" {
+          host = builtins.concatStringsSep " " hosts;
+          proxyCommand = "/usr/bin/nc -X 5 -x ${address}:${builtins.toString port} %h %p";
+        }
+    ) cfg.rules);
   };
 }
