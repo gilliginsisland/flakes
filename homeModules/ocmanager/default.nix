@@ -60,10 +60,11 @@ in {
     programs.proxypac.rules = mapAttrsToList (
       name: profile: {
         inherit (profile) hosts;
-        proxies = [
-          "SOCKS5 127.0.0.1:${toString profile.proxy.port}"
-          "SOCKS 127.0.0.1:${toString profile.proxy.port}"
-        ];
+        proxy = {
+          type = "socks5";
+          address = "127.0.0.1";
+          inherit (profile.proxy) port;
+        };
       }
     ) cfg.profiles;
   };
