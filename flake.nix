@@ -14,8 +14,6 @@
         pkgs = nixpkgs.legacyPackages.${system};
       });
 
-      overlays.default = _: pkgs: import ./. { inherit pkgs; };
-
-      homeModules = loadModulePaths ./homeModules;
+      homeModules = loadModulePaths "${self}/homeModules";
     };
 }
