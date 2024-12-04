@@ -6,6 +6,7 @@
   netcat,
   terminal-notifier,
   openconnect,
+  openssl,
   ocproxy,
   xmlstarlet,
   gnused,
@@ -20,7 +21,7 @@ stdenv.mkDerivation rec {
   buildInputs = [
     bash coreutils netcat terminal-notifier
     openconnect ocproxy xmlstarlet gnused curl
-    security osascript envsubst
+    security osascript envsubst openssl
   ];
 
   coreutils_root = coreutils;
@@ -34,6 +35,7 @@ stdenv.mkDerivation rec {
   security_root = security;
   osascript_root = osascript;
   envsubst_root = envsubst;
+  openssl_root = openssl;
 
   installPhase = ''
     cp -p -R src $out
