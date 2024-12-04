@@ -5,12 +5,6 @@ with lib;
 let
   cfg = config.programs.ocmanager;
 
-  profileModule = types.submoduleWith {
-    modules = [ ./profile.nix ];
-    specialArgs = { inherit pkgs; };
-    shorthandOnlyDefinesConfig = true;
-  };
-
   toLaunchd =  name: profile: {
     ProcessType = "Background";
     ProgramArguments = [
@@ -18,7 +12,7 @@ let
       "${pkgs.ocmanager}/bin/ocmanager"
       "-p"
       "${name}"
-    ];
+    ] ++ optionals profile.token ["-t"];
     Sockets = {
       Socket = {
         SockNodeName = profile.proxy.address;
@@ -33,11 +27,15 @@ in {
     enable = mkEnableOption "OCManager configuration";
     package = mkPackageOption pkgs "ocmanager" { };
     profiles = mkOption {
-      type = types.attrsOf profileModule;
-      default = { };
       description = ''
         Profiles for ocmanager.
       '';
+      default = { };
+      type = types.attrsOf (types.submoduleWith {
+        modules = [ ./profile.nix ];
+        specialArgs = { inherit pkgs; };
+        shorthandOnlyDefinesConfig = true;
+      });
     };
   };
 
