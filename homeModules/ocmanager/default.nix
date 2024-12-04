@@ -5,11 +5,13 @@ with lib;
 let
   cfg = config.programs.ocmanager;
 
+  inherit(import ../.. { inherit pkgs; }) launch_socket_server ocmanager;
+
   toLaunchd =  name: profile: {
     ProcessType = "Background";
     ProgramArguments = [
-      "${pkgs.launch_socket_server}/bin/launch_socket_server"
-      "${pkgs.ocmanager}/bin/ocmanager"
+      "${launch_socket_server}/bin/launch_socket_server"
+      "${ocmanager}/bin/ocmanager"
       "-p"
       "${name}"
     ] ++ optionals profile.token ["-t"];
