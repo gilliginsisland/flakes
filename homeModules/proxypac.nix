@@ -123,7 +123,7 @@ in
       config = {
         ProcessType = "Background";
         ProgramArguments = [
-          "${cgiPkg}/bin/proxypac-cgi"
+          (meta.getExe cgiPkg)
           "${config.xdg.configHome}/proxypac/proxy.pac"
         ];
         inetdCompatibility.Wait = false;
@@ -146,7 +146,7 @@ in
       in
         nameValuePair "proxypac:${builtins.toString n}" {
           host = builtins.concatStringsSep " " hosts;
-          proxyCommand = "/usr/bin/nc -X 5 -x ${address}:${builtins.toString port} %h %p";
+          proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
         }
     ) cfg.rules);
   };

@@ -7,7 +7,7 @@ let
     let
       bindArg = if ondemand then ''''${LAUNCH_CMD_ADDRESS}'' else "${address}:${port}";
     in ''
-      "${pkgs.ocproxy}/bin/ocproxy" -D "${bindArg}"
+      "${getBin pkgs.ocproxy}/bin/ocproxy" -D "${bindArg}"
     '';
 
   mkKeyValue = key: value:
