@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 : ${XDG_CACHE_HOME:="${HOME}/.cache"}
 : ${XDG_CONFIG_HOME:="${HOME}/.config"}
@@ -8,14 +8,14 @@ set -euo pipefail
 
 PROGRAM=$(basename "${BASH_SOURCE[0]%.*}")
 
-export CSD_POST="@out@/lib/ocmanager/csd-post"
-export CSD_WRAPPER="@openconnect_root@/libexec/openconnect/csd-wrapper.sh"
-export HIPREPORT_ANDROID="@openconnect_root@/libexec/openconnect/hipreport-android.sh"
-export HIPREPORT="@openconnect_root@/libexec/openconnect/hipreport.sh"
-export OCPROXY="@ocproxy_root@/bin/ocproxy"
+export CSD_POST="@SELF@/lib/ocmanager/csd-post"
+export CSD_WRAPPER="@OPENCONNECT@/libexec/openconnect/csd-wrapper.sh"
+export HIPREPORT_ANDROID="@OPENCONNECT@/libexec/openconnect/hipreport-android.sh"
+export HIPREPORT="@OPENCONNECT@/libexec/openconnect/hipreport.sh"
+export OCPROXY="@OCPROXY@/bin/ocproxy"
 
-OPENSSL="@openssl_root@/bin/openssl"
-CURL="@curl_root@/bin/curl"
+OPENSSL="@OPENSSL@/bin/openssl"
+CURL="@CURL@/bin/curl"
 
 usage() {
 	builtin echo "script usage: $(basename $0) [-t] -p profile"
@@ -37,33 +37,59 @@ if [[ -z "${PROFILE-}" ]]; then
 fi
 
 CONFIG_FILE="${XDG_CONFIG_HOME}/ocmanager/profiles/${PROFILE}.conf"
-CONFIG=$('@envsubst_root@/bin/envsubst' -no-unset -no-empty < "$CONFIG_FILE")
+CONFIG=$('@ENVSUBST@/bin/envsubst' -no-unset -no-empty < "$CONFIG_FILE")
 KEYCHAIN_ACCOUNT="ocmanager:${PROFILE}"
 
 notify() {
-	'@terminal_notifier_root@/bin/terminal-notifier' \
+	'@TERMINAL_NOTIFIER@/bin/terminal-notifier' \
 		-appIcon /System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericNetworkIcon.icns \
 		-title "${PROGRAM}" -subtitle "${PROFILE}" \
 		-group "${PROFILE}-$1" -ignoreDnD
 }
 
+die() {
+	if [ $# -gt 0 ]; then
+		echo "Error: $1" 1>&2
+	fi
+	exit 1
+}
+
 getSecureInput() {
-	# popup to ask for password
-	'@osascript_root@/bin/osascript' <<-EOF
+	local message="$1"
+	'@OSASCRIPT@/bin/osascript' <<-EOF || die
 		set icn to path to resource "GenericNetworkIcon.icns" in bundle file ((path to "csrv" as Unicode text) & "CoreTypes.bundle")
-		set passwordPrompt to display dialog "$1\n\nPassword for ${PROFILE}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "Cisco Openconnect VPN" with hidden answer
+		set passwordPrompt to display dialog "${message}" default answer "" with icon icn buttons {"Cancel", "Continue"} default button "Continue" with title "OCManager" with hidden answer
 		get text returned of passwordPrompt
 	EOF
 }
 
-getCredentials() {
+getPasswordInput() {
+	local message="$1"
+	getSecureInput "${message}\n\nPassword for ${PROFILE}"
+}
+
+getPasswordKeychain() {
+	'@SECURITY@/bin/security' find-generic-password -a "$KEYCHAIN_ACCOUNT" -w -s "$KEYCHAIN_ACCOUNT"
+}
+
+savePasswordKeychain() {
+	local password="$1"
+	'@SECURITY@/bin/security' add-generic-password -U -a "$KEYCHAIN_ACCOUNT" -w "$password" -s "$KEYCHAIN_ACCOUNT"
+}
+
+getPassword() {
 	local password
 
-	# popup to ask for password
-	password="$(getSecureInput "$1")"
+	until password="$(getPasswordKeychain)"; do
+		notify "error" <<< "No Credentials In Keychain"
+		password=$(getPasswordInput "No Credentials In Keychain") || die
+		savePasswordKeychain "$password"
+	done
 
-	# save password in keychain
-	'@security_root@/bin/security' add-generic-password -U -a "$KEYCHAIN_ACCOUNT" -w "$password" -s "$KEYCHAIN_ACCOUNT"
+	echo -en "$password"
+	if [ "${TOKEN_MODE-}" == "yubiotp" ]; then
+		getSecureInput "Touch YubiKey for ${PROFILE}" || die "Failed to get yubikey token"
+	fi
 }
 
 getFingerprint() {
@@ -76,8 +102,6 @@ getFingerprint() {
 		fi
 	done <<< "${CONFIG}"
 
-	echo -en "pin-sha256:"
-
 	"${CURL}" -k -w %{certs} "https://${server}/" --silent -o /dev/null \
 		| "${OPENSSL}" x509 -noout -pubkey \
 		| "${OPENSSL}" pkey -pubin -outform der \
@@ -85,56 +109,67 @@ getFingerprint() {
 		| "${OPENSSL}" enc -base64
 }
 
-startProxy() {
-	local password
+getAuthCookie() {
+	local fingerprint
+	fingerprint=$(getFingerprint) || die "Failed to get server fingerprint"
 
-	## on first run there wont be a password in the keychain at all
-	until password=$(security find-generic-password -a "$KEYCHAIN_ACCOUNT" -w -s "$KEYCHAIN_ACCOUNT"); do
-		notify "error" <<< "No Credentials"
-		getCredentials "No Credentials In Keychain"
-	done
-
-	[ "${TOKEN_MODE-}" == "yubiotp" ] && password="${password}$(getSecureInput "Touch YubiKey")"
-
-	notify "status" <<< "Authenticating..."
-	auth_params=$('@openconnect_root@/bin/openconnect' \
+	'@OPENCONNECT@/bin/openconnect' \
 		--config <(builtin echo -en "$CONFIG") \
-		--servercert=$(getFingerprint) \
+		--servercert="pin-sha256:${fingerprint}" \
 		--csd-wrapper="$CSD_POST" \
 		--passwd-on-stdin \
 		--no-external-auth \
 		--non-inter \
-		--authenticate \
-		<<< "$password")
-	eval "$auth_params"
+		--authenticate
+}
+
+teeFds() {
+	local fd1="$1" fd2="$2"
+	tee "/dev/fd/$1" >&$2
+}
+
+startProxy() {
+	local auth_params="" password stderr
+
+	until [ "$auth_params" ]; do
+		notify "status" <<< "Authenticating..."
+		password="$(getPassword)" || die "Failed to get password"
+
+		{
+			auth_params=$({
+				stderr=$({
+					out=$(getAuthCookie <<< "$password" 2> >(teeFds 2 5)) && echo -en "$out" || die "Auth failure"
+				} 5>&1 1>&4) || {
+					if [[ "$stderr" != *"Login failed"* ]]; then
+						notify "error" <<< "Unknown Authentication failure: ${stderr}"
+						die "Unknown Authentication failure"
+					fi
+
+					# for login problems we request new credentials
+					notify "error" <<< "Invalid Credentials: ${stderr}"
+					password=$(getPasswordInput "Incorrect Username / Password combination") || die
+					savePasswordKeychain "$password"
+				}
+			} 4>&1 1>&3)
+		} 3>&1 # save real stdout so it accessible even in variable substitution
+	done
 
 	notify "status" <<< "Connecting..."
-	'@openconnect_root@/bin/openconnect' \
-		--config <(builtin echo -en "$CONFIG") \
-		--cookie-on-stdin \
-		--server "$CONNECT_URL" \
-		--servercert "$FINGERPRINT" \
-		--resolve "$RESOLVE" \
-		<<< "$COOKIE" &
+	(
+		eval "$auth_params"
+		exec '@OPENCONNECT@/bin/openconnect' \
+			--config <(builtin echo -en "$CONFIG") \
+			--cookie-on-stdin \
+			--server "$CONNECT_URL" \
+			--servercert "$FINGERPRINT" \
+			--resolve "$RESOLVE" \
+			<<< "$COOKIE"
+	) &
 	pid=$!
 
 	notify "status" <<< "Connection Established"
 	wait $pid
+	notify "status" <<< "Disconnected"
 }
 
-until { STDERR=$({ startProxy 1>&3 2> >(tee /dev/fd/4 1>&5); } 5>&1); } 3>&1 4>&2; do
-	# for non login failures just quit
-	if [[ "$STDERR" != *"Login failed"* ]]; then
-		echo "Unknown failure" 1>&2
-		notify "error" <<< "Unknown failure: ${STDERR}"
-		exit 1
-	fi
-
-	# for login problems we request new credentials
-	notify "error" <<< "Invalid Credentials: ${STDERR}"
-	getCredentials "Incorrect Username / Password combination";
-done
-
-notify "status" <<< "Disconnected"
-
-exit 0
+startProxy

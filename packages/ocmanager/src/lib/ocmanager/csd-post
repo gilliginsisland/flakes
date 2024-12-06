@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 # Cisco Anyconnect CSD wrapper for OpenConnect
 #
@@ -14,13 +14,12 @@ set -euo pipefail
 # server's security policy with lies. This script exists as an example
 # to work from.
 
-RESPONSE=$(@coreutils_root@/bin/mktemp /tmp/csdresponseXXXXXXX)
-RESULT=$(@coreutils_root@/bin/mktemp /tmp/csdresultXXXXXXX)
+RESPONSE=$(@COREUTILS@/bin/mktemp /tmp/csdresponseXXXXXXX)
 PINNEDPUBKEY=(-s ${CSD_SHA256:+-k --pinnedpubkey "sha256//$CSD_SHA256"})
-trap "rm '${RESPONSE}' '${RESULT}'" EXIT
+trap "rm '${RESPONSE}'" EXIT
 
 
-'@coreutils_root@/bin/cat' >> "$RESPONSE" <<-EOF
+'@COREUTILS@/bin/cat' >> "$RESPONSE" <<-EOF
 	endpoint.os.version="$(uname -s)";
 	endpoint.os.servicepack="$(uname -r)";
 	endpoint.os.architecture="$(uname -m)";
@@ -64,15 +63,15 @@ while [ "${1-}" ]; do
 	shift
 done
 
-URL="https://${CSD_HOSTNAME}/+CSCOE+/sdesktop/token.xml?ticket=$TICKET&stub=$STUB"
-TOKEN=$('@curl_root@/bin/curl' "${PINNEDPUBKEY[@]}" -v "$URL" | '@xmlstarlet_root@/bin/xmlstarlet' sel -t -v /hostscan/token)
+URL="https://${CSD_HOSTNAME}/+CSCOE+/sdesktop/token.xml?ticket=${TICKET}&stub=${STUB}"
+TOKEN=$('@CURL@/bin/curl' --silent "${PINNEDPUBKEY[@]}" "$URL" | '@XMLSTARLET@/bin/xmlstarlet' sel -t -v /hostscan/token)
 
 URL="https://${CSD_HOSTNAME}/CACHE/sdesktop/data.xml"
-'@curl_root@/bin/curl' "${PINNEDPUBKEY[@]}" -v "$URL" | '@xmlstarlet_root@/bin/xmlstarlet' sel -t -v '/data/hostscan/field/@value' | while read -r ENTRY; do
+'@CURL@/bin/curl' --silent "${PINNEDPUBKEY[@]}" "$URL" | '@XMLSTARLET@/bin/xmlstarlet' sel -t -v '/data/hostscan/field/@value' | while read -r ENTRY; do
 	# XX: How are ' and , characters escaped in this?
-	TYPE="$('@gnused_root@/bin/sed' "s/^'\(.*\)','\(.*\)','\(.*\)'$/\1/" <<< "$ENTRY")"
-	NAME="$('@gnused_root@/bin/sed' "s/^'\(.*\)','\(.*\)','\(.*\)'$/\2/" <<< "$ENTRY")"
-	VALUE="$('@gnused_root@/bin/sed' "s/^'\(.*\)','\(.*\)','\(.*\)'$/\3/" <<< "$ENTRY")"
+	TYPE="$('@GNUSED@/bin/sed' "s/^'\(.*\)','\(.*\)','\(.*\)'$/\1/" <<< "$ENTRY")"
+	NAME="$('@GNUSED@/bin/sed' "s/^'\(.*\)','\(.*\)','\(.*\)'$/\2/" <<< "$ENTRY")"
+	VALUE="$('@GNUSED@/bin/sed' "s/^'\(.*\)','\(.*\)','\(.*\)'$/\3/" <<< "$ENTRY")"
 
 	if [ "$TYPE" == "$ENTRY" ]; then
 		builtin echo "Unhandled hostscan field '$ENTRY'"
@@ -88,7 +87,7 @@ URL="https://${CSD_HOSTNAME}/CACHE/sdesktop/data.xml"
 			BASENAME="$(basename "$VALUE")"
 			TS=$(( $(date +%s) - 39115924 ))
 			LASTMOD=39115924
-			'@coreutils_root@/bin/cat' >> "$RESPONSE" <<-EOF
+			'@COREUTILS@/bin/cat' >> "$RESPONSE" <<-EOF
 				endpoint.file["$NAME"]={};
 				endpoint.file["$NAME"].path="$VALUE";
 				endpoint.file["$NAME"].name="$BASENAME";
@@ -99,7 +98,7 @@ URL="https://${CSD_HOSTNAME}/CACHE/sdesktop/data.xml"
 			;;
 
 		Process)
-			'@coreutils_root@/bin/cat' >> "$RESPONSE" <<-EOF
+			'@COREUTILS@/bin/cat' >> "$RESPONSE" <<-EOF
 				endpoint.process["$NAME"]={};
 				endpoint.process["$NAME"].name="$VALUE";
 				endpoint.process["$NAME"].exists="true";
@@ -119,8 +118,6 @@ done
 COOKIE_HEADER="Cookie: sdesktop=$TOKEN"
 CONTENT_HEADER="Content-Type: text/xml"
 URL="https://${CSD_HOSTNAME}/+CSCOE+/sdesktop/scan.xml?reusebrowser=1"
-'@curl_root@/bin/curl' "${PINNEDPUBKEY[@]}" -H "$CONTENT_HEADER" -H "$COOKIE_HEADER" -H 'Expect: ' --data-binary "@$RESPONSE" "$URL" > "$RESULT"
-
-'@coreutils_root@/bin/cat' "$RESULT" || :
+'@CURL@/bin/curl' --silent "${PINNEDPUBKEY[@]}" -H "$CONTENT_HEADER" -H "$COOKIE_HEADER" -H 'Expect: ' --data-binary "@$RESPONSE" "$URL"
 
 exit 0

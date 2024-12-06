@@ -10,10 +10,9 @@ let
   toLaunchd =  name: profile: {
     ProcessType = "Background";
     ProgramArguments = [
-      "${launch_socket_server}/bin/launch_socket_server"
-      "${ocmanager}/bin/ocmanager"
-      "-p"
-      "${name}"
+      (meta.getExe launch_socket_server)
+      (meta.getExe ocmanager)
+      "-p" "${name}"
     ] ++ optionals profile.token ["-t"];
     Sockets = {
       Socket = {
