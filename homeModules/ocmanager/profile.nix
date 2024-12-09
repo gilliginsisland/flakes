@@ -51,11 +51,10 @@ in {
     };
 
     protocol = mkOption {
-      default = null;
       description = ''
         The address / hostname of the server.
       '';
-      type = types.nullOr (types.enum ["anyconnect" "gp"]);
+      type = types.enum ["anyconnect" "gp"];
     };
 
     token = mkOption {
