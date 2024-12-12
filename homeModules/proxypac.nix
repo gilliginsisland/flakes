@@ -5,25 +5,10 @@ with lib;
 let
   cfg = config.programs.proxypac;
 
-  cgiPkg = pkgs.writeShellApplication {
-    name = "proxypac-cgi";
-    text = ''
-      CONTENT="''$(<"''${1}")"
-      LENGTH=''${#CONTENT}
+  server = pkgs.callPackage ../packages/single-serve/package.nix {};
 
-      echo "HTTP/1.1 200 OK"
-      echo "Content-Type: application/x-ns-proxy-autoconfig"
-      echo "Content-Length: ''${LENGTH}"
-      echo "Connection: close"
-      echo ""
-      echo -en "''${CONTENT}"
-
-      exit 0
-    '';
-  };
-
-  toPAC = rules: ''
-    const rules = ${builtins.toJSON rules};
+  file = pkgs.writeText "proxypac" ''
+    const rules = ${builtins.toJSON cfg.rules};
 
     const entries = rules.flatMap(
       ({ hosts, proxy }) => hosts.map(host => [host, proxy])
@@ -123,8 +108,7 @@ in
       config = {
         ProcessType = "Background";
         ProgramArguments = [
-          (meta.getExe cgiPkg)
-          "${config.xdg.configHome}/proxypac/proxy.pac"
+          (meta.getExe server) "${file}" "application/x-ns-proxy-autoconfig"
         ];
         inetdCompatibility.Wait = false;
         Sockets = {
@@ -136,8 +120,6 @@ in
         StandardErrorPath = "${config.xdg.stateHome}/proxypac/proxypac.log";
       };
     };
-
-    xdg.configFile."proxypac/proxy.pac".text = toPAC cfg.rules;
 
     programs.ssh.matchBlocks = listToAttrs (imap1 (n: rule:
       let

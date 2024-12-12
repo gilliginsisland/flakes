@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"time"
 
-	"launch_socket_server/launch"
-	"launch_socket_server/proxy"
+	"launch-socket-server/launch"
+	"launch-socket-server/proxy"
 )
 
 // getenv looks up the environment var, returning a fallback if not set
