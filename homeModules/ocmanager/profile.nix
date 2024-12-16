@@ -27,6 +27,14 @@ in {
       type = types.str;
     };
 
+    usergroup = mkOption {
+      default = null;
+      description = ''
+        Usergroup.
+      '';
+      type = types.nullOr types.str;
+    };
+
     authgroup = mkOption {
       default = null;
       description = ''
@@ -127,7 +135,7 @@ in {
 
     {
       extraConfig = mapAttrs (_: mkDefault) {
-        inherit (config) user server useragent protocol authgroup;
+        inherit (config) user server useragent protocol authgroup usergroup;
       };
     }
 
