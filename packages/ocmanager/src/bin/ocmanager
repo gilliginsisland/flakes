@@ -8,6 +8,7 @@ set -Eeuo pipefail
 
 PROGRAM=$(basename "${BASH_SOURCE[0]%.*}")
 
+export SSO_BROWSER="@SELF@/lib/ocmanager/sso-browser"
 export CSD_POST="@SELF@/lib/ocmanager/csd-post"
 export CSD_WRAPPER="@OPENCONNECT@/libexec/openconnect/csd-wrapper.sh"
 export HIPREPORT_ANDROID="@OPENCONNECT@/libexec/openconnect/hipreport-android.sh"
@@ -116,9 +117,10 @@ getAuthCookie() {
 	'@OPENCONNECT@/bin/openconnect' \
 		--config <(builtin echo -en "$CONFIG") \
 		--servercert="pin-sha256:${fingerprint}" \
+		--gnutls-priority="NORMAL:-VERS-ALL:+VERS-TLS1.2:+RSA:+AES-128-CBC:+SHA1" \
 		--csd-wrapper="$CSD_POST" \
+		--external-browser="$SSO_BROWSER" \
 		--passwd-on-stdin \
-		--no-external-auth \
 		--non-inter \
 		--authenticate
 }
@@ -162,6 +164,7 @@ startProxy() {
 			--cookie-on-stdin \
 			--server "$CONNECT_URL" \
 			--servercert "$FINGERPRINT" \
+			--gnutls-priority="NORMAL:-VERS-ALL:+VERS-TLS1.2:+RSA:+AES-128-CBC:+SHA1" \
 			--resolve "$RESOLVE" \
 			<<< "$COOKIE"
 	) &
