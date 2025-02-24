@@ -56,8 +56,8 @@ in {
       }
     ) cfg.profiles;
 
-    programs.proxypac.rules = mapAttrsToList (
-      name: profile: {
+    programs.proxypac.rules = mapAttrs' (
+      name: profile: nameValuePair "ocmanager:${name}" {
         inherit (profile) hosts;
         proxy = {
           type = "socks5";
