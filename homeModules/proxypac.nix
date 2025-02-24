@@ -10,7 +10,7 @@ let
   file = pkgs.writeText "proxypac" ''
     const rules = ${builtins.toJSON cfg.rules};
 
-    const entries = rules.flatMap(
+    const entries = Object.values(rules).flatMap(
       ({ hosts, proxy }) => hosts.map(host => [host, proxy])
     ).sort(
       ([a], [b]) => b.length - a.length
@@ -34,6 +34,12 @@ in
   options.programs.proxypac = {
     enable = mkEnableOption "Proxy Auto Configuration";
 
+    ssh_config = mkOption {
+      description = ''Enable ssh config management'';
+      default = true;
+      type = types.bool;
+    };
+
     address = mkOption {
       description = ''
         The address to bind the PAC server to.
@@ -54,7 +60,7 @@ in
       description = ''
         Proxy rule definitions. Will be used to build the proxy.pac file.
       '';
-      type = types.listOf (types.submodule {
+      type = types.attrsOf (types.submodule {
         options = {
           hosts = mkOption {
             description = ''
@@ -121,15 +127,16 @@ in
       };
     };
 
-    programs.ssh.matchBlocks = listToAttrs (imap1 (n: rule:
-      let
-        inherit (rule) hosts;
-        inherit (rule.proxy) address port;
-      in
-        nameValuePair "proxypac:${builtins.toString n}" {
-          host = builtins.concatStringsSep " " hosts;
-          proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
-        }
+    programs.ssh.matchBlocks = mkIf cfg.ssh_config (mapAttrs' (
+      name: rule:
+        let
+          inherit (rule) hosts;
+          inherit (rule.proxy) address port;
+        in
+          nameValuePair "proxypac:${name}" {
+            host = builtins.concatStringsSep " " hosts;
+            proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
+          }
     ) cfg.rules);
   };
 }
