@@ -81,6 +81,14 @@ in {
       type = types.listOf types.str;
     };
 
+    resolve_hosts = mkOption {
+      default = [];
+      description = ''
+        List of domain patterns to resolve first before route through the proxy.
+      '';
+      type = types.listOf types.str;
+    };
+
     proxy = mkOption {
       default = null;
       description = ''

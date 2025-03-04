@@ -43,28 +43,38 @@ in {
   config = mkIf cfg.enable {
     home.packages = [ ocmanager ];
 
-    launchd.agents = concatMapAttrs (name: profile: optionalAttrs profile.proxy.ondemand {
-      "ocmanager.${name}" = {
-        enable = true;
-        config = toLaunchd name profile;
-      };
-    }) cfg.profiles;
-
-    xdg.configFile = mapAttrs' (name: profile:
-      nameValuePair "ocmanager/profiles/${name}.conf" {
-        inherit (profile) text;
-      }
-    ) cfg.profiles;
-
-    programs.proxypac.rules = mapAttrs' (
-      name: profile: nameValuePair "ocmanager:${name}" {
-        inherit (profile) hosts;
-        proxy = {
-          type = "socks5";
-          address = "127.0.0.1";
-          inherit (profile.proxy) port;
+    launchd.agents = concatMapAttrs
+      (name: profile: optionalAttrs profile.proxy.ondemand {
+        "ocmanager.${name}" = {
+          enable = true;
+          config = toLaunchd name profile;
         };
-      }
-    ) cfg.profiles;
+      })
+      cfg.profiles;
+
+    xdg.configFile = mapAttrs'
+      (name: profile: nameValuePair "ocmanager/profiles/${name}.conf" {
+        inherit (profile) text;
+      })
+      cfg.profiles;
+
+    programs.proxypac.rules = concatMapAttrs
+      (name: profile:
+        let
+          mkRule = type: hosts: {
+            inherit hosts;
+            proxy = {
+              inherit type;
+              inherit (profile.proxy) port;
+              address = "127.0.0.1";
+            };
+          };
+          inherit (profile) hosts resolve_hosts;
+        in {
+          ${"ocmanager:${name}:hosts"} = (mkRule "socks5h" hosts);
+          ${"ocmanager:${name}:resolve_hosts"} = (mkRule "socks5" resolve_hosts);
+        }
+      )
+      cfg.profiles;
   };
 }
