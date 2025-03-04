@@ -4,26 +4,40 @@ with lib;
 
 let
   cfg = config.programs.proxypac;
+  rules = lib.attrValues cfg.rules;
 
-  server = pkgs.callPackage ../packages/single-serve/package.nix {};
+  single-serve = pkgs.callPackage ../../packages/single-serve/package.nix {};
+  pacproxy = pkgs.callPackage ../../packages/pacproxy.nix {};
 
-  file = pkgs.writeText "proxypac" ''
-    const rules = ${builtins.toJSON cfg.rules};
+  pacfile = pkgs.writeText "proxypac" ''
+    var rules = ${builtins.toJSON rules};
 
-    const entries = Object.values(rules).flatMap(
-      ({ hosts, proxy }) => hosts.map(host => [host, proxy])
-    ).sort(
-      ([a], [b]) => b.length - a.length
-    );
+    var entries = [];
+    rules.forEach(function(rule){
+      rule.hosts.forEach(function(host){
+        entries.push([host, rule.proxy]);
+      });
+    });
+    entries.sort(function(a, b) {
+      return b[0].length - a[0].length;
+    });
 
     function FindProxyForURL(_, host) {
-      for (const [shExp, proxy] of entries) {
-        if (shExpMatch(host, shExp)) {
-          const { type, address, port } = proxy;
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
 
-          if (type === "socks5") {
-            return ["SOCKS5", "SOCKS"].map(scheme => `''${scheme} ''${address}:''${port}`).join(";");
-          }
+        var shExp = entry[0];
+        var proxy = entry[1];
+
+        if (!shExpMatch(host, shExp)) {
+          continue;
+        }
+
+        if (proxy.type === "socks5") {
+          // return ["SOCKS5", "SOCKS"].map(function(scheme) {
+          //   return scheme + " " + proxy.address + ":" + proxy.port;
+          // }).join(";");
+          return "SOCKS " + proxy.address + ":" + proxy
         }
       }
       return 'DIRECT';
@@ -54,6 +68,30 @@ in
         The port to bind the PAC server to.
       '';
       type = types.port;
+    };
+
+    http = {
+      enable = mkEnableOption "HTTP proxypac Wrapper";
+      address = mkOption {
+        description = ''
+          The address to bind the HTTP proxypac server.
+        '';
+        default = "127.0.0.1";
+        type = types.str;
+      };
+      port = mkOption {
+        description = ''
+          The port to bind the HTTP proxypac server.
+        '';
+        type = types.port;
+      };
+      debug = mkOption {
+        description = ''
+          Enable debug output.
+        '';
+        default = false;
+        type = types.bool;
+      };
     };
 
     rules = mkOption {
@@ -114,7 +152,7 @@ in
       config = {
         ProcessType = "Background";
         ProgramArguments = [
-          (meta.getExe server) "${file}" "application/x-ns-proxy-autoconfig"
+          (meta.getExe single-serve) "${pacfile}" "application/x-ns-proxy-autoconfig"
         ];
         inetdCompatibility.Wait = false;
         Sockets = {
@@ -124,6 +162,20 @@ in
           };
         };
         StandardErrorPath = "${config.xdg.stateHome}/proxypac/proxypac.log";
+      };
+    };
+
+    launchd.agents.pacproxy = mkIf cfg.http.enable {
+      enable =  true;
+      config = {
+        KeepAlive = true;
+        ProcessType = "Background";
+        ProgramArguments = [
+          (meta.getExe pkgs.pacproxy)
+          "-c" "${pacfile}"
+          "-l" "${cfg.http.address}:${builtins.toString cfg.http.port}"
+        ] ++ lib.optionals cfg.http.debug [ "-v" ];
+        StandardErrorPath = "${config.xdg.stateHome}/proxypac/http.log";
       };
     };
 
