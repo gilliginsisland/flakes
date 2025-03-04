@@ -41,7 +41,7 @@ in {
   };
 
   config = mkIf cfg.enable {
-    home.packages = with pkgs; [ ocmanager ];
+    home.packages = [ ocmanager ];
 
     launchd.agents = concatMapAttrs (name: profile: optionalAttrs profile.proxy.ondemand {
       "ocmanager.${name}" = {
