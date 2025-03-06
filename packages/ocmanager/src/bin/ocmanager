@@ -3,12 +3,8 @@ set -Eeuo pipefail
 
 PROGRAM=$(basename "${BASH_SOURCE[0]%.*}")
 
-export SSO_BROWSER="@SELF@/lib/ocmanager/sso-browser"
-export CSD_POST="@SELF@/lib/ocmanager/csd-post"
-export CSD_WRAPPER="@OPENCONNECT@/libexec/openconnect/csd-wrapper.sh"
-export HIPREPORT_ANDROID="@OPENCONNECT@/libexec/openconnect/hipreport-android.sh"
-export HIPREPORT="@OPENCONNECT@/libexec/openconnect/hipreport.sh"
-export OCPROXY="@OCPROXY@/bin/ocproxy"
+SSO_BROWSER="@SELF@/lib/ocmanager/sso-browser"
+CSD_POST="@SELF@/lib/ocmanager/csd-post"
 
 OPENSSL="@OPENSSL@/bin/openssl"
 CURL="@CURL@/bin/curl"
