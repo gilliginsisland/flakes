@@ -1,11 +1,6 @@
 #!/bin/bash
 set -Eeuo pipefail
 
-: ${XDG_CACHE_HOME:="${HOME}/.cache"}
-: ${XDG_CONFIG_HOME:="${HOME}/.config"}
-: ${XDG_DATA_HOME:="${HOME}/.local/share"}
-: ${XDG_STATE_HOME:="${HOME}/.local/state"}
-
 PROGRAM=$(basename "${BASH_SOURCE[0]%.*}")
 
 export SSO_BROWSER="@SELF@/lib/ocmanager/sso-browser"
@@ -17,29 +12,11 @@ export OCPROXY="@OCPROXY@/bin/ocproxy"
 
 OPENSSL="@OPENSSL@/bin/openssl"
 CURL="@CURL@/bin/curl"
+BASENAME="@COREUTILS@/bin/basename"
 
 usage() {
-	builtin echo "script usage: $(basename $0) [-t] -p profile"
+	builtin echo "script usage: $(basename $0) [-t] -c config_file"
 }
-
-## opts
-while getopts 'p:th' OPTION; do
-	case "$OPTION" in
-		p) PROFILE="$OPTARG" ;;
-		t) TOKEN_MODE="yubiotp" ;;
-		h) usage; exit 0 ;;
-		?) usage >&2; exit 1 ;;
-	esac
-done
-shift "$(($OPTIND -1))"
-
-if [[ -z "${PROFILE-}" ]]; then
-	usage >&2; exit 1
-fi
-
-CONFIG_FILE="${XDG_CONFIG_HOME}/ocmanager/profiles/${PROFILE}.conf"
-CONFIG=$('@ENVSUBST@/bin/envsubst' -no-unset -no-empty < "$CONFIG_FILE")
-KEYCHAIN_ACCOUNT="ocmanager:${PROFILE}"
 
 notify() {
 	'@TERMINAL_NOTIFIER@/bin/terminal-notifier' \
@@ -54,6 +31,29 @@ die() {
 	fi
 	exit 1
 }
+
+## opts
+while getopts 'c:th' OPTION; do
+	case "$OPTION" in
+		c) CONFIG_FILE="$OPTARG" ;;
+		t) TOKEN_MODE="yubiotp" ;;
+		h) usage; exit 0 ;;
+		?) usage >&2; exit 1 ;;
+	esac
+done
+shift "$(($OPTIND -1))"
+
+if [[ -z "${CONFIG_FILE-}" ]]; then
+	die "$(usage)"
+fi
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+	die "Config file not found: $CONFIG_FILE"
+fi
+
+PROFILE=$("$BASENAME" "$CONFIG_FILE")
+CONFIG=$('@ENVSUBST@/bin/envsubst' -no-unset -no-empty < "$CONFIG_FILE")
+KEYCHAIN_ACCOUNT="ocmanager:${PROFILE}"
 
 getSecureInput() {
 	local message="$1"

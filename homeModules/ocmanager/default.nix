@@ -7,12 +7,13 @@ let
 
   inherit(import ../.. { inherit pkgs; }) launch-socket-server ocmanager;
 
-  toLaunchd =  name: profile: {
+  toLaunchd = name: profile: {
     ProcessType = "Background";
     ProgramArguments = [
       (meta.getExe launch-socket-server)
       (meta.getExe ocmanager)
-      "-p" "${name}"
+      "-c"
+      ''${pkgs.writeTextDir name profile.text}/${name}''
     ] ++ optionals profile.token ["-t"];
     Sockets = {
       Socket = {
@@ -49,12 +50,6 @@ in {
         config = toLaunchd name profile;
       };
     }) cfg.profiles;
-
-    xdg.configFile = mapAttrs' (name: profile:
-      nameValuePair "ocmanager/profiles/${name}.conf" {
-        inherit (profile) text;
-      }
-    ) cfg.profiles;
 
     programs.proxypac.rules = mapAttrs' (
       name: profile: nameValuePair "ocmanager:${name}" {
