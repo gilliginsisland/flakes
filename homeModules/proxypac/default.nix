@@ -22,6 +22,18 @@ let
       return b[0].length - a[0].length;
     });
 
+    function toProxyDirective(proxy) {
+      switch (proxy.type) {
+        case "http":
+          return "PROXY " + proxy.address + ":" + proxy.port;
+        case "https":
+          return "HTTPS " + proxy.address + ":" + proxy.port;
+        case "socks5":
+          return "SOCKS5 " + proxy.address + ":" + proxy.port + ";SOCKS " + proxy.address + ":" + proxy.port;
+      }
+      return proxy.type + " " + proxy.address + ":" + proxy.port;
+    }
+
     function FindProxyForURL(_, host) {
       for (var i = 0; i < entries.length; i++) {
         var entry = entries[i];
@@ -29,15 +41,8 @@ let
         var shExp = entry[0];
         var proxy = entry[1];
 
-        if (!shExpMatch(host, shExp)) {
-          continue;
-        }
-
-        if (proxy.type === "socks5") {
-          // return ["SOCKS5", "SOCKS"].map(function(scheme) {
-          //   return scheme + " " + proxy.address + ":" + proxy.port;
-          // }).join(";");
-          return "SOCKS " + proxy.address + ":" + proxy
+        if (shExpMatch(host, shExp)) {
+          return toProxyDirective(proxy);
         }
       }
       return 'DIRECT';
@@ -114,8 +119,7 @@ in
             type = types.submodule {
               options = {
                 type = mkOption {
-                  type = types.enum [ "socks5" ];
-                  default = "socks5";
+                  type = types.enum ["http" "https" "socks5"];
                   description = "The type of proxy.";
                 };
 
@@ -179,16 +183,17 @@ in
       };
     };
 
-    programs.ssh.matchBlocks = mkIf cfg.ssh_config (mapAttrs' (
-      name: rule:
+    programs.ssh.matchBlocks = mkIf cfg.ssh_config (mapAttrs'
+      (name: rule: nameValuePair "proxypac:${name}" (
         let
           inherit (rule) hosts;
           inherit (rule.proxy) address port;
-        in
-          nameValuePair "proxypac:${name}" {
-            host = builtins.concatStringsSep " " hosts;
-            proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
-          }
-    ) cfg.rules);
+        in {
+          host = builtins.concatStringsSep " " hosts;
+          proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
+        }
+      ))
+      (filterAttrs (name: rule: rule.hosts != []) cfg.rules)
+    );
   };
 }
