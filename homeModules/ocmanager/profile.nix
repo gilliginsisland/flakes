@@ -1,23 +1,37 @@
-{ config, lib, pkgs, ... }:
+{ name, config, lib, pkgs, ... }:
 
 with lib;
 
 let
-  toProxyScript = { ondemand, address, port }:
-    let
-      bindArg = if ondemand then ''''${LAUNCH_CMD_ADDRESS}'' else "${address}:${port}";
-    in ''
-      "${getBin pkgs.ocproxy}/bin/ocproxy" -D "${bindArg}"
-    '';
+  inherit(import ../.. { inherit pkgs; }) ocproxyng;
 
-  mkKeyValue = key: value:
-    if builtins.isBool value then (
-      if value then key else ""
-    ) else (
-      if value != null then "${key}=${builtins.toString value}" else ""
+  configTextGenerator = generators.toKeyValue {
+    mkKeyValue = key: value:
+      if builtins.isBool value then (
+        if value then key else ""
+      ) else (
+        if value != null then "${key}=${builtins.toString value}" else ""
+      );
+  };
+
+  toHostsFile = hostList:
+    pkgs.writeText "${name}_hosts" (
+      lib.concatStringsSep "\n" (map
+        (host: "${host} ${concatStringsSep " " (hostList.${host})}")
+        (lib.attrNames hostList)
+      )
     );
 
-  toText = generators.toKeyValue { inherit mkKeyValue; };
+  proxyScriptArgs = [
+    (meta.getExe ocproxyng)
+    "-D" (
+      if config.proxy.ondemand
+      then ''''${LAUNCH_CMD_ADDRESS}''
+      else "${config.proxy.address}:${config.proxy.port}"
+    )
+  ] ++ (lib.optionals (config.proxy.hostList != null) [
+    "-H" config.proxy.hostList
+  ]);
 in {
   options = {
     user = mkOption {
@@ -76,7 +90,7 @@ in {
     hosts = mkOption {
       default = [];
       description = ''
-        List of domain patterns to route through the proxy.
+        List of domain patterns to resolve through the proxy.
       '';
       type = types.listOf types.str;
     };
@@ -108,6 +122,19 @@ in {
             description = ''
               The port to bind the SOCKS proxy to.
             '';
+          };
+
+          hostList = mkOption {
+            default = "/etc/hosts";
+            description = ''
+              Either the path to a /etc/hosts style mapping of ip to hostname for the proxy.
+              or a list of ip to hostnames mapping.
+            '';
+            type = types.nullOr (types.either types.str (types.attrsOf (types.listOf types.str)));
+            apply = strOrList:
+              if builtins.isString strOrList
+              then strOrList
+              else toHostsFile strOrList;
           };
         };
       });
@@ -142,14 +169,12 @@ in {
     (mkIf (config.proxy != null) {
       extraConfig = {
         script-tun = true;
-        script = toProxyScript {
-          inherit (config.proxy) ondemand address port;
-        };
+        script = lib.escapeShellArgs proxyScriptArgs;
       };
     })
 
     {
-      text = toText config.extraConfig;
+      text = configTextGenerator config.extraConfig;
     }
   ];
 }

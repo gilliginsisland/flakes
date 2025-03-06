@@ -8,7 +8,6 @@
   terminal-notifier,
   openconnect,
   openssl,
-  ocproxy,
   xmlstarlet,
   gnused,
   curl,
@@ -34,7 +33,6 @@ let
       netcat
       terminal-notifier
       openconnect
-      ocproxy
       xmlstarlet
       gnused
       curl
