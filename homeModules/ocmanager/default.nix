@@ -7,6 +7,8 @@ let
 
   inherit(import ../.. { inherit pkgs; }) launch-socket-server ocmanager;
 
+  filterProfiles = f: filterAttrs (name: profile: f profile) cfg.profiles;
+
   toLaunchd = name: profile: {
     ProcessType = "Background";
     ProgramArguments = [
@@ -23,6 +25,15 @@ let
     };
     StandardOutPath = "${config.xdg.stateHome}/ocmanager/${name}.log";
     StandardErrorPath = "${config.xdg.stateHome}/ocmanager/${name}.log";
+  };
+
+  toPACRule = name: profile: {
+    inherit (profile) hosts;
+    proxies = [{
+      type = "socks5";
+      address = "127.0.0.1";
+      inherit (profile.proxy) port;
+    }];
   };
 in {
   options.programs.ocmanager = {
@@ -49,17 +60,9 @@ in {
         enable = true;
         config = toLaunchd name profile;
       })
-      (filterAttrs (name: profile: profile.proxy.ondemand) cfg.profiles);
+      (filterProfiles (profile: profile.proxy.ondemand));
 
-    programs.proxypac.rules = mapAttrs'
-      (name: profile: nameValuePair "ocmanager:${name}" {
-        inherit (profile) hosts;
-        proxy = {
-          type = "socks5";
-          address = "127.0.0.1";
-          inherit (profile.proxy) port;
-        };
-      })
-      (filterAttrs (name: profile: profile.hosts != []) cfg.profiles);
+    programs.proxypac.rules = mapAttrsToList toPACRule
+      (filterProfiles (profile: profile.hosts != []));
   };
 }
