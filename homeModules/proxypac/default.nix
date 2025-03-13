@@ -3,43 +3,51 @@
 with lib;
 
 let
+  inherit(import ../.. { inherit pkgs; }) launch-socket-server single-serve pacman;
+
   cfg = config.programs.proxypac;
 
-  rules = reverseList (sortOn (r: stringLength r.hosts) (concatMap
+  rules = reverseList (sortOn (r: stringLength r.host) (concatMap
     (rule: map
-      (host: (rule // { hosts = host; }))
+      (host: removeAttrs (rule // { inherit host; }) ["hosts"])
       rule.hosts
     )
     cfg.rules
   ));
 
-  toProxyPacDirective = proxies: concatMapStringsSep "; "
-    (proxy: with proxy; "${toUpper type} ${address}:${builtins.toString port}")
-    (concatMap
-      (proxy: [proxy] ++ optionals
-        (proxy.type == "socks5")
-        [(proxy // { type = "socks"; })]
-      )
-      proxies
-    );
+  pacfile = let
+    toProxyDirectives = proxies: concatMapStringsSep "; "
+      (proxy: with proxy; "${toUpper type} ${address}:${builtins.toString port}")
+      (concatMap
+        (proxy: [proxy] ++ optionals
+          (proxy.type == "socks5")
+          [(proxy // { type = "socks"; })]
+        )
+        proxies
+      );
 
-  toIf = rule: with rule; ''
-    if (shExpMatch(host, "${hosts}")) {
-      return "${toProxyPacDirective proxies}";
-    }
-  '';
-
-  pacfile = pkgs.writeText "proxypac" ''
+    toShExpMatch = rule: with rule; ''
+      if (shExpMatch(host, "${host}")) {
+        return "${toProxyDirectives proxies}";
+      }
+    '';
+  in pkgs.writeText "proxypac" ''
     function FindProxyForURL(url, host) {
-    ${concatMapStrings toIf rules}
-    return 'DIRECT';
+      ${concatMapStrings toShExpMatch rules}
+      return 'DIRECT';
     }
   '';
 
-  single-serve = pkgs.callPackage ../../packages/single-serve/package.nix {};
-  pacproxy = pkgs.callPackage ../../packages/pacproxy.nix {};
-in
-{
+  rulefile = let
+    toProxyUrl = proxy: with proxy; "${type}://${address}:${builtins.toString port}";
+    pacManRules = builtins.toJSON (map
+      (rule: rule // {
+        proxies = map toProxyUrl rule.proxies;
+      })
+      rules
+    );
+  in pkgs.writeText "rulefile" pacManRules;
+in {
   options.programs.proxypac = {
     enable = mkEnableOption "Proxy Auto Configuration";
 
@@ -65,18 +73,18 @@ in
       type = types.port;
     };
 
-    http = {
-      enable = mkEnableOption "HTTP proxypac Wrapper";
+    pacman = {
+      enable = mkEnableOption "pacman - Rule-based HTTP proxy server";
       address = mkOption {
         description = ''
-          The address to bind the HTTP proxypac server.
+          The address to bind the pacman server.
         '';
         default = "127.0.0.1";
         type = types.str;
       };
       port = mkOption {
         description = ''
-          The port to bind the HTTP proxypac server.
+          The port to bind the pacman server.
         '';
         type = types.port;
       };
@@ -155,21 +163,27 @@ in
             SockServiceName = builtins.toString cfg.port;
           };
         };
-        StandardErrorPath = "${config.xdg.stateHome}/proxypac/proxypac.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/${config.launchd.agents.proxypac.config.Label}.log";
       };
     };
 
-    launchd.agents.pacproxy = mkIf cfg.http.enable {
-      enable =  true;
+    launchd.agents.pacman = {
+      enable =  cfg.pacman.enable;
       config = {
         KeepAlive = true;
         ProcessType = "Background";
         ProgramArguments = [
-          (meta.getExe pkgs.pacproxy)
-          "-c" "${pacfile}"
-          "-l" "${cfg.http.address}:${builtins.toString cfg.http.port}"
-        ] ++ optionals cfg.http.debug [ "-v" ];
-        StandardErrorPath = "${config.xdg.stateHome}/proxypac/http.log";
+          (meta.getExe pacman)
+          "-f" "${rulefile}"
+          "-l" "${cfg.pacman.address}:${builtins.toString cfg.pacman.port}"
+        ] ++ optionals cfg.pacman.debug [ "-v" ];
+        # Sockets = {
+        #   Socket = {
+        #     SockNodeName = cfg.pacman.address;
+        #     SockServiceName = builtins.toString cfg.pacman.port;
+        #   };
+        # };
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/${config.launchd.agents.pacman.config.Label}.log";
       };
     };
 

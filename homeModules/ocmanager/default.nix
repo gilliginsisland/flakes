@@ -23,8 +23,8 @@ let
         SockServiceName = builtins.toString profile.proxy.port;
       };
     };
-    StandardOutPath = "${config.xdg.stateHome}/ocmanager/${name}.log";
-    StandardErrorPath = "${config.xdg.stateHome}/ocmanager/${name}.log";
+    StandardOutPath = "${config.home.homeDirectory}/Library/Logs/${config.launchd.agents."ocmanager.${name}".config.Label}.log";
+    StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/${config.launchd.agents."ocmanager.${name}".config.Label}.log";
   };
 
   toPACRule = name: profile: {
