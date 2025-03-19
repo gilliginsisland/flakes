@@ -49,8 +49,10 @@ func (g *GHost) dialersForAddress(address string) ([]proxy.Dialer, error) {
 	}
 
 	for _, r := range g.Ruleset.rules {
-		if r.matcher.MatchString(host) {
-			return r.dialers, nil
+		for _, m := range r.matchers {
+			if m.MatchString(host) {
+				return r.dialers, nil
+			}
 		}
 	}
 
