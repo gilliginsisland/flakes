@@ -10,8 +10,8 @@ import (
 )
 
 type Rule struct {
-	matcher matcher.StringMatcher
-	dialers []proxy.Dialer
+	matchers []matcher.StringMatcher
+	dialers  []proxy.Dialer
 }
 
 type Ruleset struct {
@@ -26,19 +26,26 @@ func NewRuleset(fwd proxy.Dialer) *Ruleset {
 	}
 }
 
-func (rs *Ruleset) loadRawRule(host string, proxies []string) error {
+func (rs *Ruleset) loadRawRule(hosts []string, proxies []string) error {
 	var rule Rule
 
-	if m, err := matcher.CompileMatcher(host); err != nil {
-		return fmt.Errorf("invalid host matcher '%s': %w", host, err)
-	} else {
-		rule.matcher = m
+	for _, h := range hosts {
+		m, err := matcher.CompileMatcher(h)
+		if err != nil {
+			slog.Warn(fmt.Sprintf("skipping invalid host matcher '%s': %s", h, err.Error()))
+			continue
+		}
+		rule.matchers = append(rule.matchers, m)
+	}
+
+	if l := len(rule.matchers); l == 0 {
+		return fmt.Errorf("All hosts are invalid")
 	}
 
 	for _, p := range proxies {
 		d, err := rs.factory.Get(p)
 		if err != nil {
-			slog.Warn(fmt.Sprintf("skipping unsupported proxy: %s: host: %s: %s", p, host, err.Error()))
+			slog.Warn(fmt.Sprintf("skipping unsupported proxy: %s: %s", p, err.Error()))
 			continue
 		}
 		rule.dialers = append(rule.dialers, d)
@@ -55,7 +62,7 @@ func (rs *Ruleset) loadRawRule(host string, proxies []string) error {
 // UnmarshalJSON implements the json.Unmarshaler interface.
 func (rs *Ruleset) UnmarshalJSON(data []byte) error {
 	var rules []struct {
-		Host    string   `json:"host"`
+		Hosts   []string `json:"hosts"`
 		Proxies []string `json:"proxies"`
 	}
 
@@ -64,7 +71,7 @@ func (rs *Ruleset) UnmarshalJSON(data []byte) error {
 	}
 
 	for _, raw := range rules {
-		err := rs.loadRawRule(raw.Host, raw.Proxies)
+		err := rs.loadRawRule(raw.Hosts, raw.Proxies)
 		if err != nil {
 			return err
 		}

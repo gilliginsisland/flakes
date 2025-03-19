@@ -7,15 +7,15 @@ let
 
   cfg = config.programs.proxypac;
 
-  rules = reverseList (sortOn (r: stringLength r.host) (concatMap
-    (rule: map
-      (host: removeAttrs (rule // { inherit host; }) ["hosts"])
-      rule.hosts
-    )
-    cfg.rules
-  ));
-
   pacfile = let
+    rules' = reverseList (sortOn (r: stringLength r.host) (concatMap
+      (rule: map
+        (host: removeAttrs (rule // { inherit host; }) ["hosts"])
+        rule.hosts
+      )
+      cfg.rules
+    ));
+
     toProxyDirectives = proxies: concatMapStringsSep "; "
       (proxy: with proxy; "${toUpper type} ${address}:${builtins.toString port}")
       (concatMap
@@ -33,7 +33,7 @@ let
     '';
   in pkgs.writeText "proxypac" ''
     function FindProxyForURL(url, host) {
-      ${concatMapStrings toShExpMatch rules}
+      ${concatMapStrings toShExpMatch rules'}
       return 'DIRECT';
     }
   '';
@@ -53,7 +53,7 @@ let
       (rule: rule // {
         proxies = map toProxyUrl rule.proxies;
       })
-      rules
+      cfg.rules
     );
   in pkgs.writeText "rulefile" pacManRules;
 
