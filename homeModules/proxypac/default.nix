@@ -39,7 +39,16 @@ let
   '';
 
   rulefile = let
-    toProxyUrl = proxy: with proxy; "${type}://${address}:${builtins.toString port}";
+    toProxyUrl = proxy: with proxy; concatStrings [
+      (type + "://")
+      (optionalString (username != null) (escapeURL username))
+      (optionalString (password != null) (":" + escapeURL password))
+      (optionalString (username != null) "@")
+      address
+      (optionalString (port != null) (":" + builtins.toString port))
+      (optionalString (identity != null) "/?identity=${escapeURL identity}")
+    ];
+
     pacManRules = builtins.toJSON (map
       (rule: rule // {
         proxies = map toProxyUrl rule.proxies;
@@ -47,6 +56,68 @@ let
       rules
     );
   in pkgs.writeText "rulefile" pacManRules;
+
+  types = lib.types // rec {
+    rule = types.submodule {
+      options = {
+        hosts = mkOption {
+          description = ''
+            List of domain patterns to route through the proxy.
+          '';
+          type = types.listOf types.str;
+        };
+
+        proxies = mkOption {
+          description = ''
+            Proxy configuration.
+          '';
+          type = types.listOf proxy;
+        };
+      };
+    };
+
+    proxy = types.submodule {
+      options = {
+        type = mkOption {
+          type = types.enum ["http" "https" "socks5" "ssh"];
+          description = "The type of proxy.";
+        };
+
+        address = mkOption {
+          type = types.str;
+          default = "127.0.0.1";
+          description = ''
+            The address of the proxy to connect to.
+          '';
+        };
+
+        port = mkOption {
+          type = types.port;
+          description = ''
+            The port of the proxy to connect to.
+          '';
+        };
+
+        username = mkOption {
+          type = types.nullOr types.str;
+          description = "Username for authentication";
+          default = null;
+        };
+
+        password = mkOption {
+          type = types.nullOr types.str;
+          description = "Password for authentication";
+          default = null;
+        };
+
+        identity = mkOption {
+          type = types.nullOr types.path;
+          description = "Path to the private key file for authentication";
+          default = null;
+        };
+      };
+    };
+  };
 in {
   options.programs.proxypac = {
     enable = mkEnableOption "Proxy Auto Configuration";
@@ -101,45 +172,8 @@ in {
       description = ''
         Proxy rule definitions. Will be used to build the proxy.pac file.
       '';
-      type = types.listOf (types.submodule {
-        options = {
-          hosts = mkOption {
-            description = ''
-              List of domain patterns to route through the proxy.
-            '';
-            type = types.listOf types.str;
-          };
-
-          proxies = mkOption {
-            description = ''
-              Proxy configuration.
-            '';
-            type = types.listOf (types.submodule {
-              options = {
-                type = mkOption {
-                  type = types.enum ["http" "https" "socks5"];
-                  description = "The type of proxy.";
-                };
-
-                address = mkOption {
-                  type = types.str;
-                  default = "127.0.0.1";
-                  description = ''
-                    The address of the proxy to connect to.
-                  '';
-                };
-
-                port = mkOption {
-                  type = types.port;
-                  description = ''
-                    The port of the proxy to connect to.
-                  '';
-                };
-              };
-            });
-          };
-        };
-      });
+      type = types.listOf types.rule;
+      default = [];
     };
 
     text = mkOption {
