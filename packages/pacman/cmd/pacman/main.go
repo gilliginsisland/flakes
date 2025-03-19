@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -8,7 +9,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gilliginsisland/pacman/pacman"
+	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/proxy"
 )
 
 func main() {
@@ -35,13 +37,13 @@ func main() {
 	}
 	defer rulesFile.Close()
 
-	dialer := pacman.Dialer{}
-	if err := dialer.LoadRulesFile(rulesFile); err != nil {
+	dialer := dialer.NewGHost()
+	if err = json.NewDecoder(rulesFile).Decode(&dialer.Ruleset); err != nil {
 		slog.Error(fmt.Sprintf("Error parsing rule file: %s", err))
 		return
 	}
 
-	server := pacman.NewProxyServer(&dialer)
+	server := proxy.NewProxyServer(dialer)
 
 	slog.Info(fmt.Sprintf("PACman proxy server running on %s", *listenAddr))
 	http.ListenAndServe(*listenAddr, server)
