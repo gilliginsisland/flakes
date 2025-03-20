@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/gilliginsisland/pacman/internal/netutil"
 	"golang.org/x/crypto/ssh"
@@ -16,22 +18,38 @@ func init() {
 	proxy.RegisterDialerType("ssh", NewSSHFromURL)
 }
 
-type SSH struct {
-	address string
-	config  *ssh.ClientConfig
-	fwd     proxy.Dialer
+type SSHDialerConfig struct {
+	ssh.ClientConfig
+	Address  string
+	Dialer   proxy.Dialer
+	IdleTime time.Duration
 }
 
-func NewSSHFromURL(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
+type SSH struct {
+	config *SSHDialerConfig
+	client *ssh.Client
+	mu     sync.RWMutex
+}
+
+func NewSSH(config *SSHDialerConfig) *SSH {
+	s := SSH{config: config}
+	return &s
+}
+
+func NewSSHFromURL(u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
 	host := u.Hostname()
 	port := u.Port()
 	if port == "" {
 		port = "22"
 	}
 
-	config := &ssh.ClientConfig{
-		User:            u.User.Username(),
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	config := SSHDialerConfig{
+		Address: net.JoinHostPort(host, port),
+		ClientConfig: ssh.ClientConfig{
+			User:            u.User.Username(),
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		},
+		Dialer: fwd,
 	}
 
 	query := u.Query()
@@ -52,28 +70,77 @@ func NewSSHFromURL(u *url.URL, forward proxy.Dialer) (proxy.Dialer, error) {
 		config.Auth = append(config.Auth, ssh.PublicKeys(signer))
 	}
 
-	return &SSH{
-		fwd:     forward,
-		address: net.JoinHostPort(host, port),
-		config:  config,
-	}, nil
+	return NewSSH(&config), nil
 }
 
-func (d *SSH) Dial(network, address string) (net.Conn, error) {
-	return netutil.DialContext(nil, d.fwd, network, address)
+func (s *SSH) Dial(network, address string) (net.Conn, error) {
+	return s.DialContext(nil, network, address)
 }
 
-func (d *SSH) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	conn, err := netutil.DialContext(ctx, d.fwd, "tcp", d.address)
+func (s *SSH) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	client, err := s.getClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.DialContext(ctx, network, address)
+}
+
+func (s *SSH) getClient() (*ssh.Client, error) {
+	s.mu.RLock()
+	client := s.client
+	s.mu.RUnlock()
+
+	if client != nil {
+		return client, nil
+	}
+
+	// acquire full lock to create a new client
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// check again in case another goroutine already created the client
+	if s.client != nil {
+		return s.client, nil
+	}
+
+	client, err := s.connect()
 	if err != nil {
 		return nil, err
 	}
 
-	clientConn, chans, reqs, err := ssh.NewClientConn(conn, d.address, d.config)
+	s.client = client
+
+	// Monitor client connection in a separate goroutine
+	go s.monitor(client)
+
+	return client, nil
+}
+
+// connect establishes a new SSH connection.
+func (s *SSH) connect() (*ssh.Client, error) {
+	conn, err := netutil.DialContext(context.Background(), s.config.Dialer, "tcp", s.config.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	client := ssh.NewClient(clientConn, chans, reqs)
-	return client.Dial(network, address)
+	clientConn, chans, reqs, err := ssh.NewClientConn(conn, s.config.Address, &s.config.ClientConfig)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return ssh.NewClient(clientConn, chans, reqs), nil
+}
+
+func (s *SSH) monitor(client *ssh.Client) {
+	// wait for the client to shutdown
+	_ = client.Wait()
+
+	// now acquire a write lock to clear the client.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.client == client {
+		s.client = nil
+	}
 }
