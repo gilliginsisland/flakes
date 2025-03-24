@@ -34,6 +34,14 @@ func NewProxyServer(dialer proxy.Dialer) *ProxyServer {
 }
 
 func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	slog.DebugContext(ctx,
+		"Serving request",
+		slog.String("method", r.Method),
+		slog.String("uri", r.RequestURI),
+	)
+
 	var err error
 	if strings.ToUpper(r.Method) == http.MethodConnect {
 		err = s.tunnel(w, r)
@@ -42,8 +50,20 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = s.handleRequest(w, r)
 	}
+
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error serving request: %s %s: %s", r.Method, r.RequestURI, err))
+		slog.ErrorContext(ctx,
+			"request handler failed",
+			slog.String("method", r.Method),
+			slog.String("uri", r.RequestURI),
+			slog.Any("error", err),
+		)
+	} else {
+		slog.DebugContext(ctx,
+			"request handler completed",
+			slog.String("method", r.Method),
+			slog.String("uri", r.RequestURI),
+		)
 	}
 }
 
@@ -53,6 +73,8 @@ func (s *ProxyServer) handleRequest(w http.ResponseWriter, _ *http.Request) erro
 }
 
 func (s *ProxyServer) tunnel(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+
 	// ensure we can hijack the connection
 	hj, ok := w.(http.Hijacker)
 	if !ok {
@@ -61,7 +83,7 @@ func (s *ProxyServer) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// connect to the destination (e.g. example.com:443)
-	destConn, err := netutil.DialContext(r.Context(), s.dialer, "tcp", r.Host)
+	destConn, err := netutil.DialContext(ctx, s.dialer, "tcp", r.Host)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return fmt.Errorf("failed to connect to upstream %s: %w", r.Host, err)
@@ -78,7 +100,10 @@ func (s *ProxyServer) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer clientConn.Close()
 
-	netutil.Pipe(destConn, bufClientConn)
+	netutil.Pipe(destConn, &netutil.BuffClientConn{
+		Conn:       clientConn,
+		ReadWriter: bufClientConn,
+	})
 	return nil
 }
 

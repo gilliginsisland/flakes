@@ -13,10 +13,14 @@ import (
 // It supports recursive dialers.
 type GHost struct {
 	Ruleset *Ruleset
+	Fwd     proxy.Dialer
 }
 
-func NewGHost() *GHost {
-	g := &GHost{}
+func NewGHost(fwd proxy.Dialer) *GHost {
+	if fwd == nil {
+		fwd = &net.Dialer{}
+	}
+	g := &GHost{Fwd: fwd}
 	g.Ruleset = NewRuleset(g)
 	return g
 }
@@ -32,10 +36,15 @@ func (g *GHost) DialContext(ctx context.Context, network, address string) (net.C
 	}
 
 	for _, d := range dialers {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
 		conn, err := netutil.DialContext(ctx, d, network, address)
 		if err != nil {
 			continue
 		}
+
 		return conn, nil
 	}
 
@@ -56,5 +65,5 @@ func (g *GHost) dialersForAddress(address string) ([]proxy.Dialer, error) {
 		}
 	}
 
-	return []proxy.Dialer{proxy.Direct}, nil
+	return []proxy.Dialer{g.Fwd}, nil
 }
