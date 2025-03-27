@@ -131,24 +131,24 @@ in {
   };
 
   config = mkIf cfg.enable {
-    launchd.agents.pacman = {
+    launchd.agents.pacman = with cfg; {
       enable = true;
       config = {
-        KeepAlive = true;
         ProcessType = "Background";
-        ProgramArguments = with cfg; [
+        ProgramArguments = [
           (meta.getExe pacman)
-          "-f" "${rulefile}"
-          "-l" "${address}:${builtins.toString port}"
+          "--file" "${rulefile}"
+          "--launchd"
         ] ++ optionals (loglevel != null) [
-          "-v" loglevel
+          "--verbosity" loglevel
         ];
-        # Sockets = {
-        #   Socket = {
-        #     SockNodeName = cfg.pacman.address;
-        #     SockServiceName = builtins.toString cfg.pacman.port;
-        #   };
-        # };
+        Sockets = {
+          Socket = {
+            SockNodeName = address;
+            SockServiceName = builtins.toString port;
+          };
+        };
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/${config.launchd.agents.pacman.config.Label}.log";
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/${config.launchd.agents.pacman.config.Label}.log";
       };
     };
