@@ -12,7 +12,7 @@ var wildcardUnescaper = strings.NewReplacer(
 )
 
 // NewWildcardMatcher compiles a shell-style wildcard pattern into a regex matcher.
-func WildcardMatcher(expr string) (StringMatcher, error) {
+func Wildcard(expr string) (StringMatcher, error) {
 	expr = regexp.QuoteMeta(expr)
 	expr = wildcardUnescaper.Replace(expr)
 

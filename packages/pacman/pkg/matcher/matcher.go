@@ -16,10 +16,10 @@ func CompileMatcher(s string) (StringMatcher, error) {
 	case strings.HasPrefix(s, "/") && strings.HasSuffix(s, "/"):
 		return regexp.Compile(s[1 : len(s)-1])
 	case cidrRegex.MatchString(s):
-		return NewCIDRMatcher(s)
+		return ParseCIDR(s)
 	case strings.ContainsAny(s, "*?"):
-		return WildcardMatcher(s)
+		return Wildcard(s)
 	default:
-		return LiteralMatcher(s), nil
+		return Literal(s), nil
 	}
 }

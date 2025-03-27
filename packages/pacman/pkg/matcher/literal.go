@@ -1,7 +1,7 @@
 package matcher
 
-type LiteralMatcher string
+type Literal string
 
-func (m LiteralMatcher) MatchString(s string) bool {
+func (m Literal) MatchString(s string) bool {
 	return string(m) == s
 }

@@ -12,28 +12,25 @@ import (
 )
 
 // HTTPServer struct
-type ProxyServer struct {
-	dialer proxy.Dialer
+type Server struct {
+	dialer proxy.ContextDialer
 	client *http.Client
+	hndlr  http.Handler
 }
 
-func NewProxyServer(dialer proxy.Dialer) *ProxyServer {
-	transport := http.Transport{}
-	if xd, ok := dialer.(proxy.ContextDialer); ok {
-		transport.DialContext = xd.DialContext
-	} else {
-		transport.Dial = dialer.Dial
-	}
-	client := http.Client{
-		Transport: &transport,
-	}
-	return &ProxyServer{
+func NewServer(dialer proxy.ContextDialer, hndlr http.Handler) *Server {
+	return &Server{
 		dialer: dialer,
-		client: &client,
+		client: &http.Client{
+			Transport: &http.Transport{
+				DialContext: dialer.DialContext,
+			},
+		},
+		hndlr: hndlr,
 	}
 }
 
-func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	slog.DebugContext(ctx,
@@ -48,7 +45,7 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if r.URL.IsAbs() {
 		err = s.forward(w, r)
 	} else {
-		err = s.handleRequest(w, r)
+		s.handleRequest(w, r)
 	}
 
 	if err != nil {
@@ -67,12 +64,15 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *ProxyServer) handleRequest(w http.ResponseWriter, _ *http.Request) error {
-	http.Error(w, "400 Bad Request", http.StatusBadRequest)
-	return nil
+func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
+	if s.hndlr == nil {
+		http.Error(w, "400 Bad Request", http.StatusBadRequest)
+		return
+	}
+	s.hndlr.ServeHTTP(w, r)
 }
 
-func (s *ProxyServer) tunnel(w http.ResponseWriter, r *http.Request) error {
+func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	// ensure we can hijack the connection
@@ -83,7 +83,7 @@ func (s *ProxyServer) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// connect to the destination (e.g. example.com:443)
-	destConn, err := netutil.DialContext(ctx, s.dialer, "tcp", r.Host)
+	destConn, err := s.dialer.DialContext(ctx, "tcp", r.Host)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return fmt.Errorf("failed to connect to upstream %s: %w", r.Host, err)
@@ -107,7 +107,7 @@ func (s *ProxyServer) tunnel(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (h *ProxyServer) forward(w http.ResponseWriter, r *http.Request) error {
+func (h *Server) forward(w http.ResponseWriter, r *http.Request) error {
 	req, err := http.NewRequest(r.Method, r.RequestURI, r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
