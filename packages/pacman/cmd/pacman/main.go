@@ -20,15 +20,20 @@ import (
 type Flags struct {
 	ListenAddr flagutil.HostPort
 	RulesFile  flagutil.File
+	LogLevel   flagutil.LogLevel
 }
 
 func parseFlags(args []string) (*Flags, error) {
 	f := Flags{
 		ListenAddr: "127.0.0.1:8080",
+		LogLevel: flagutil.LogLevel{
+			Level: slog.LevelInfo,
+		},
 	}
 
 	flag.Var(&f.ListenAddr, "l", "Listening address (default 127.0.0.1:8080)")
 	flag.Var(&f.RulesFile, "f", "Path to the rules file")
+	flag.Var(&f.LogLevel, "v", "Verbosity")
 
 	// Manually parse arguments
 	if err := flag.CommandLine.Parse(args); err != nil {
@@ -45,25 +50,27 @@ func parseFlags(args []string) (*Flags, error) {
 func main() {
 	// logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	// slog.SetDefault(logger)
-	slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	flags, err := parseFlags(os.Args[1:])
 	if err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
+	slog.SetLogLoggerLevel(flags.LogLevel.Level)
 
-	dialer := dialer.NewGHost(&net.Dialer{
-		Timeout: 5 * time.Second,
-	})
-	if err = json.NewDecoder(flags.RulesFile).Decode(&dialer.Ruleset); err != nil {
+	var rules dialer.Ruleset
+	if err = json.NewDecoder(flags.RulesFile).Decode(&rules); err != nil {
 		slog.Error(fmt.Sprintf("Error parsing rule file: %s", err))
 		return
 	}
 	flags.RulesFile.Close()
 	flags.RulesFile.File = nil
 
-	server := proxy.NewProxyServer(dialer)
+	ghost := dialer.NewGHost(rules, &net.Dialer{
+		Timeout: 5 * time.Second,
+	})
+
+	server := proxy.NewServer(ghost, &proxy.PacHandler{Rules: rules})
 
 	slog.Info(fmt.Sprintf("PACman proxy server running on %s", string(flags.ListenAddr)))
 	http.ListenAndServe(string(flags.ListenAddr), server)

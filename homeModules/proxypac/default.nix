@@ -210,7 +210,7 @@ in {
           (meta.getExe pacman)
           "-f" "${rulefile}"
           "-l" "${cfg.pacman.address}:${builtins.toString cfg.pacman.port}"
-        ] ++ optionals cfg.pacman.debug [ "-v" ];
+        ] ++ optionals cfg.pacman.debug [ "-v" "DEBUG" ];
         # Sockets = {
         #   Socket = {
         #     SockNodeName = cfg.pacman.address;

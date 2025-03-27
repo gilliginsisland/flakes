@@ -8,24 +8,24 @@ import (
 var cidrRegex = regexp.MustCompile(`^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$|^[0-9a-fA-F:]+/[0-9]{1,3}$`)
 
 // CIDRMatcher holds a parsed IP network.
-type CIDRMatcher struct {
-	network *net.IPNet
+type CIDR struct {
+	Network *net.IPNet
 }
 
 // NewCIDRMatcher parses the CIDR string and returns a CIDRMatcher.
-func NewCIDRMatcher(cidr string) (StringMatcher, error) {
+func ParseCIDR(cidr string) (*CIDR, error) {
 	_, network, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return nil, err
 	}
-	return &CIDRMatcher{network: network}, nil
+	return &CIDR{Network: network}, nil
 }
 
 // MatchString checks if the provided string IP is within the CIDR range.
-func (c *CIDRMatcher) MatchString(s string) bool {
+func (c *CIDR) MatchString(s string) bool {
 	ip := net.ParseIP(s)
 	if ip == nil {
 		return false
 	}
-	return c.network.Contains(ip)
+	return c.Network.Contains(ip)
 }
