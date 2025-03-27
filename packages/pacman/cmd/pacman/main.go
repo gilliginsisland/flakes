@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/gilliginsisland/pacman/internal/flagutil"
+	"github.com/gilliginsisland/pacman/internal/syncutil"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/launch"
 	"github.com/gilliginsisland/pacman/pkg/proxy"
 )
 
@@ -21,6 +23,7 @@ type Flags struct {
 	ListenAddr flagutil.HostPort
 	RulesFile  flagutil.File
 	LogLevel   flagutil.LogLevel
+	Launchd    bool
 }
 
 func parseFlags(args []string) (*Flags, error) {
@@ -32,8 +35,15 @@ func parseFlags(args []string) (*Flags, error) {
 	}
 
 	flag.Var(&f.ListenAddr, "l", "Listening address (default 127.0.0.1:8080)")
+	flag.Var(&f.ListenAddr, "listen", "Listening address (default 127.0.0.1:8080)")
+
 	flag.Var(&f.RulesFile, "f", "Path to the rules file")
+	flag.Var(&f.RulesFile, "file", "Path to the rules file")
+
 	flag.Var(&f.LogLevel, "v", "Verbosity")
+	flag.Var(&f.LogLevel, "verbosity", "Verbosity")
+
+	flag.BoolVar(&f.Launchd, "launchd", false, "Use launchd socket activation")
 
 	// Manually parse arguments
 	if err := flag.CommandLine.Parse(args); err != nil {
@@ -60,8 +70,8 @@ func main() {
 
 	var rules dialer.Ruleset
 	if err = json.NewDecoder(flags.RulesFile).Decode(&rules); err != nil {
-		slog.Error(fmt.Sprintf("Error parsing rule file: %s", err))
-		return
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	flags.RulesFile.Close()
 	flags.RulesFile.File = nil
@@ -72,6 +82,23 @@ func main() {
 
 	server := proxy.NewServer(ghost, &proxy.PacHandler{Rules: rules})
 
-	slog.Info(fmt.Sprintf("PACman proxy server running on %s", string(flags.ListenAddr)))
-	http.ListenAndServe(string(flags.ListenAddr), server)
+	if flags.Launchd {
+		listeners, err := launch.ActivateSocket("Socket")
+		if err != nil || len(listeners) == 0 {
+			slog.Error(err.Error())
+			os.Exit(1)
+		}
+
+		for l := range syncutil.ParallelRange(listeners) {
+			slog.Info("PACman proxy server starting", slog.String("address", l.Addr().String()))
+			if err := http.Serve(l, server); err != nil {
+				slog.Error(fmt.Sprintf("server stopped: %v\n", err))
+			}
+		}
+	} else {
+		slog.Info("PACman proxy server starting", slog.String("address", flags.ListenAddr.String()))
+		http.ListenAndServe(string(flags.ListenAddr), server)
+	}
+
+	slog.Info("PACman proxy server stopped")
 }
