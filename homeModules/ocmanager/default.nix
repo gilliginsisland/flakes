@@ -62,7 +62,7 @@ in {
       })
       (filterProfiles (profile: profile.proxy.ondemand));
 
-    programs.proxypac.rules = mapAttrsToList toPACRule
+    programs.pacman.rules = mapAttrsToList toPACRule
       (filterProfiles (profile: profile.hosts != []));
   };
 }
