@@ -137,6 +137,7 @@ in {
         ProcessType = "Background";
         ProgramArguments = [
           (meta.getExe pacman)
+          "proxy"
           "--file" "${rulefile}"
           "--launchd"
         ] ++ optionals (loglevel != null) [
@@ -153,18 +154,9 @@ in {
       };
     };
 
-    programs.ssh.matchBlocks = mkIf cfg.ssh_config (mergeAttrsList (imap1
-      (i: rule:
-        let
-          inherit (rule) hosts;
-        in {
-          "proxypac:${toString i}" = {
-            host = builtins.concatStringsSep " " hosts;
-            proxyCommand = with cfg; "${meta.getExe connect} -R remote -H ${address}:${builtins.toString port} %h %p";
-          };
-        }
-      )
-      (filter (rule: rule.hosts != []) cfg.rules)
-    ));
+    programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
+      match = ''exec "'${meta.getExe pacman}' --file='${rulefile}' check --host='%h'"'';
+      proxyCommand = with cfg; "${meta.getExe connect} -R remote -H ${address}:${builtins.toString port} %h %p";
+    };
   };
 }
