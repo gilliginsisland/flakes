@@ -8,9 +8,10 @@ import (
 // HostPort stores a validated host:port string
 type HostPort string
 
-// Set validates and sets the host:port value
-func (hp *HostPort) Set(value string) error {
-	host, port, err := net.SplitHostPort(value)
+// UnmarshalText validates and sets the host:port value.
+func (hp *HostPort) UnmarshalText(text []byte) error {
+	address := string(text)
+	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return fmt.Errorf("invalid host:port format: %w", err)
 	}
@@ -20,10 +21,7 @@ func (hp *HostPort) Set(value string) error {
 	return nil
 }
 
-// String returns the stored host:port value
-func (hp *HostPort) String() string {
-	if hp != nil {
-		return string(*hp)
-	}
-	return ""
+// UnmarshalFlag calls UnmarshalText for go-flags compatibility.
+func (hp *HostPort) UnmarshalFlag(value string) error {
+	return hp.UnmarshalText([]byte(value))
 }
