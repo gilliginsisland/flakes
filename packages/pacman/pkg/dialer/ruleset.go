@@ -1,6 +1,7 @@
 package dialer
 
 import (
+	"encoding"
 	"net/url"
 
 	"github.com/gilliginsisland/pacman/pkg/matcher"
@@ -10,6 +11,8 @@ type URL struct {
 	url.URL
 }
 
+var _ encoding.TextUnmarshaler = (*URL)(nil)
+
 func (u *URL) UnmarshalText(text []byte) error {
 	return u.UnmarshalBinary(text)
 }
@@ -17,6 +20,8 @@ func (u *URL) UnmarshalText(text []byte) error {
 type HostMatcher struct {
 	matcher.StringMatcher
 }
+
+var _ encoding.TextUnmarshaler = (*HostMatcher)(nil)
 
 func (m *HostMatcher) UnmarshalText(text []byte) (err error) {
 	m.StringMatcher, err = matcher.CompileMatcher(string(text))

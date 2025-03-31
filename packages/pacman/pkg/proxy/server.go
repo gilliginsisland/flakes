@@ -100,7 +100,7 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer clientConn.Close()
 
-	netutil.Pipe(destConn, &netutil.BuffClientConn{
+	netutil.Pipe(destConn, &netutil.BuffConn{
 		Conn:       clientConn,
 		ReadWriter: bufClientConn,
 	})

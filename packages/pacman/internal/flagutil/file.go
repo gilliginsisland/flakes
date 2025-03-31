@@ -3,12 +3,16 @@ package flagutil
 import (
 	"fmt"
 	"os"
+
+	"github.com/jessevdk/go-flags"
 )
 
 // File wraps os.File and implements flag.Value.
 type File struct {
 	os.File
 }
+
+var _ flags.Unmarshaler = (*File)(nil)
 
 // UnmarshalText allows opening from filename.
 func (f *File) UnmarshalText(text []byte) error {

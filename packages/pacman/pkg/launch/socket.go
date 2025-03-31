@@ -33,7 +33,7 @@ func ActivateSocket(name string) ([]net.Listener, error) {
 		file := os.NewFile(uintptr(fds[i]), "")
 		ln, err := net.FileListener(file)
 		if err != nil {
-			return nil, fmt.Errorf("error activating launch socket: %s, fd: %i", name, file.Fd)
+			return nil, fmt.Errorf("error activating launch socket: %s, fd: %d", name, file.Fd())
 		}
 		listeners[i] = ln
 	}
