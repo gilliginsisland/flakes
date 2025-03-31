@@ -3,10 +3,14 @@ package flagutil
 import (
 	"fmt"
 	"net"
+
+	"github.com/jessevdk/go-flags"
 )
 
 // HostPort stores a validated host:port string
 type HostPort string
+
+var _ flags.Unmarshaler = (*HostPort)(nil)
 
 // UnmarshalText validates and sets the host:port value.
 func (hp *HostPort) UnmarshalText(text []byte) error {

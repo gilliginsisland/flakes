@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -9,8 +10,8 @@ import (
 )
 
 var opts struct {
-	RulesFile flagutil.File `short:"f" long:"file" description:"Path to the rules file" required:"true"`
-	LogLevel  slog.Level    `short:"v" long:"verbosity" description:"Verbosity level"`
+	RulesFile flagutil.File     `short:"f" long:"file" description:"Path to the rules file" required:"true"`
+	LogLevel  flagutil.LogLevel `short:"v" long:"verbosity" description:"Verbosity level"`
 }
 
 // Global parser instance
@@ -18,8 +19,14 @@ var parser = flags.NewParser(&opts, flags.Default)
 
 func init() {
 	parser.CommandHandler = func(cmd flags.Commander, args []string) error {
-		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
-		slog.SetLogLoggerLevel(opts.LogLevel)
+		logger := slog.New(
+			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+				Level: opts.LogLevel.Level,
+			}),
+		)
+		slog.SetDefault(logger)
+
+		slog.Info(fmt.Sprintf("Setting Log Level %s", opts.LogLevel.Level.String()))
 
 		return cmd.Execute(args)
 	}

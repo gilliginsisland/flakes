@@ -3,7 +3,7 @@
 with lib;
 
 let
-  inherit(import ../.. { inherit pkgs; }) pacman connect;
+  inherit(import ../.. { inherit pkgs; }) pacman;
 
   cfg = config.programs.pacman;
 
@@ -130,8 +130,8 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
-    launchd.agents.pacman = with cfg; {
+  config = mkIf cfg.enable (with cfg; {
+    launchd.agents.pacman = {
       enable = true;
       config = {
         ProcessType = "Background";
@@ -156,7 +156,7 @@ in {
 
     programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
       match = ''exec "'${meta.getExe pacman}' --file='${rulefile}' check --host='%h'"'';
-      proxyCommand = with cfg; "${meta.getExe connect} -R remote -H ${address}:${builtins.toString port} %h %p";
+      proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
     };
-  };
+  });
 }

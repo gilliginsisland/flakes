@@ -1,20 +1,62 @@
+# github.com/go-json-experiment/json v0.0.0-20250223041408-d3c622f1b874
+## explicit; go 1.24
+github.com/go-json-experiment/json
+github.com/go-json-experiment/json/internal
+github.com/go-json-experiment/json/internal/jsonflags
+github.com/go-json-experiment/json/internal/jsonopts
+github.com/go-json-experiment/json/internal/jsonwire
+github.com/go-json-experiment/json/jsontext
 # github.com/jessevdk/go-flags v1.6.1
 ## explicit; go 1.20
 github.com/jessevdk/go-flags
+# go4.org/mem v0.0.0-20240501181205-ae6ca9944745
+## explicit; go 1.14
+go4.org/mem
 # golang.org/x/crypto v0.36.0
 ## explicit; go 1.23.0
+golang.org/x/crypto/blake2b
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
+golang.org/x/crypto/nacl/box
+golang.org/x/crypto/nacl/secretbox
+golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 # golang.org/x/net v0.37.0
 ## explicit; go 1.23.0
+golang.org/x/net/dns/dnsmessage
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
 # golang.org/x/sys v0.31.0
 ## explicit; go 1.23.0
 golang.org/x/sys/cpu
 golang.org/x/sys/unix
+# tailscale.com v1.82.0
+## explicit; go 1.24.0
+tailscale.com
+tailscale.com/envknob
+tailscale.com/kube/kubetypes
+tailscale.com/net/socks5
+tailscale.com/tailcfg
+tailscale.com/types/dnstype
+tailscale.com/types/ipproto
+tailscale.com/types/key
+tailscale.com/types/lazy
+tailscale.com/types/logger
+tailscale.com/types/opt
+tailscale.com/types/ptr
+tailscale.com/types/result
+tailscale.com/types/structs
+tailscale.com/types/tkatype
+tailscale.com/types/views
+tailscale.com/util/ctxkey
+tailscale.com/util/dnsname
+tailscale.com/util/lineiter
+tailscale.com/util/nocasemaps
+tailscale.com/util/slicesx
+tailscale.com/util/vizerror
+tailscale.com/version
+tailscale.com/version/distro
