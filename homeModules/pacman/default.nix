@@ -48,7 +48,7 @@ let
     proxy = types.submodule {
       options = {
         type = mkOption {
-          type = types.enum ["http" "https" "socks5" "ssh"];
+          type = types.enum ["http" "https" "socks5" "ssh" "anyconnect" "gp"];
           description = "The type of proxy.";
         };
 
@@ -61,10 +61,11 @@ let
         };
 
         port = mkOption {
-          type = types.port;
+          type = types.nullOr types.port;
           description = ''
             The port of the proxy to connect to.
           '';
+          default = null;
         };
 
         username = mkOption {
@@ -155,7 +156,7 @@ in {
     };
 
     programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
-      match = ''exec "'${meta.getExe pacman}' --file='${rulefile}' check --host='%h'"'';
+      match = ''exec "'${meta.getExe pacman}' check --file='${rulefile}' --host='%h'"'';
       proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
     };
   });

@@ -12,9 +12,10 @@ import (
 
 	"github.com/gilliginsisland/pacman/internal/flagutil"
 	"github.com/gilliginsisland/pacman/internal/netutil"
-	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/launch"
 	"github.com/gilliginsisland/pacman/pkg/proxy"
+	"github.com/jessevdk/go-flags"
 	"tailscale.com/net/socks5"
 )
 
@@ -22,20 +23,24 @@ func init() {
 	parser.AddCommand("proxy", "Run the proxy server", "Starts the proxy with specified options", &ProxyCommand{})
 }
 
+var _ flags.Commander = (*ProxyCommand)(nil)
+
 type ProxyCommand struct {
 	ListenAddr flagutil.HostPort `short:"l" long:"listen" default:"127.0.0.1:8080" description:"Listening address"`
 	Launchd    bool              `long:"launchd" description:"Use launchd socket activation"`
+	RulesFile  flagutil.File     `short:"f" long:"file" description:"Path to the rules file" required:"true"`
 }
 
 // Execute runs the proxy subcommand
-func (c *ProxyCommand) Execute(args []string) (err error) {
-	var rules dialer.Ruleset
-	if err = json.NewDecoder(&opts.RulesFile).Decode(&rules); err != nil {
+func (c *ProxyCommand) Execute(args []string) error {
+	var rules ghost.Ruleset
+	err := json.NewDecoder(&c.RulesFile).Decode(&rules)
+	c.RulesFile.Close()
+	if err != nil {
 		return err
 	}
-	opts.RulesFile.Close()
 
-	ghost := dialer.NewGHost(rules, &net.Dialer{
+	ghost := ghost.NewDialer(rules, &net.Dialer{
 		Timeout: 5 * time.Second,
 	})
 

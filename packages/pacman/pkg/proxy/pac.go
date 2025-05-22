@@ -9,13 +9,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/matcher"
 )
 
 // PacHandler generates a PAC file for browser proxy configuration.
 type PacHandler struct {
-	Rules dialer.Ruleset
+	Rules ghost.Ruleset
 }
 
 func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,8 +50,8 @@ func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if len(cond) > 0 && len(prox) > 0 {
 			cond := strings.Join(cond, " || ")
 			prox := strings.Join(prox, "; ")
-			w.Write([]byte(
-				fmt.Sprintf("\tif (%s) return \"%s\";\n", cond, prox)),
+			w.Write(
+				fmt.Appendf(nil, "\tif (%s) return \"%s\";\n", cond, prox),
 			)
 		}
 	}
@@ -60,7 +60,7 @@ func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("}\n"))
 }
 
-func toJSCondition(hm dialer.HostMatcher) string {
+func toJSCondition(hm ghost.HostMatcher) string {
 	switch m := hm.StringMatcher.(type) {
 	case matcher.Literal:
 		// Exact match
