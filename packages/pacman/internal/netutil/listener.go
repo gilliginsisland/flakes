@@ -3,6 +3,8 @@ package netutil
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -87,4 +89,27 @@ func (l *chanListener) Close() error {
 
 func (l *chanListener) Addr() net.Addr {
 	return l.p.Addr()
+}
+
+// FreePort asks the kernel for a free open port that is ready to use.
+func FreePort(network string) (int, error) {
+	l, err := net.Listen(network, ":0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+
+	addr := l.Addr().String()
+	colon := strings.LastIndexByte(addr, ':')
+	if colon < 0 || colon == len(addr)-1 {
+		return 0, fmt.Errorf("unexpected address format: %q", addr)
+	}
+
+	portStr := addr[colon+1:]
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port number %q: %w", portStr, err)
+	}
+
+	return port, nil
 }

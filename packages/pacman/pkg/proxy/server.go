@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -73,7 +74,8 @@ func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	// ensure we can hijack the connection
 	hj, ok := w.(http.Hijacker)
@@ -100,7 +102,7 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer clientConn.Close()
 
-	netutil.Pipe(destConn, &netutil.BuffConn{
+	netutil.Join(destConn, &netutil.BuffConn{
 		Conn:       clientConn,
 		ReadWriter: bufClientConn,
 	})
@@ -108,7 +110,10 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Server) forward(w http.ResponseWriter, r *http.Request) error {
-	req, err := http.NewRequest(r.Method, r.RequestURI, r.Body)
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, r.Method, r.RequestURI, r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
