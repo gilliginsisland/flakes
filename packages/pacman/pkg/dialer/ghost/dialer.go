@@ -7,29 +7,38 @@ import (
 	"net"
 
 	"github.com/gilliginsisland/pacman/internal/syncutil"
-	"golang.org/x/net/proxy"
 
 	_ "github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/notify"
 )
+
+type Opts struct {
+	Ruleset  Ruleset
+	Dial     func(ctx context.Context, network, address string) (net.Conn, error)
+	Notifier notify.Notifier
+}
 
 // Dialer directs connections based on rules.
 // It supports recursive dialers.
 type Dialer struct {
-	rules   Ruleset
-	forward proxy.ContextDialer
-	dialers *syncutil.Pool[*URL, *refDialer]
+	rules    Ruleset
+	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
+	notifier notify.Notifier
+	pool     *syncutil.Pool[*URL, *refDialer]
 }
 
 // NewDialerPool initializes a pool.
-func NewDialer(rules Ruleset, forward proxy.ContextDialer) *Dialer {
-	if forward == nil {
-		forward = proxy.Direct
-	}
+func NewDialer(o Opts) *Dialer {
 	d := Dialer{
-		rules:   rules,
-		forward: forward,
+		rules:    o.Ruleset,
+		notifier: o.Notifier,
 	}
-	d.dialers = syncutil.NewPool(d.newDialer)
+	if dial := o.Dial; dial != nil {
+		d.fwd = dial
+	} else {
+		d.fwd = (&net.Dialer{}).DialContext
+	}
+	d.pool = syncutil.NewPool(d.newDialer)
 	return &d
 }
 
@@ -56,7 +65,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			slog.String("network", network),
 			slog.String("address", address),
 		)
-		return d.forward.DialContext(ctx, network, address)
+		return d.fwd(ctx, network, address)
 	}
 
 	for _, u := range rule.Proxies {
@@ -94,8 +103,12 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 }
 
 func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net.Conn, error) {
-	dd, err := d.dialers.Get(u)
+	dd, err := d.pool.Get(u)
 	if err != nil {
+		d.notifier.Send(notify.Notification{
+			Subtitle: "Proxy connection failed",
+			Message:  u.Redacted(),
+		})
 		return nil, err
 	}
 
