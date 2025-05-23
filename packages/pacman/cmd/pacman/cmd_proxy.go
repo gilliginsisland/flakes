@@ -14,6 +14,7 @@ import (
 	"github.com/gilliginsisland/pacman/internal/netutil"
 	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/launch"
+	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/proxy"
 	"github.com/jessevdk/go-flags"
 	"tailscale.com/net/socks5"
@@ -40,8 +41,12 @@ func (c *ProxyCommand) Execute(args []string) error {
 		return err
 	}
 
-	ghost := ghost.NewDialer(rules, &net.Dialer{
-		Timeout: 5 * time.Second,
+	ghost := ghost.NewDialer(ghost.Opts{
+		Ruleset: rules,
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).DialContext,
+		Notifier: notify.New(),
 	})
 
 	httpServer := proxy.NewServer(ghost, &proxy.PacHandler{Rules: rules})
