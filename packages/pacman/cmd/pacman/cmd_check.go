@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gilliginsisland/pacman/internal/flagutil"
+	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/jessevdk/go-flags"
 )

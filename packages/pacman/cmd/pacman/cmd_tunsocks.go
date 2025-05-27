@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/internal/flagutil"
-	"github.com/gilliginsisland/pacman/internal/stackutil"
+	"github.com/gilliginsisland/pacman/pkg/flagutil"
+	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"github.com/gilliginsisland/pacman/pkg/env"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/sys/unix"

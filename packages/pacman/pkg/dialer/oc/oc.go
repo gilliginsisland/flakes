@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/gilliginsisland/pacman/internal/stackutil"
+	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"golang.org/x/net/proxy"
 )
