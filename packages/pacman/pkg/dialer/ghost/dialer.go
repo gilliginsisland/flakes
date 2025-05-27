@@ -2,6 +2,7 @@ package ghost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -13,6 +14,13 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"golang.org/x/net/proxy"
 )
+
+var localResolver = net.Resolver{
+	PreferGo: true,
+	Dial: func(ctx context.Context, network string, address string) (net.Conn, error) {
+		return nil, errors.New("local resolution only")
+	},
+}
 
 type Opts struct {
 	Ruleset  Ruleset
@@ -27,6 +35,7 @@ type Dialer struct {
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
 	notifier notify.Notifier
 	pool     *syncutil.Pool[*URL, proxy.ContextDialer]
+	resolver *net.Resolver
 }
 
 // NewDialerPool initializes a pool.
@@ -55,12 +64,24 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		slog.String("address", address),
 	)
 
-	host, _, err := net.SplitHostPort(address)
+	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
 	}
 
 	rule := d.rules.MatchHost(host)
+
+	if ips, err := localResolver.LookupIP(ctx, "ip", host); err == nil {
+		ip := ips[0].String()
+		if ip != host {
+			address = net.JoinHostPort(ip, port)
+			host = ip
+			if rule == nil {
+				rule = d.rules.MatchHost(host)
+			}
+		}
+	}
+
 	if rule == nil || len(rule.Proxies) == 0 {
 		slog.Debug(
 			"Using forwarding dialer",
