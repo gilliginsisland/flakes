@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/internal/netutil"
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 )
 
 type Client struct {

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gilliginsisland/pacman/internal/flagutil"
-	"github.com/gilliginsisland/pacman/internal/netutil"
+	"github.com/gilliginsisland/pacman/pkg/flagutil"
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/launch"
 	"github.com/gilliginsisland/pacman/pkg/notify"

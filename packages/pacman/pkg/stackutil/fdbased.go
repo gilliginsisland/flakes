@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/gilliginsisland/pacman/internal/netutil"
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"

@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
-	"github.com/gilliginsisland/pacman/internal/syncutil"
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 
 	_ "github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/notify"
+	"golang.org/x/net/proxy"
 )
 
 type Opts struct {
@@ -24,7 +26,7 @@ type Dialer struct {
 	rules    Ruleset
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
 	notifier notify.Notifier
-	pool     *syncutil.Pool[*URL, *refDialer]
+	pool     *syncutil.Pool[*URL, proxy.ContextDialer]
 }
 
 // NewDialerPool initializes a pool.
@@ -38,7 +40,7 @@ func NewDialer(o Opts) *Dialer {
 	} else {
 		d.fwd = (&net.Dialer{}).DialContext
 	}
-	d.pool = syncutil.NewPool(d.newDialer)
+	d.pool = syncutil.NewPool(d.factory, 5*time.Minute)
 	return &d
 }
 
@@ -103,7 +105,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 }
 
 func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net.Conn, error) {
-	dd, err := d.pool.Get(u)
+	dd, err := d.pool.GetCtx(ctx, u)
 	if err != nil {
 		d.notifier.Send(notify.Notification{
 			Subtitle: "Proxy connection failed",
@@ -112,18 +114,61 @@ func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net
 		return nil, err
 	}
 
-	if dd.ref != nil {
-		go func() {
-			dd.ref <- 1
-			<-ctx.Done()
-			dd.ref <- -1
-		}()
-	}
-
 	conn, err := dd.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// factory creates a pooled dialer.
+func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
+	slog.Debug(
+		"Creating dialer",
+		slog.String("proxy", u.Redacted()),
+	)
+
+	d.notifier.Send(notify.Notification{
+		Title:    "Connecting to proxy",
+		Subtitle: u.Redacted(),
+		Message:  "The connection to the proxy is being established.",
+	})
+
+	dd, err := proxy.FromURL(&u.URL, d)
+	if err != nil {
+		d.notifier.Send(notify.Notification{
+			Title:    "Proxy connection failed",
+			Subtitle: u.Redacted(),
+			Message:  err.Error(),
+		})
+		return nil, err
+	}
+
+	xd, ok := dd.(proxy.ContextDialer)
+	if !ok {
+		return nil, fmt.Errorf("Dialer does not support DialContext: %s", u.Redacted())
+	}
+
+	d.notifier.Send(notify.Notification{
+		Title:    "Proxy connected",
+		Subtitle: u.Redacted(),
+		Message:  "The proxy connection has been established",
+	})
+
+	if w, ok := dd.(interface{ Wait() error }); ok {
+		go func() {
+			msg := "The connection was terminated"
+			if err := w.Wait(); err != nil {
+				msg += err.Error()
+			}
+			d.notifier.Send(notify.Notification{
+				Title:    "Proxy disconnected",
+				Subtitle: u.Redacted(),
+				Message:  msg,
+			})
+		}()
+	}
+
+	return xd, nil
 }
