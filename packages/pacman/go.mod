@@ -9,12 +9,12 @@ require (
 	golang.org/x/net v0.40.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/tools v0.33.0
-	gvisor.dev/gvisor v0.0.0-20250513222246-c3b30ebda5ce
-	tailscale.com v1.82.5
+	gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
+	tailscale.com v1.84.0
 )
 
 require (
-	github.com/go-json-experiment/json v0.0.0-20250417205406-170dfdcf87d1 // indirect
+	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
