@@ -5,8 +5,10 @@ package notify
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 // notifier is the darwin implementation using AppleScript.
@@ -31,6 +33,7 @@ func (notifier) Send(n Notification) error {
 		var args = %s;
 		var app = Application.currentApplication();
 		app.includeStandardAdditions = true;
+
 		app.displayNotification(args.message, {
 		  withTitle: args.title,
 		  subtitle: args.subtitle,
@@ -38,6 +41,16 @@ func (notifier) Send(n Notification) error {
 		});
 	`, args)
 
-	cmd := exec.Command("osascript", "-l", "JavaScript", "-e", script)
-	return cmd.Run()
+	cmd := exec.Command("osascript", "-l", "JavaScript")
+	cmd.Stdin = strings.NewReader(script)
+
+	err = cmd.Run()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			err = errors.New(strings.TrimSpace(string(ee.Stderr)))
+		}
+		return fmt.Errorf("notify failed: %w", err)
+	}
+
+	return nil
 }
