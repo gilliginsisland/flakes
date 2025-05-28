@@ -2,14 +2,17 @@ package oc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 
-	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
+	"github.com/gilliginsisland/pacman/pkg/prompt"
+	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"golang.org/x/net/proxy"
 )
 
@@ -57,7 +60,23 @@ func New(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
 		Callbacks: openconnect.Callbacks{
 			Progress: cb.Progress,
 			ProcessAuthForm: func(form openconnect.AuthForm) openconnect.FormResult {
-				return processAuthForm(form, u.User)
+				err := processAuthForm(form, u)
+				if err != nil {
+					slog.Error(
+						"openconnect form authentication failed",
+						slog.String("proxy", u.Redacted()),
+						slog.Any("error", err),
+					)
+					if errors.Is(err, prompt.ErrUserCancelled) {
+						return openconnect.FormResultCancelled
+					}
+					return openconnect.FormResultErr
+				}
+				slog.Debug(
+					"form authentication succeeded",
+					slog.String("proxy", u.Redacted()),
+				)
+				return openconnect.FormResultOk
 			},
 			ExternalBrowser: func(uri string) error {
 				return exec.Command("open", uri).Run()
@@ -110,7 +129,7 @@ func WithConn(conn *openconnect.Conn) (proxy.Dialer, error) {
 	}, nil
 }
 
-func processAuthForm(form openconnect.AuthForm, user *url.Userinfo) openconnect.FormResult {
+func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
 	slog.Debug(
 		"Processing Auth Form",
 		slog.String("banner", form.Banner),
@@ -125,11 +144,22 @@ func processAuthForm(form openconnect.AuthForm, user *url.Userinfo) openconnect.
 			slog.String("label", opt.Label),
 			slog.String("type", opt.Type.String()),
 		)
-		switch opt.Name {
-		case "user":
-			opt.SetValue(user.Username())
-		case "passwd":
-			passwd, _ := user.Password()
+		switch {
+		case opt.Type == openconnect.FormOptionText && strings.HasPrefix(strings.ToLower(opt.Name), "user"):
+			opt.SetValue(u.User.Username())
+		case opt.Type == openconnect.FormOptionPassword:
+			passwd, _ := u.User.Password()
+			if u.Query().Get("token") == "otp" {
+				otp, err := prompt.Prompt(prompt.Dialog{
+					Title:   "PacMan",
+					Message: fmt.Sprintf("OTP is required for the proxy at %s\nEnter YubiKey OTP:", u.Redacted()),
+					Secure:  true,
+				})
+				if err != nil {
+					return err
+				}
+				passwd += otp
+			}
 			opt.SetValue(passwd)
 		}
 		for _, choice := range opt.Choices {
@@ -141,5 +171,5 @@ func processAuthForm(form openconnect.AuthForm, user *url.Userinfo) openconnect.
 		}
 	}
 
-	return openconnect.FormResultOk
+	return nil
 }

@@ -8,14 +8,18 @@ let
   cfg = config.programs.pacman;
 
   rulefile = let
+    toQs = attrs: concatStringsSep "&" (
+      mapAttrsToList (k: v: "${escapeURL k}=${escapeURL v}") attrs
+    );
+
     toProxyUrl = proxy: with proxy; concatStrings [
       (type + "://")
       (optionalString (username != null) (escapeURL username))
       (optionalString (password != null) (":" + escapeURL password))
-      (optionalString (username != null) "@")
+      (optionalString (username != null || password != null) "@")
       address
       (optionalString (port != null) (":" + builtins.toString port))
-      (optionalString (identity != null) "/?identity=${escapeURL identity}")
+      (optionalString (options != {}) ("/?" + toQs options))
     ];
 
     pacManRules = builtins.toJSON (map
@@ -80,10 +84,10 @@ let
           default = null;
         };
 
-        identity = mkOption {
-          type = types.nullOr types.path;
-          description = "Path to the private key file for authentication";
-          default = null;
+        options = mkOption {
+          type = types.attrsOf types.str;
+          description = "Extra options for specific proxies";
+          default = {};
         };
       };
     };
@@ -94,7 +98,7 @@ in {
 
     ssh_config = mkOption {
       description = ''Enable ssh config management'';
-      default = true;
+      default = config.programs.ssh.enable;
       type = types.bool;
     };
 
