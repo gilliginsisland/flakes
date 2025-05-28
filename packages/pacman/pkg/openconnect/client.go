@@ -6,15 +6,17 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
 
 type Conn struct {
-	vpn  *VpnInfo
-	cmd  *CMDPipe
-	done chan struct{}
-	once sync.Once
+	vpn    *VpnInfo
+	cmd    *CMDPipe
+	done   chan struct{}
+	cancel context.CancelFunc
+	once   sync.Once
 }
 
 func Connect(ctx context.Context, opts Options) (*Conn, error) {
@@ -43,13 +45,17 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cp.PropagateContext(ctx)()
+
 	conn := Conn{
-		vpn:  vpn,
-		cmd:  cp,
-		done: make(chan struct{}),
+		vpn:    vpn,
+		cmd:    cp,
+		done:   make(chan struct{}),
+		cancel: cancel,
 	}
 
-	defer cp.PropagateContext(ctx)()
+	defer time.AfterFunc(2*time.Minute, cancel).Stop()
 
 	err = vpn.ObtainCookie()
 	if err != nil {
@@ -65,8 +71,12 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 }
 
 func (c *Conn) Run() error {
-	defer c.Close()
-	return c.vpn.MainLoop()
+	var err error
+	c.once.Do(func() {
+		c.vpn.MainLoop()
+		close(c.done)
+	})
+	return err
 }
 
 func (c *Conn) Wait() error {
@@ -75,6 +85,7 @@ func (c *Conn) Wait() error {
 }
 
 func (c *Conn) Close() error {
+	c.cancel()
 	c.once.Do(func() {
 		close(c.done)
 	})

@@ -108,6 +108,7 @@ func (p *Pool[K, V]) GetCtx(ctx context.Context, key K) (V, error) {
 		item := pooled[V]{
 			val:  fut.val,
 			refs: fut.refs,
+			done: make(chan struct{}),
 		}
 		p.mu.Lock()
 		p.items[key] = &item
