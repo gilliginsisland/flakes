@@ -49,7 +49,7 @@ func NewDialer(o Opts) *Dialer {
 	} else {
 		d.fwd = (&net.Dialer{}).DialContext
 	}
-	d.pool = syncutil.NewPool(d.factory, 5*time.Minute)
+	d.pool = syncutil.NewPool(d.factory, 1*time.Hour)
 	return &d
 }
 
