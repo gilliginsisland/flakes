@@ -5,6 +5,7 @@
   pkg-config,
   openconnect,
   writeTextFile,
+  stdenv,
 }:
 
 let
@@ -62,4 +63,23 @@ buildGoModule {
   vendorHash = null;
 
   src = lib.cleanSource ./.;
+
+  preBuild = lib.optionalString stdenv.isDarwin ''
+    arch=$(uname -m)
+    case "$arch" in
+      arm64)  suffix=darwin_arm64 ;;
+      x86_64) suffix=darwin_amd64 ;;
+      *)      echo "Unsupported architecture: $arch" >&2; exit 1 ;;
+    esac
+
+    echo "Embedding Info.plist for $suffix"
+
+    # Minimal empty object file
+    echo | clang -x assembler -c -o dummy.o -
+
+    # Inject Info.plist as a section
+    ld -r -sectcreate __TEXT __info_plist Info.plist -o info_plist_''${suffix}.syso -arch $arch dummy.o
+
+    mv info_plist_''${suffix}.syso cmd/pacman/info_plist_''${suffix}.syso
+  '';
 }
