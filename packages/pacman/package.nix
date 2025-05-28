@@ -4,6 +4,7 @@
   fetchgit,
   pkg-config,
   openconnect,
+  writeTextFile,
 }:
 
 let
@@ -16,9 +17,18 @@ let
       sha256 = "sha256-OBEojqOf7cmGtDa9ToPaJUHrmBhq19/CyZ5agbP7WUw=";
     };
 
-    patches = (prev.patches or []) ++ [
-      ./openconnect-get-tun-fd.patch
-    ];
+    patches = (prev.patches or []) ++ (
+      let
+        patchDir = builtins.path {
+          name = "patches";
+          path = ./patches;
+          filter = path: type: lib.hasSuffix ".patch" path;
+        };
+      in
+        builtins.map
+          (name: "${patchDir}/${name}")
+          (builtins.attrNames (builtins.readDir patchDir))
+    );
 
     # Remove the old vpnc-script setting
     configureFlags = builtins.filter
