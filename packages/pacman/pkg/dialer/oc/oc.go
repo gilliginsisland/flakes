@@ -137,6 +137,13 @@ func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
 		slog.String("error", form.Error),
 	)
 
+	if form.Error != "" {
+		prompt.Prompt(prompt.Dialog{
+			Title:   "PacMan",
+			Message: form.Error,
+		})
+	}
+
 	for _, opt := range form.Options {
 		slog.Debug(
 			"option",
@@ -152,8 +159,8 @@ func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
 			if u.Query().Get("token") == "otp" {
 				otp, err := prompt.Prompt(prompt.Dialog{
 					Title:   "PacMan",
-					Message: fmt.Sprintf("OTP is required for the proxy at %s\nEnter YubiKey OTP:", u.Redacted()),
-					Secure:  true,
+					Message: fmt.Sprintf("OTP is required for the proxy at %s\n\nEnter YubiKey OTP:", u.Redacted()),
+					Input:   prompt.SecureInput,
 				})
 				if err != nil {
 					return err

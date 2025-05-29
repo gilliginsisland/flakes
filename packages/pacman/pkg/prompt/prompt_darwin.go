@@ -17,17 +17,36 @@ var ErrUserCancelled = errors.New("User cancelled")
 type prompter struct{}
 
 func (prompter) Prompt(d Dialog) (string, error) {
-	params := map[string]any{
-		"message":       d.Message,
-		"secure":        d.Secure,
-		"defaultAnswer": d.DefaultAnswer,
-		"title":         d.Title,
-		"buttons":       d.Buttons,
-		"defaultButton": d.DefaultButton,
-		"cancelButton":  d.CancelButton,
+	args := struct {
+		Message string         `json:"message"`
+		Options map[string]any `json:"options"`
+	}{
+		Message: d.Message,
+		Options: map[string]any{},
 	}
 
-	args, err := json.Marshal(params)
+	switch d.Input {
+	case SecureInput:
+		args.Options["hiddenAnswer"] = true
+		fallthrough
+	case TextInput:
+		args.Options["defaultAnswer"] = d.DefaultAnswer
+	}
+
+	if d.Title != "" {
+		args.Options["withTitle"] = d.Title
+	}
+	if d.Buttons != nil {
+		args.Options["buttons"] = d.Buttons
+	}
+	if d.DefaultButton != "" {
+		args.Options["defaultButton"] = d.DefaultButton
+	}
+	if d.CancelButton != "" {
+		args.Options["cancelButton"] = d.CancelButton
+	}
+
+	jsargs, err := json.Marshal(&args)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode dialog params: %w", err)
 	}
@@ -39,33 +58,14 @@ func (prompter) Prompt(d Dialog) (string, error) {
 		var app = Application.currentApplication();
 		app.includeStandardAdditions = true;
 
-		var options = {
-		  defaultAnswer: args.defaultAnswer,
-		  hiddenAnswer: args.secure,
-		};
-		if (args.title) {
-		  options.withTitle = args.title;
-		}
-		if (args.buttons) {
-		  buttons = args.buttons;
-		}
-		if (args.defaultButton) {
-		  defaultButton = args.defaultButton;
-		}
-		if (args.cancelButton) {
-		  cancelButton = args.cancelButton;
-		}
-
 		try {
-			var result = app.displayDialog(args.message, options);
+			var result = app.displayDialog(args.message, args.options);
 		} catch(e) {
-			if (e.message.includes("User canceled")) {
-				$.exit(128);
-			}
+			if (e.message.includes("User canceled")) $.exit(128);
 			throw e;
 		}
 		result.textReturned;
-	`, args)
+	`, jsargs)
 
 	cmd := exec.Command("osascript", "-l", "JavaScript")
 	cmd.Stdin = strings.NewReader(script)
