@@ -14,8 +14,8 @@ func (s *mockScanner) Scan() *Report {
 	r := Report{
 		OS: OS{
 			Version:      "Darwin",
-			ServicePack:  "22.2.0",
-			Architecture: "x86_64",
+			ServicePack:  "24.5.0",
+			Architecture: "arm64",
 		},
 		Policy: Policy{
 			Location: "Default",
@@ -52,6 +52,8 @@ func (s *mockScanner) Scan() *Report {
 				Description: "McAfee Endpoint Security for Mac (Mac)",
 				Version:     "10.7.7",
 				Activescan:  "ok",
+				LastUpdate:  56266,
+				Timestamp:   int(time.Now().Unix()) - 56266,
 			},
 		},
 		Files:     map[string]File{},
