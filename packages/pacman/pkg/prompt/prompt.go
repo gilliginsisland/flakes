@@ -1,11 +1,20 @@
 package prompt
 
+// InputType defines the type of input expected in a Dialog.
+type InputType int
+
+const (
+	NoInput InputType = iota
+	TextInput
+	SecureInput
+)
+
 // Dialog defines the user input prompt settings.
 type Dialog struct {
 	Message       string
-	Secure        bool
-	DefaultAnswer string
 	Title         string
+	Input         InputType
+	DefaultAnswer string
 	Buttons       []string
 	DefaultButton string
 	CancelButton  string
