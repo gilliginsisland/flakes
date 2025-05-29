@@ -45,6 +45,8 @@ type AntiMalware struct {
 	Description string `csd:"description"`
 	Version     string `csd:"version"`
 	Activescan  string `csd:"activescan"`
+	LastUpdate  int    `csd:"lastupdate"`
+	Timestamp   int    `csd:"timestamp"`
 }
 
 type File struct {
