@@ -4,6 +4,7 @@
   fetchgit,
   pkg-config,
   openconnect,
+  macdylibbundler,
   writeTextFile,
   stdenv,
 }:
@@ -51,7 +52,7 @@ buildGoModule {
     mainProgram = "pacman";
   };
 
-  nativeBuildInputs = [ pkg-config ];
+  nativeBuildInputs = [ pkg-config macdylibbundler ];
   buildInputs = [ openconnect' ];
 
   # Ensure cgo picks up the correct .pc with internal header path
@@ -64,22 +65,22 @@ buildGoModule {
 
   src = lib.cleanSource ./.;
 
-  preBuild = lib.optionalString stdenv.isDarwin ''
-    arch=$(uname -m)
-    case "$arch" in
-      arm64)  suffix=darwin_arm64 ;;
-      x86_64) suffix=darwin_amd64 ;;
-      *)      echo "Unsupported architecture: $arch" >&2; exit 1 ;;
-    esac
+  installPhase = ''
+    app=$out/Applications/Pacman.app
+    mkdir -p "$app"/Contents/{MacOS,Resources,lib}
+    cp "$GOPATH/bin/pacman" "$app/Contents/MacOS/Pacman"
 
-    echo "Embedding Info.plist for $suffix"
+    # Copy Info.plist
+    cp "${./Info.plist}" "$app/Contents/Info.plist"
 
-    # Minimal empty object file
-    echo | clang -x assembler -c -o dummy.o -
+    # Bundle dynamic libraries into Frameworks
+    "${lib.getBin macdylibbundler}/bin/dylibbundler" \
+      -b \
+      -x "$app/Contents/MacOS/Pacman" \
+      -d "$app/Contents/lib" \
+      -p @executable_path/../lib
 
-    # Inject Info.plist as a section
-    ld -r -sectcreate __TEXT __info_plist Info.plist -o info_plist_''${suffix}.syso -arch $arch dummy.o
-
-    mv info_plist_''${suffix}.syso cmd/pacman/info_plist_''${suffix}.syso
+    mkdir -p "$out/bin"
+    ln -s "$app/Contents/MacOS/Pacman" "$out/bin/pacman"
   '';
 }
