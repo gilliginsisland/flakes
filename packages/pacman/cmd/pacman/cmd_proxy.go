@@ -7,14 +7,15 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
-	"github.com/gilliginsisland/pacman/pkg/flagutil"
-	"github.com/gilliginsisland/pacman/pkg/netutil"
+	"github.com/caseymrm/menuet"
 	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
+	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/gilliginsisland/pacman/pkg/launch"
-	"github.com/gilliginsisland/pacman/pkg/notify"
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/proxy"
 	"github.com/jessevdk/go-flags"
 	"tailscale.com/net/socks5"
@@ -34,6 +35,29 @@ type ProxyCommand struct {
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
+	app := menuet.App()
+	app.Name = "PACman"
+	app.Label = "com.github.gilliginsisland.pacman"
+	app.NotificationResponder = func(id string, response string) {}
+
+	app.HideStartup()
+	app.SetMenuState(&menuet.MenuState{
+		Image: "menuicon.pdf",
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		err := c.run()
+		errCh <- err
+		os.Exit(1)
+	}()
+
+	app.RunApplication()
+
+	return <-errCh
+}
+
+func (c *ProxyCommand) run() error {
 	var rules ghost.Ruleset
 	err := json.NewDecoder(&c.RulesFile).Decode(&rules)
 	c.RulesFile.Close()
@@ -46,7 +70,6 @@ func (c *ProxyCommand) Execute(args []string) error {
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).DialContext,
-		Notifier: notify.New(),
 	})
 
 	httpServer := proxy.NewServer(ghost, &proxy.PacHandler{Rules: rules})

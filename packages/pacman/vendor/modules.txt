@@ -1,3 +1,9 @@
+# github.com/caseymrm/askm v1.0.0
+## explicit
+github.com/caseymrm/askm
+# github.com/caseymrm/menuet v1.0.3
+## explicit; go 1.13
+github.com/caseymrm/menuet
 # github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 ## explicit; go 1.24
 github.com/go-json-experiment/json
@@ -16,8 +22,6 @@ github.com/google/gopacket/layers
 # github.com/jessevdk/go-flags v1.6.1
 ## explicit; go 1.20
 github.com/jessevdk/go-flags
-# github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
-## explicit; go 1.13
 # go4.org/mem v0.0.0-20240501181205-ae6ca9944745
 ## explicit; go 1.14
 go4.org/mem
@@ -72,7 +76,7 @@ golang.org/x/tools/internal/stdlib
 golang.org/x/tools/internal/typeparams
 golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/versions
-# gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
+# gvisor.dev/gvisor v0.0.0-20250602214251-4235583ef8c6
 ## explicit; go 1.23.1
 gvisor.dev/gvisor/pkg/atomicbitops
 gvisor.dev/gvisor/pkg/bits

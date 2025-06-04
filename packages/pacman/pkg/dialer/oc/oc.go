@@ -10,11 +10,13 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/caseymrm/menuet"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
-	"github.com/gilliginsisland/pacman/pkg/prompt"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"golang.org/x/net/proxy"
 )
+
+var errUserCancelled = errors.New("User cancelled")
 
 type callbacks struct {
 	url *url.URL
@@ -67,7 +69,7 @@ func New(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
 						slog.String("proxy", u.Redacted()),
 						slog.Any("error", err),
 					)
-					if errors.Is(err, prompt.ErrUserCancelled) {
+					if errors.Is(err, errUserCancelled) {
 						return openconnect.FormResultCancelled
 					}
 					return openconnect.FormResultErr
@@ -130,6 +132,8 @@ func WithConn(conn *openconnect.Conn) (proxy.Dialer, error) {
 }
 
 func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
+	app := menuet.App()
+
 	slog.Debug(
 		"Processing Auth Form",
 		slog.String("banner", form.Banner),
@@ -138,9 +142,9 @@ func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
 	)
 
 	if form.Error != "" {
-		prompt.Prompt(prompt.Dialog{
-			Title:   "PacMan",
-			Message: form.Error,
+		app.Alert(menuet.Alert{
+			MessageText:     "Authentication Error: " + u.Redacted(),
+			InformativeText: form.Error,
 		})
 	}
 
@@ -157,15 +161,20 @@ func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
 		case opt.Type == openconnect.FormOptionPassword:
 			passwd, _ := u.User.Password()
 			if u.Query().Get("token") == "otp" {
-				otp, err := prompt.Prompt(prompt.Dialog{
-					Title:   "PacMan",
-					Message: fmt.Sprintf("OTP is required for the proxy at %s\n\nEnter YubiKey OTP:", u.Redacted()),
-					Input:   prompt.SecureInput,
+				clicked := app.Alert(menuet.Alert{
+					MessageText:     "Authentication Required",
+					InformativeText: fmt.Sprintf("OTP is required for the proxy at %s\n\nEnter YubiKey OTP:", u.Redacted()),
+					Inputs:          []string{""},
+					Buttons: []string{
+						"Continue",
+						"Cancel",
+					},
 				})
-				if err != nil {
-					return err
+				button := clicked.Button
+				if button == 1 {
+					return errUserCancelled
 				}
-				passwd += otp
+				passwd += clicked.Inputs[0]
 			}
 			opt.SetValue(passwd)
 		}

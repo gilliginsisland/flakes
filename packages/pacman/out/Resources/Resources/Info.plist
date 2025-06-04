@@ -6,13 +6,11 @@
     <key>CFBundleIdentifier</key>
     <string>com.github.gilliginsisland.pacman</string>
     <key>CFBundleName</key>
-    <string>PACman</string>
+    <string>Pacman</string>
     <key>CFBundleDisplayName</key>
-    <string>PACman</string>
+    <string>Pacman</string>
     <key>CFBundleExecutable</key>
     <string>pacman</string>
-    <key>CFBundleIconFile</key>
-    <string>icon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleVersion</key>
@@ -25,7 +23,5 @@
     <!-- Needed for hardened runtime signing -->
     <key>LSMinimumSystemVersion</key>
     <string>10.10</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
 </dict>
 </plist>

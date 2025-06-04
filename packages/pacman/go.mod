@@ -9,14 +9,16 @@ require (
 	golang.org/x/net v0.40.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/tools v0.33.0
-	gvisor.dev/gvisor v0.0.0-20250523182742-eede7a881b20
+	gvisor.dev/gvisor v0.0.0-20250602214251-4235583ef8c6
 	tailscale.com v1.84.0
 )
 
+require github.com/caseymrm/askm v1.0.0 // indirect
+
 require (
+	github.com/caseymrm/menuet v1.0.3
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8 // indirect
 	github.com/google/btree v1.1.3 // indirect
-	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
 	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
