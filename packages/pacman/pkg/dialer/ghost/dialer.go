@@ -8,10 +8,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/caseymrm/menuet"
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 
 	_ "github.com/gilliginsisland/pacman/pkg/dialer"
-	"github.com/gilliginsisland/pacman/pkg/notify"
 	"golang.org/x/net/proxy"
 )
 
@@ -23,9 +23,8 @@ var localResolver = net.Resolver{
 }
 
 type Opts struct {
-	Ruleset  Ruleset
-	Dial     func(ctx context.Context, network, address string) (net.Conn, error)
-	Notifier notify.Notifier
+	Ruleset Ruleset
+	Dial    func(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 // Dialer directs connections based on rules.
@@ -33,16 +32,16 @@ type Opts struct {
 type Dialer struct {
 	rules    Ruleset
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
-	notifier notify.Notifier
 	pool     *syncutil.Pool[*URL, proxy.ContextDialer]
 	resolver *net.Resolver
+	app      *menuet.Application
 }
 
 // NewDialerPool initializes a pool.
 func NewDialer(o Opts) *Dialer {
 	d := Dialer{
-		rules:    o.Ruleset,
-		notifier: o.Notifier,
+		rules: o.Ruleset,
+		app:   menuet.App(),
 	}
 	if dial := o.Dial; dial != nil {
 		d.fwd = dial
@@ -128,9 +127,10 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net.Conn, error) {
 	dd, err := d.pool.GetCtx(ctx, u)
 	if err != nil {
-		d.notifier.Send(notify.Notification{
-			Subtitle: "Proxy connection failed",
-			Message:  u.Redacted(),
+		d.app.Notification(menuet.Notification{
+			Title:    "Proxy connection failed",
+			Subtitle: u.Redacted(),
+			Message:  err.Error(),
 		})
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 		slog.String("proxy", u.Redacted()),
 	)
 
-	d.notifier.Send(notify.Notification{
+	d.app.Notification(menuet.Notification{
 		Title:    "Connecting to proxy",
 		Subtitle: u.Redacted(),
 		Message:  "The connection to the proxy is being established.",
@@ -158,7 +158,7 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 
 	dd, err := proxy.FromURL(&u.URL, d)
 	if err != nil {
-		d.notifier.Send(notify.Notification{
+		d.app.Notification(menuet.Notification{
 			Title:    "Proxy connection failed",
 			Subtitle: u.Redacted(),
 			Message:  err.Error(),
@@ -171,7 +171,7 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 		return nil, fmt.Errorf("Dialer does not support DialContext: %s", u.Redacted())
 	}
 
-	d.notifier.Send(notify.Notification{
+	d.app.Notification(menuet.Notification{
 		Title:    "Proxy connected",
 		Subtitle: u.Redacted(),
 		Message:  "The proxy connection has been established",
@@ -183,7 +183,7 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 			if err := w.Wait(); err != nil {
 				msg += err.Error()
 			}
-			d.notifier.Send(notify.Notification{
+			d.app.Notification(menuet.Notification{
 				Title:    "Proxy disconnected",
 				Subtitle: u.Redacted(),
 				Message:  msg,

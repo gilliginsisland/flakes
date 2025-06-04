@@ -141,7 +141,7 @@ in {
       config = {
         ProcessType = "Background";
         ProgramArguments = [
-          (meta.getExe pacman)
+          "${pacman}/Applications/PACman.app/Contents/MacOS/PACman"
           "proxy"
           "--file" "${rulefile}"
           "--launchd"
