@@ -10,127 +10,105 @@ import (
 
 var errExpired = errors.New("expired")
 
-type wrapper[V any] interface {
-	Unwrap(ctx context.Context) (V, error)
+type entry[V any] struct {
+	val     V
+	err     error
+	refs    chan context.Context
+	expired chan struct{}
 }
 
-type pooled[V any] struct {
-	val  V
-	refs chan context.Context
-	done chan struct{}
-}
-
-func (p *pooled[V]) Unwrap(ctx context.Context) (V, error) {
+func (f *entry[V]) Unwrap(ctx context.Context) (V, error) {
 	select {
-	case p.refs <- ctx:
-		return p.val, nil
-	case <-p.done:
-		return p.val, errExpired
+	case f.refs <- ctx:
+		return f.val, f.err
+	case <-f.expired:
+		if f.err != nil {
+			return f.val, f.err
+		}
+		return f.val, errExpired
 	}
-}
-
-type future[V any] struct {
-	val  V
-	err  error
-	refs chan context.Context
-	done chan struct{}
-}
-
-func (f *future[V]) Unwrap(ctx context.Context) (V, error) {
-	<-f.done
-	if f.err == nil {
-		f.refs <- ctx
-	}
-	return f.val, f.err
 }
 
 type Pool[K comparable, V any] struct {
 	mu      sync.RWMutex
-	items   map[K]wrapper[V]
+	items   map[K]*entry[V]
 	factory func(K) (V, error)
 	timeout time.Duration
 }
 
 func NewPool[K comparable, V any](factory func(K) (V, error), timeout time.Duration) *Pool[K, V] {
 	return &Pool[K, V]{
-		items:   make(map[K]wrapper[V]),
+		items:   make(map[K]*entry[V]),
 		factory: factory,
 		timeout: timeout,
 	}
 }
 
 func (p *Pool[K, V]) GetCtx(ctx context.Context, key K) (V, error) {
+	for {
+		item := p.get(key)
+		val, err := item.Unwrap(ctx)
+		if err != errExpired {
+			return val, err
+		}
+	}
+}
+
+func (p *Pool[K, V]) get(key K) *entry[V] {
 	// Fast path: try reading without locking
 	p.mu.RLock()
 	item, exists := p.items[key]
 	p.mu.RUnlock()
 
-	if exists {
-		val, err := item.Unwrap(ctx)
-		if err == errExpired {
-			return p.GetCtx(ctx, key)
-		}
-		return val, err
+	if !exists {
+		return item
 	}
 
 	// Slow path: acquire full lock and check again
 	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	// Double-check if another goroutine already created it
-	if item, exists = p.items[key]; exists {
-		p.mu.Unlock()
-		val, err := item.Unwrap(ctx)
-		if err == errExpired {
-			return p.GetCtx(ctx, key)
-		}
-		return val, err
+	item, exists = p.items[key]
+	if exists {
+		return item
 	}
 
 	// Use a future so we can generate the item async
-	fut := future[V]{
-		done: make(chan struct{}),
-		refs: make(chan context.Context),
+	item = &entry[V]{
+		refs:    make(chan context.Context),
+		expired: make(chan struct{}),
 	}
-	p.items[key] = &fut
-	p.mu.Unlock()
+	p.items[key] = item
 
 	go func() {
-		fut.val, fut.err = p.factory(key)
-		close(fut.done)
+		item.val, item.err = p.factory(key)
 
-		if fut.err != nil {
+		if item.err != nil {
 			p.mu.Lock()
 			delete(p.items, key)
 			p.mu.Unlock()
 			return
 		}
 
-		item := pooled[V]{
-			val:  fut.val,
-			refs: fut.refs,
-			done: make(chan struct{}),
-		}
-		p.mu.Lock()
-		p.items[key] = &item
-		p.mu.Unlock()
-		go p.monitor(key, &item)
+		go p.monitor(key, item)
 	}()
 
-	return fut.Unwrap(ctx)
+	return item
 }
 
-func (p *Pool[K, V]) monitor(key K, item *pooled[V]) {
+func (p *Pool[K, V]) monitor(key K, item *entry[V]) {
 	var (
-		wait     chan error
+		wait     chan struct{}
 		timeout  <-chan time.Time
-		done     chan struct{}
+		done     = make(chan struct{})
 		refCount int
 	)
 
 	if w, ok := any(item.val).(interface{ Wait() error }); ok {
-		wait = make(chan error, 1)
+		wait = make(chan struct{})
 		go func() {
-			wait <- w.Wait()
+			w.Wait()
 			close(wait)
 		}()
 	}
@@ -138,12 +116,9 @@ func (p *Pool[K, V]) monitor(key K, item *pooled[V]) {
 	for {
 		select {
 		case ctx := <-item.refs:
-			if ctx.Err() != nil {
-				break
-			}
 			refCount++
 			timeout = nil
-			go func() { done <- <-ctx.Done() }()
+			context.AfterFunc(ctx, func() { done <- struct{}{} })
 		case <-done:
 			refCount--
 			if refCount == 0 {
@@ -152,17 +127,17 @@ func (p *Pool[K, V]) monitor(key K, item *pooled[V]) {
 		case <-wait:
 			p.mu.Lock()
 			delete(p.items, key)
-			close(item.done)
 			p.mu.Unlock()
+			close(item.expired)
 			return
 		case <-timeout:
 			p.mu.Lock()
 			delete(p.items, key)
-			close(item.done)
-			if c, ok := any(item.val).(io.Closer); ok {
-				c.Close()
-			}
 			p.mu.Unlock()
+			close(item.expired)
+			if c, ok := any(item.val).(io.Closer); ok {
+				go c.Close()
+			}
 			return
 		}
 	}
