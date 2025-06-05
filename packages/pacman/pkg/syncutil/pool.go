@@ -60,7 +60,7 @@ func (p *Pool[K, V]) get(key K) *entry[V] {
 	item, exists := p.items[key]
 	p.mu.RUnlock()
 
-	if !exists {
+	if exists {
 		return item
 	}
 
