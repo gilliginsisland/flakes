@@ -25,6 +25,8 @@
     <!-- Needed for hardened runtime signing -->
     <key>LSMinimumSystemVersion</key>
     <string>10.10</string>
+    <key>LSUIElement</key>
+    <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
