@@ -118,7 +118,17 @@ func (p *Pool[K, V]) monitor(key K, item *entry[V]) {
 		case ctx := <-item.refs:
 			refCount++
 			timeout = nil
-			context.AfterFunc(ctx, func() { done <- struct{}{} })
+
+			go func() {
+				select {
+				case <-ctx.Done():
+					select {
+					case done <- struct{}{}:
+					case <-item.expired:
+					}
+				case <-item.expired:
+				}
+			}()
 		case <-done:
 			refCount--
 			if refCount == 0 {
