@@ -1,4 +1,4 @@
-package syncutil
+package pool
 
 import (
 	"context"
@@ -33,10 +33,13 @@ type Pool[K comparable, V any] struct {
 	mu      sync.RWMutex
 	items   map[K]*entry[V]
 	factory func(K) (V, error)
-	timeout time.Duration
+	timeout func(K) <-chan time.Time
 }
 
-func NewPool[K comparable, V any](factory func(K) (V, error), timeout time.Duration) *Pool[K, V] {
+func New[K comparable, V any](
+	factory func(K) (V, error),
+	timeout func(K) <-chan time.Time,
+) *Pool[K, V] {
 	return &Pool[K, V]{
 		items:   make(map[K]*entry[V]),
 		factory: factory,
@@ -132,7 +135,7 @@ func (p *Pool[K, V]) monitor(key K, item *entry[V]) {
 		case <-done:
 			refCount--
 			if refCount == 0 {
-				timeout = time.After(p.timeout)
+				timeout = p.timeout(key)
 			}
 		case <-wait:
 			p.mu.Lock()

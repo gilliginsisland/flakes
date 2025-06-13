@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/caseymrm/menuet"
-	"github.com/gilliginsisland/pacman/pkg/syncutil"
+	"golang.org/x/net/proxy"
 
 	_ "github.com/gilliginsisland/pacman/pkg/dialer"
-	"golang.org/x/net/proxy"
+	"github.com/gilliginsisland/pacman/pkg/pool"
 )
 
 var localResolver = net.Resolver{
@@ -32,7 +32,7 @@ type Opts struct {
 type Dialer struct {
 	rules    Ruleset
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
-	pool     *syncutil.Pool[*URL, proxy.ContextDialer]
+	pool     *pool.Pool[*URL, proxy.ContextDialer]
 	resolver *net.Resolver
 	app      *menuet.Application
 }
@@ -48,7 +48,7 @@ func NewDialer(o Opts) *Dialer {
 	} else {
 		d.fwd = (&net.Dialer{}).DialContext
 	}
-	d.pool = syncutil.NewPool(d.factory, 1*time.Hour)
+	d.pool = pool.New(d.factory, timeout)
 	return &d
 }
 
@@ -192,4 +192,11 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 	}
 
 	return xd, nil
+}
+
+func timeout(u *URL) <-chan time.Time {
+	if u.Query().Get("timeout") == "0" {
+		return nil
+	}
+	return time.After(1 * time.Hour)
 }
