@@ -127,11 +127,6 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net.Conn, error) {
 	dd, err := d.pool.GetCtx(ctx, u)
 	if err != nil {
-		d.app.Notification(menuet.Notification{
-			Title:    "Proxy connection failed",
-			Subtitle: u.Redacted(),
-			Message:  err.Error(),
-		})
 		return nil, err
 	}
 
@@ -151,30 +146,33 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 	)
 
 	d.app.Notification(menuet.Notification{
-		Title:    "Connecting to proxy",
-		Subtitle: u.Redacted(),
-		Message:  "The connection to the proxy is being established.",
+		Title:      "Connecting to proxy",
+		Subtitle:   u.Principal(),
+		Message:    "The connection to the proxy is being established.",
+		Identifier: u.ID(),
 	})
 
 	dd, err := proxy.FromURL(&u.URL, d)
 	if err != nil {
 		d.app.Notification(menuet.Notification{
-			Title:    "Proxy connection failed",
-			Subtitle: u.Redacted(),
-			Message:  err.Error(),
+			Title:      "Proxy connection failed",
+			Subtitle:   u.Principal(),
+			Message:    err.Error(),
+			Identifier: u.ID(),
 		})
 		return nil, err
 	}
 
 	xd, ok := dd.(proxy.ContextDialer)
 	if !ok {
-		return nil, fmt.Errorf("Dialer does not support DialContext: %s", u.Redacted())
+		return nil, fmt.Errorf("Dialer does not support DialContext: %s", u.Principal())
 	}
 
 	d.app.Notification(menuet.Notification{
-		Title:    "Proxy connected",
-		Subtitle: u.Redacted(),
-		Message:  "The proxy connection has been established",
+		Title:      "Proxy connected",
+		Subtitle:   u.Principal(),
+		Message:    "The proxy connection has been established",
+		Identifier: u.ID(),
 	})
 
 	if w, ok := dd.(interface{ Wait() error }); ok {
@@ -184,9 +182,10 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 				msg += err.Error()
 			}
 			d.app.Notification(menuet.Notification{
-				Title:    "Proxy disconnected",
-				Subtitle: u.Redacted(),
-				Message:  msg,
+				Title:      "Proxy disconnected",
+				Subtitle:   u.Principal(),
+				Message:    msg,
+				Identifier: u.ID(),
 			})
 		}()
 	}
