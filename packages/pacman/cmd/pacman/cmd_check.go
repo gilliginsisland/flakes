@@ -24,14 +24,14 @@ type CheckCmd struct {
 
 // Execute runs the check command.
 func (c *CheckCmd) Execute(args []string) error {
-	var rules ghost.Ruleset
+	var rules ghost.RuleSet
 	if err := json.NewDecoder(&c.RulesFile).Decode(&rules); err != nil {
 		return err
 	}
 	c.RulesFile.Close()
 
-	if r := rules.MatchHost(c.Host); r != nil {
-		fmt.Printf("%s\n", r.Proxies)
+	if m, ok := ghost.CompileRuleSet(rules).MatchHost(c.Host); ok {
+		fmt.Printf("%s\n", m)
 		return nil
 	}
 

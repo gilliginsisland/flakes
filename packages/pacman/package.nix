@@ -6,7 +6,8 @@
   openconnect,
   macdylibbundler,
   stdenv,
-  librsvg
+  librsvg,
+  apple-sdk_15
 }:
 
 let
@@ -68,7 +69,7 @@ buildGoModule {
   };
 
   nativeBuildInputs = [ pkg-config macdylibbundler openconnect' librsvg iconutil ];
-  buildInputs = [];
+  buildInputs = [ apple-sdk_15 ];
 
   # Ensure cgo picks up the correct .pc with internal header path
   env = {

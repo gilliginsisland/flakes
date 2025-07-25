@@ -23,16 +23,16 @@ var localResolver = net.Resolver{
 }
 
 type Opts struct {
-	Ruleset Ruleset
+	Matcher HostMatcher
 	Dial    func(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 // Dialer directs connections based on rules.
 // It supports recursive dialers.
 type Dialer struct {
-	rules    Ruleset
+	matcher  HostMatcher
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
-	pool     *pool.Pool[*URL, proxy.ContextDialer]
+	pool     *pool.Pool[*Proxy, proxy.ContextDialer]
 	resolver *net.Resolver
 	app      *menuet.Application
 }
@@ -40,8 +40,8 @@ type Dialer struct {
 // NewDialerPool initializes a pool.
 func NewDialer(o Opts) *Dialer {
 	d := Dialer{
-		rules: o.Ruleset,
-		app:   menuet.App(),
+		matcher: o.Matcher,
+		app:     menuet.App(),
 	}
 	if dial := o.Dial; dial != nil {
 		d.fwd = dial
@@ -68,20 +68,20 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		return nil, err
 	}
 
-	rule := d.rules.MatchHost(host)
+	proxies, found := d.matcher.MatchHost(host)
 
 	if ips, err := localResolver.LookupIP(ctx, "ip", host); err == nil {
 		ip := ips[0].String()
 		if ip != host {
 			address = net.JoinHostPort(ip, port)
 			host = ip
-			if rule == nil {
-				rule = d.rules.MatchHost(host)
+			if !found {
+				proxies, found = d.matcher.MatchHost(host)
 			}
 		}
 	}
 
-	if rule == nil || len(rule.Proxies) == 0 {
+	if !found {
 		slog.Debug(
 			"Using forwarding dialer",
 			slog.String("network", network),
@@ -90,7 +90,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		return d.fwd(ctx, network, address)
 	}
 
-	for _, u := range rule.Proxies {
+	for _, u := range proxies {
 		if err := ctx.Err(); err != nil {
 			slog.Debug(
 				"Aborting due to context cancelled",
@@ -124,8 +124,8 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	return nil, fmt.Errorf("all dialers failed for %s", address)
 }
 
-func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net.Conn, error) {
-	dd, err := d.pool.GetCtx(ctx, u)
+func (d *Dialer) dial(p *Proxy, ctx context.Context, network, address string) (net.Conn, error) {
+	dd, err := d.pool.GetCtx(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -139,40 +139,40 @@ func (d *Dialer) dial(u *URL, ctx context.Context, network, address string) (net
 }
 
 // factory creates a pooled dialer.
-func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
+func (d *Dialer) factory(p *Proxy) (proxy.ContextDialer, error) {
 	slog.Debug(
 		"Creating dialer",
-		slog.String("proxy", u.Redacted()),
+		slog.String("proxy", p.Redacted()),
 	)
 
 	d.app.Notification(menuet.Notification{
 		Title:      "Connecting to proxy",
-		Subtitle:   u.Principal(),
+		Subtitle:   p.Principal(),
 		Message:    "The connection to the proxy is being established.",
-		Identifier: u.ID(),
+		Identifier: p.ID(),
 	})
 
-	dd, err := proxy.FromURL(&u.URL, d)
+	dd, err := proxy.FromURL(&p.URL, d)
 	if err != nil {
 		d.app.Notification(menuet.Notification{
 			Title:      "Proxy connection failed",
-			Subtitle:   u.Principal(),
+			Subtitle:   p.Principal(),
 			Message:    err.Error(),
-			Identifier: u.ID(),
+			Identifier: p.ID(),
 		})
 		return nil, err
 	}
 
 	xd, ok := dd.(proxy.ContextDialer)
 	if !ok {
-		return nil, fmt.Errorf("Dialer does not support DialContext: %s", u.Principal())
+		return nil, fmt.Errorf("Dialer does not support DialContext: %s", p.Principal())
 	}
 
 	d.app.Notification(menuet.Notification{
 		Title:      "Proxy connected",
-		Subtitle:   u.Principal(),
+		Subtitle:   p.Principal(),
 		Message:    "The proxy connection has been established",
-		Identifier: u.ID(),
+		Identifier: p.ID(),
 	})
 
 	if w, ok := dd.(interface{ Wait() error }); ok {
@@ -183,9 +183,9 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 			}
 			d.app.Notification(menuet.Notification{
 				Title:      "Proxy disconnected",
-				Subtitle:   u.Principal(),
+				Subtitle:   p.Principal(),
 				Message:    msg,
-				Identifier: u.ID(),
+				Identifier: p.ID(),
 			})
 		}()
 	}
@@ -193,8 +193,8 @@ func (d *Dialer) factory(u *URL) (proxy.ContextDialer, error) {
 	return xd, nil
 }
 
-func timeout(u *URL) <-chan time.Time {
-	if u.Query().Get("timeout") == "0" {
+func timeout(p *Proxy) <-chan time.Time {
+	if p.Query().Get("timeout") == "0" {
 		return nil
 	}
 	return time.After(1 * time.Hour)
