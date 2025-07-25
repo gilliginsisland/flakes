@@ -58,7 +58,7 @@ func (c *ProxyCommand) Execute(args []string) error {
 }
 
 func (c *ProxyCommand) run() error {
-	var rules ghost.Ruleset
+	var rules ghost.RuleSet
 	err := json.NewDecoder(&c.RulesFile).Decode(&rules)
 	c.RulesFile.Close()
 	if err != nil {
@@ -66,7 +66,7 @@ func (c *ProxyCommand) run() error {
 	}
 
 	ghost := ghost.NewDialer(ghost.Opts{
-		Ruleset: rules,
+		Matcher: ghost.CompileRuleSet(rules),
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).DialContext,
