@@ -30,7 +30,7 @@ func (c *CheckCmd) Execute(args []string) error {
 	}
 	c.RulesFile.Close()
 
-	if m, ok := ghost.CompileRuleSet(rules).MatchHost(c.Host); ok {
+	if m, ok := rules.Compile().Match(c.Host); ok {
 		fmt.Printf("%s\n", m)
 		return nil
 	}

@@ -2,43 +2,34 @@ package ghost
 
 import (
 	"encoding"
-	"fmt"
 	"net/url"
+
+	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 type RuleSet []*Rule
 
-type Rule struct {
-	Hosts   []string `json:"hosts"`
-	Proxies []*Proxy `json:"proxies"`
+func (rs RuleSet) Compile() *trie.Host[[]*URL] {
+	t := trie.NewHost[[]*URL]()
+	for _, r := range rs {
+		for _, h := range r.Hosts {
+			t.Insert(h, r.Proxies)
+		}
+	}
+	return t
 }
 
-type Proxy struct {
+type Rule struct {
+	Hosts   []string `json:"hosts"`
+	Proxies []*URL   `json:"proxies"`
+}
+
+type URL struct {
 	url.URL
 }
 
-var _ encoding.TextUnmarshaler = (*Proxy)(nil)
+var _ encoding.TextUnmarshaler = (*URL)(nil)
 
-func (p *Proxy) UnmarshalText(text []byte) error {
+func (p *URL) UnmarshalText(text []byte) error {
 	return p.UnmarshalBinary(text)
-}
-
-// Principal returns the identity of the URL in the form "user@host",
-// or empty string if either part is missing.
-func (p *Proxy) Principal() string {
-	if p == nil {
-		return ""
-	}
-	user := p.User.Username()
-	host := p.Hostname()
-	if user == "" || host == "" {
-		return ""
-	}
-	val := user + "@" + host
-	return val
-}
-
-// ID returns a unique identifier string for the URL pointer.
-func (p *Proxy) ID() string {
-	return fmt.Sprintf("%p", p)
 }

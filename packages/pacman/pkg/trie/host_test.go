@@ -1,9 +1,9 @@
-package ghost
+package trie
 
 import "testing"
 
-func TestHostTreeMatch(t *testing.T) {
-	tree := NewHostTrie[string]()
+func TestHostTrieMatch(t *testing.T) {
+	tree := NewHost[string]()
 
 	tree.Insert("*.example.com", "wild-example")
 	tree.Insert("*.test.example.com", "wild-test-example")
