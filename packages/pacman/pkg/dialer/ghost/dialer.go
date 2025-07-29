@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/pool"
+	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 var localResolver = net.Resolver{
@@ -23,16 +24,16 @@ var localResolver = net.Resolver{
 }
 
 type Opts struct {
-	Matcher HostMatcher
+	RuleSet RuleSet
 	Dial    func(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 // Dialer directs connections based on rules.
 // It supports recursive dialers.
 type Dialer struct {
-	matcher  HostMatcher
+	trie     *trie.Host[[]*URL]
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
-	pool     *pool.Pool[*Proxy, proxy.ContextDialer]
+	pool     *pool.Pool[*URL, proxy.ContextDialer]
 	resolver *net.Resolver
 	app      *menuet.Application
 }
@@ -40,8 +41,8 @@ type Dialer struct {
 // NewDialerPool initializes a pool.
 func NewDialer(o Opts) *Dialer {
 	d := Dialer{
-		matcher: o.Matcher,
-		app:     menuet.App(),
+		app:  menuet.App(),
+		trie: o.RuleSet.Compile(),
 	}
 	if dial := o.Dial; dial != nil {
 		d.fwd = dial
@@ -68,7 +69,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		return nil, err
 	}
 
-	proxies, found := d.matcher.MatchHost(host)
+	proxies, found := d.trie.Match(host)
 
 	if ips, err := localResolver.LookupIP(ctx, "ip", host); err == nil {
 		ip := ips[0].String()
@@ -76,7 +77,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			address = net.JoinHostPort(ip, port)
 			host = ip
 			if !found {
-				proxies, found = d.matcher.MatchHost(host)
+				proxies, found = d.trie.Match(host)
 			}
 		}
 	}
@@ -124,7 +125,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 	return nil, fmt.Errorf("all dialers failed for %s", address)
 }
 
-func (d *Dialer) dial(p *Proxy, ctx context.Context, network, address string) (net.Conn, error) {
+func (d *Dialer) dial(p *URL, ctx context.Context, network, address string) (net.Conn, error) {
 	dd, err := d.pool.GetCtx(ctx, p)
 	if err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func (d *Dialer) dial(p *Proxy, ctx context.Context, network, address string) (n
 }
 
 // factory creates a pooled dialer.
-func (d *Dialer) factory(p *Proxy) (proxy.ContextDialer, error) {
+func (d *Dialer) factory(p *URL) (proxy.ContextDialer, error) {
 	slog.Debug(
 		"Creating dialer",
 		slog.String("proxy", p.Redacted()),
@@ -147,32 +148,32 @@ func (d *Dialer) factory(p *Proxy) (proxy.ContextDialer, error) {
 
 	d.app.Notification(menuet.Notification{
 		Title:      "Connecting to proxy",
-		Subtitle:   p.Principal(),
+		Subtitle:   p.Hostname(),
 		Message:    "The connection to the proxy is being established.",
-		Identifier: p.ID(),
+		Identifier: p.Redacted(),
 	})
 
 	dd, err := proxy.FromURL(&p.URL, d)
 	if err != nil {
 		d.app.Notification(menuet.Notification{
 			Title:      "Proxy connection failed",
-			Subtitle:   p.Principal(),
+			Subtitle:   p.Hostname(),
 			Message:    err.Error(),
-			Identifier: p.ID(),
+			Identifier: p.Redacted(),
 		})
 		return nil, err
 	}
 
 	xd, ok := dd.(proxy.ContextDialer)
 	if !ok {
-		return nil, fmt.Errorf("Dialer does not support DialContext: %s", p.Principal())
+		return nil, fmt.Errorf("Dialer does not support DialContext: %s", p.Hostname())
 	}
 
 	d.app.Notification(menuet.Notification{
 		Title:      "Proxy connected",
-		Subtitle:   p.Principal(),
+		Subtitle:   p.Hostname(),
 		Message:    "The proxy connection has been established",
-		Identifier: p.ID(),
+		Identifier: p.Redacted(),
 	})
 
 	if w, ok := dd.(interface{ Wait() error }); ok {
@@ -183,9 +184,9 @@ func (d *Dialer) factory(p *Proxy) (proxy.ContextDialer, error) {
 			}
 			d.app.Notification(menuet.Notification{
 				Title:      "Proxy disconnected",
-				Subtitle:   p.Principal(),
+				Subtitle:   p.Hostname(),
 				Message:    msg,
-				Identifier: p.ID(),
+				Identifier: p.Redacted(),
 			})
 		}()
 	}
@@ -193,7 +194,7 @@ func (d *Dialer) factory(p *Proxy) (proxy.ContextDialer, error) {
 	return xd, nil
 }
 
-func timeout(p *Proxy) <-chan time.Time {
+func timeout(p *URL) <-chan time.Time {
 	if p.Query().Get("timeout") == "0" {
 		return nil
 	}

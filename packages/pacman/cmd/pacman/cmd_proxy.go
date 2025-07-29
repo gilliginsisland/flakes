@@ -66,7 +66,7 @@ func (c *ProxyCommand) run() error {
 	}
 
 	ghost := ghost.NewDialer(ghost.Opts{
-		Matcher: ghost.CompileRuleSet(rules),
+		RuleSet: rules,
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).DialContext,
