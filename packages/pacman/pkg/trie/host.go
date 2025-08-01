@@ -42,3 +42,14 @@ func (m *Host[V]) Match(host string) (V, bool) {
 	}
 	return m.host.Match(host)
 }
+
+func (m *Host[V]) Values() []V {
+	var ret []V
+	for _, v := range m.host.wildcard {
+		ret = append(ret, v)
+	}
+	for _, n := range m.cidr {
+		ret = append(ret, n.Value)
+	}
+	return ret
+}

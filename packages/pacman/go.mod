@@ -9,7 +9,7 @@ require (
 	golang.org/x/net v0.40.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/tools v0.33.0
-	gvisor.dev/gvisor v0.0.0-20250602214251-4235583ef8c6
+	gvisor.dev/gvisor v0.0.0-20250729204252-ebe7818ac67b
 	tailscale.com v1.84.0
 )
 
