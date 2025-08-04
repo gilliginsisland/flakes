@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/caseymrm/menuet"
 	"golang.org/x/net/proxy"
 
 	_ "github.com/gilliginsisland/pacman/pkg/dialer"
-	"github.com/gilliginsisland/pacman/pkg/pool"
+	"github.com/gilliginsisland/pacman/pkg/dialer/lazy"
 	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
@@ -33,7 +34,7 @@ type Opts struct {
 type Dialer struct {
 	trie     *trie.Host[[]*URL]
 	fwd      func(ctx context.Context, network, address string) (net.Conn, error)
-	pool     *pool.Pool[*URL, proxy.ContextDialer]
+	pool     map[*URL]*lazy.Dialer
 	resolver *net.Resolver
 	app      *menuet.Application
 }
@@ -44,12 +45,33 @@ func NewDialer(o Opts) *Dialer {
 		app:  menuet.App(),
 		trie: o.RuleSet.Compile(),
 	}
+
 	if dial := o.Dial; dial != nil {
 		d.fwd = dial
 	} else {
 		d.fwd = (&net.Dialer{}).DialContext
 	}
-	d.pool = pool.New(d.factory, timeout)
+
+	d.pool = make(map[*URL]*lazy.Dialer)
+	for chain := range d.trie.Walk {
+		for _, u := range chain {
+			if _, ok := d.pool[u]; ok {
+				continue
+			}
+
+			var timeout time.Duration = 1 * time.Hour
+			if t := u.Query().Get("timeout"); t != "" {
+				if i, err := strconv.Atoi(t); err == nil {
+					timeout = time.Duration(i) * time.Second
+				}
+			}
+
+			d.pool[u] = lazy.NewDialer(func() (proxy.ContextDialer, error) {
+				return d.factory(u)
+			}, timeout)
+		}
+	}
+
 	return &d
 }
 
@@ -126,10 +148,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 }
 
 func (d *Dialer) dial(p *URL, ctx context.Context, network, address string) (net.Conn, error) {
-	dd, err := d.pool.GetCtx(ctx, p)
-	if err != nil {
-		return nil, err
-	}
+	dd := d.pool[p]
 
 	conn, err := dd.DialContext(ctx, network, address)
 	if err != nil {
@@ -192,11 +211,4 @@ func (d *Dialer) factory(p *URL) (proxy.ContextDialer, error) {
 	}
 
 	return xd, nil
-}
-
-func timeout(p *URL) <-chan time.Time {
-	if p.Query().Get("timeout") == "0" {
-		return nil
-	}
-	return time.After(1 * time.Hour)
 }

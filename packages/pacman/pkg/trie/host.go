@@ -1,6 +1,9 @@
 package trie
 
-import "net"
+import (
+	"iter"
+	"net"
+)
 
 type Host[V any] struct {
 	host *Hostname[V]
@@ -43,13 +46,17 @@ func (m *Host[V]) Match(host string) (V, bool) {
 	return m.host.Match(host)
 }
 
-func (m *Host[V]) Values() []V {
-	var ret []V
+var _ iter.Seq[struct{}] = (*Host[struct{}])(nil).Walk
+
+func (m *Host[V]) Walk(yield func(V) bool) {
 	for _, v := range m.host.wildcard {
-		ret = append(ret, v)
+		if !yield(v) {
+			return
+		}
 	}
 	for _, n := range m.cidr {
-		ret = append(ret, n.Value)
+		if !yield(n.Value) {
+			return
+		}
 	}
-	return ret
 }
