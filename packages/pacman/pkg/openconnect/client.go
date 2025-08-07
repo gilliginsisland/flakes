@@ -115,11 +115,14 @@ func (c *Conn) TunClient() (*os.File, *IPInfo, error) {
 		}
 	}()
 
-	fd, err := c.vpn.SwapTunFd(fds[0])
+	if oldfd, err := c.vpn.GetTunFd(); err == nil {
+		unix.Close(oldfd)
+	}
+
+	err = c.vpn.SetupTunFd(fds[0])
 	if err != nil {
 		return nil, nil, err
 	}
-	unix.Close(fd)
 
 	ipinfo, err := c.vpn.GetIPInfo()
 	if err != nil {

@@ -1,9 +1,11 @@
 package stackutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/gilliginsisland/pacman/pkg/netutil"
@@ -105,13 +107,18 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 		},
 	})
 
+	var ep stack.LinkEndpoint
 	ch := channel.New(1024, opts.MTU, "")
-	ep := DumpingLinkEndpoint{
-		LinkEndpoint: ch,
-		Dumper: PacketDumperFunc(func(pkt *stack.PacketBuffer, chain string) {
-			b := pkt.ToBuffer()
-			netutil.DumpPacket(b.Flatten(), chain)
-		}),
+	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+		ep = &DumpingLinkEndpoint{
+			LinkEndpoint: ch,
+			Dumper: PacketDumperFunc(func(pkt *stack.PacketBuffer, chain string) {
+				b := pkt.ToBuffer()
+				netutil.DumpPacket(b.Flatten(), chain)
+			}),
+		}
+	} else {
+		ep = ch
 	}
 
 	cleanup := func() {
@@ -120,7 +127,7 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 	}
 
 	nicID := s.NextNICID()
-	iperr := s.CreateNIC(nicID, &ep)
+	iperr := s.CreateNIC(nicID, ep)
 	if iperr != nil {
 		cleanup()
 		return nil, fmt.Errorf("Failed to create nic: %s", iperr.String())

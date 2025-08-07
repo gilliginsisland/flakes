@@ -7,15 +7,13 @@ package openconnect
 import "C"
 
 import (
-	"runtime/cgo"
 	"unsafe"
 )
 
 //export go_validate_peer_cert
 func go_validate_peer_cert(context unsafe.Pointer, cert *C.char) C.int {
-	h := *(*cgo.Handle)(context)
-	v := h.Value().(*VpnInfo)
-	if v == nil || v.ValidatePeerCert == nil {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.ValidatePeerCert == nil {
 		return C.int(1)
 	}
 	if v.ValidatePeerCert(C.GoString(cert)) {
@@ -26,9 +24,8 @@ func go_validate_peer_cert(context unsafe.Pointer, cert *C.char) C.int {
 
 //export go_process_auth_form
 func go_process_auth_form(context unsafe.Pointer, form *C.struct_oc_auth_form) C.int {
-	h := *(*cgo.Handle)(context)
-	v := h.Value().(*VpnInfo)
-	if v == nil || v.ProcessAuthForm == nil {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.ProcessAuthForm == nil {
 		return C.OC_FORM_RESULT_ERR
 	}
 
@@ -92,9 +89,8 @@ func go_process_auth_form(context unsafe.Pointer, form *C.struct_oc_auth_form) C
 
 //export go_progress
 func go_progress(context unsafe.Pointer, level C.int, message *C.char) {
-	h := *(*cgo.Handle)(context)
-	v := h.Value().(*VpnInfo)
-	if v == nil || v.Progress == nil {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.Progress == nil {
 		return
 	}
 	v.Progress(LogLevel(level), C.GoString(message))
@@ -102,9 +98,8 @@ func go_progress(context unsafe.Pointer, level C.int, message *C.char) {
 
 //export go_external_browser_callback
 func go_external_browser_callback(_ *C.struct_openconnect_info, uri *C.char, context unsafe.Pointer) C.int {
-	h := *(*cgo.Handle)(context)
-	v := h.Value().(*VpnInfo)
-	if v == nil || v.ExternalBrowser == nil {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.ExternalBrowser == nil {
 		return 1
 	}
 
