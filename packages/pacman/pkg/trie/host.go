@@ -26,6 +26,7 @@ func (m *Host[V]) Insert(host string, value V) {
 				IP:   ip,
 				Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
 			}
+			err = nil
 		}
 	}
 

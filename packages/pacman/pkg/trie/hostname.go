@@ -25,14 +25,26 @@ func NewHostname[V any]() *Hostname[V] {
 	}
 }
 
-// Insert inserts a hostname rule (either exact or wildcard)
+// Insert inserts a hostname rule
+//
+// A prefix of "." matches the base domain and all subdomains.
+// A prefix of "*." matches only subdomains.
+// All other hosts are treated as exact literal matches.
 func (h *Hostname[V]) Insert(host string, value V) {
 	host = canonocalizeHost(host)
+
 	if strings.HasPrefix(host, "*.") {
-		h.insertWildcard(strings.TrimPrefix(host, "*."), value)
-	} else {
-		h.insertHost(host, value)
+		host = strings.TrimPrefix(host, "*.")
+		h.insertWildcard(host, value)
+		return
 	}
+
+	if strings.HasPrefix(host, ".") {
+		host = strings.TrimPrefix(host, ".")
+		h.insertWildcard(host, value)
+	}
+
+	h.insertHost(host, value)
 }
 
 // insertHost adds an exact rule (e.g., example.com)

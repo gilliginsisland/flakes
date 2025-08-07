@@ -31,14 +31,34 @@ func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "\tdefault:")
 	fmt.Fprintln(w, "\t\tbreak;")
 	for _, rule := range h.Rules {
-		for _, h := range rule.Hosts {
-			if strings.HasPrefix(h, "*.") {
-				suffix := strings.TrimPrefix(h, "*")
-				checks = append(checks, fmt.Sprintf("host.substring(host.length - %d) === %s", len(suffix), jsString(suffix)))
-			} else if _, ipnet, err := net.ParseCIDR(h); err == nil {
-				checks = append(checks, fmt.Sprintf("isInNet(host, \"%s\", \"%s\")", ipnet.IP.String(), net.IP(ipnet.Mask).String()))
-			} else {
-				fmt.Fprintf(w, "\tcase %s:\n", jsString(h))
+		for _, host := range rule.Hosts {
+			var (
+				wildcard bool
+				literal  bool
+			)
+
+			switch {
+			case strings.HasPrefix(host, "."):
+				host = strings.TrimPrefix(host, ".")
+				wildcard = true
+				literal = true
+			case strings.HasPrefix(host, "*."):
+				host = strings.TrimPrefix(host, "*.")
+				wildcard = true
+			default:
+				if _, ipnet, err := net.ParseCIDR(host); err == nil {
+					checks = append(checks, fmt.Sprintf("isInNet(host, \"%s\", \"%s\")", ipnet.IP.String(), net.IP(ipnet.Mask).String()))
+					continue
+				}
+				literal = true
+			}
+
+			if wildcard {
+				checks = append(checks, fmt.Sprintf("host.substring(host.length - %d) === \".\" + %s", len(host)+1, jsString(host)))
+			}
+
+			if literal {
+				fmt.Fprintf(w, "\tcase %s:\n", jsString(host))
 			}
 		}
 	}
