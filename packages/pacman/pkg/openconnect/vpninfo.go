@@ -12,9 +12,12 @@ import "C"
 import (
 	"errors"
 	"os"
-	"runtime/cgo"
 	"unsafe"
+
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
+
+var handles = syncutil.Map[uintptr, *VpnInfo]{}
 
 type Protocol string
 
@@ -47,7 +50,6 @@ type Options struct {
 // VpnInfo represents a VPN session in Go.
 type VpnInfo struct {
 	vpninfo *C.struct_openconnect_info
-	handle  cgo.Handle // Safe reference to Go object
 	Callbacks
 }
 
@@ -62,13 +64,12 @@ func New(opts Options) (*VpnInfo, error) {
 
 	v := VpnInfo{}
 
-	// Store the reference to this struct inside cgo.Handle
-	v.handle = cgo.NewHandle(&v)
-	v.vpninfo = C.go_vpninfo_new(cUserAgent, unsafe.Pointer(&v.handle))
+	v.vpninfo = C.go_vpninfo_new(cUserAgent, nil)
 	if v.vpninfo == nil {
-		v.handle.Delete() // Cleanup handle on failure
 		return nil, errors.New("failed to create VPN session")
 	}
+
+	handles.Store(uintptr(unsafe.Pointer(v.vpninfo)), &v)
 
 	err := v.ParseOpts(opts)
 	if err != nil {
@@ -81,12 +82,13 @@ func New(opts Options) (*VpnInfo, error) {
 
 // Free cleans up the VPN session.
 func (v *VpnInfo) Free() {
-	if v.vpninfo != nil {
-		C.openconnect_vpninfo_free(v.vpninfo)
-		v.vpninfo = nil
+	if v.vpninfo == nil {
+		return
 	}
-	v.handle.Delete() // Free cgo.Handle
-	v.handle = 0
+
+	C.openconnect_vpninfo_free(v.vpninfo)
+	handles.Delete(uintptr(unsafe.Pointer(v.vpninfo)))
+	v.vpninfo = nil
 }
 
 func (v *VpnInfo) ParseOpts(opts Options) error {
@@ -249,13 +251,6 @@ func (v *VpnInfo) MainLoop() error {
 	return nil
 }
 
-func (v *VpnInfo) SwapTunFd(newfd int) (int, error) {
-	oldfd := int(C.openconnect_get_tun_fd(v.vpninfo))
-
-	err := v.SetupTunFd(newfd)
-	if err != nil {
-		return -1, nil
-	}
-
-	return oldfd, nil
+func (v *VpnInfo) GetTunFd() (int, error) {
+	return -1, errors.New("tun FD not set")
 }

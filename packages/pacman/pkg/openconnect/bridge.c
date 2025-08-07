@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 
 extern int go_validate_peer_cert(void *context, char *cert);
 extern int go_process_auth_form(void *context, struct oc_auth_form *form);
