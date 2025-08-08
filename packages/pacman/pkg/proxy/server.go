@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"golang.org/x/net/proxy"
+
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 )
 
 // HTTPServer struct

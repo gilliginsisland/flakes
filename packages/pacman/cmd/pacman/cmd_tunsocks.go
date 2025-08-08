@@ -8,12 +8,13 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/pkg/flagutil"
-	"github.com/gilliginsisland/pacman/pkg/stackutil"
-	"github.com/gilliginsisland/pacman/pkg/env"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/sys/unix"
 	"tailscale.com/net/socks5"
+
+	"github.com/gilliginsisland/pacman/pkg/env"
+	"github.com/gilliginsisland/pacman/pkg/flagutil"
+	"github.com/gilliginsisland/pacman/pkg/stackutil"
 )
 
 func init() {

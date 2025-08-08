@@ -11,9 +11,10 @@ import (
 	"strings"
 
 	"github.com/caseymrm/menuet"
+	"golang.org/x/net/proxy"
+
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
-	"golang.org/x/net/proxy"
 )
 
 var errUserCancelled = errors.New("User cancelled")
