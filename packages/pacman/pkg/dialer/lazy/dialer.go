@@ -9,8 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gilliginsisland/pacman/pkg/contextutil"
 	"golang.org/x/net/proxy"
+
+	"github.com/gilliginsisland/pacman/pkg/contextutil"
 )
 
 var (

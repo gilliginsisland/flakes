@@ -5,8 +5,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/gilliginsisland/pacman/pkg/flagutil"
 )
 
 var opts struct {

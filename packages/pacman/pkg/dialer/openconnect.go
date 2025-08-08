@@ -1,8 +1,9 @@
 package dialer
 
 import (
-	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"golang.org/x/net/proxy"
+
+	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 )
 
 func init() {

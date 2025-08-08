@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -11,14 +12,17 @@ import (
 	"sync"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/caseymrm/menuet"
+	"github.com/jessevdk/go-flags"
+	"tailscale.com/net/socks5"
+
 	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/gilliginsisland/pacman/pkg/launch"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/proxy"
-	"github.com/jessevdk/go-flags"
-	"tailscale.com/net/socks5"
 )
 
 func init() {
@@ -35,6 +39,10 @@ type ProxyCommand struct {
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	app := menuet.App()
 	app.Name = "PACman"
 	app.Label = "com.github.gilliginsisland.pacman"

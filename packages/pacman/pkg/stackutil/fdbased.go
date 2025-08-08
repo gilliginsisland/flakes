@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
@@ -17,6 +16,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
+
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 )
 
 type NetOptions struct {
