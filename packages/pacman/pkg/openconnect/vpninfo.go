@@ -44,6 +44,7 @@ type Options struct {
 	Server    string
 	CSD       string
 	LogLevel  LogLevel
+	ForceDPD  int
 	Callbacks
 }
 
@@ -118,6 +119,10 @@ func (v *VpnInfo) ParseOpts(opts Options) error {
 		if err := v.SetupCSD(os.Getuid(), true, opts.CSD); err != nil {
 			return err
 		}
+	}
+
+	if opts.ForceDPD > 0 {
+		v.SetDPD(opts.ForceDPD)
 	}
 
 	return nil
@@ -219,6 +224,10 @@ func (v *VpnInfo) DisableDTLS() error {
 		return errors.New("failed to disable DTLS")
 	}
 	return nil
+}
+
+func (v *VpnInfo) SetDPD(min_seconds int) {
+	C.openconnect_set_dpd(v.vpninfo, C.int(min_seconds))
 }
 
 func (v *VpnInfo) ObtainCookie() error {
