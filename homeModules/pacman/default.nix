@@ -22,12 +22,17 @@ let
       (optionalString (options != {}) ("/?" + toQs options))
     ];
 
-    pacManRules = builtins.toJSON (map
+    rules = builtins.toJSON (map
       (rule: rule // {
         proxies = map toProxyUrl rule.proxies;
       })
       cfg.rules
     );
+
+    pacManRules = builtins.toJSON {
+      proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
+      rules = cfg.rules;
+    };
   in pkgs.writeText "rulefile" pacManRules;
 
   types = lib.types // rec {
@@ -44,7 +49,7 @@ let
           description = ''
             Proxy configuration.
           '';
-          type = types.listOf proxy;
+          type = types.listOf types.str;
         };
       };
     };
@@ -124,6 +129,14 @@ in {
       '';
       default = null;
       type = types.nullOr (types.enum ["DEBUG" "INFO" "WARN" "ERROR"]);
+    };
+
+    proxies = mkOption {
+      description = ''
+        Map of proxy keys to proxy definitions.
+      '';
+      type = types.attrsOf types.proxy;
+      default = {};
     };
 
     rules = mkOption {

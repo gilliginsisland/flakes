@@ -25,8 +25,8 @@ var localResolver = net.Resolver{
 }
 
 type Opts struct {
-	RuleSet RuleSet
-	Dial    func(ctx context.Context, network, address string) (net.Conn, error)
+	Trie *trie.Host[[]*URL]
+	Dial func(ctx context.Context, network, address string) (net.Conn, error)
 }
 
 // Dialer directs connections based on rules.
@@ -43,7 +43,7 @@ type Dialer struct {
 func NewDialer(o Opts) *Dialer {
 	d := Dialer{
 		app:  menuet.App(),
-		trie: o.RuleSet.Compile(),
+		trie: o.Trie,
 	}
 
 	if dial := o.Dial; dial != nil {
@@ -53,7 +53,7 @@ func NewDialer(o Opts) *Dialer {
 	}
 
 	d.pool = make(map[*URL]*lazy.Dialer)
-	for chain := range d.trie.Walk {
+	for _, chain := range d.trie.Walk {
 		for _, u := range chain {
 			if _, ok := d.pool[u]; ok {
 				continue

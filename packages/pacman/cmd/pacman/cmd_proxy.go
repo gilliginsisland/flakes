@@ -73,14 +73,19 @@ func (c *ProxyCommand) run() error {
 		return err
 	}
 
+	t, err := rules.Compile()
+	if err != nil {
+		return err
+	}
+
 	ghost := ghost.NewDialer(ghost.Opts{
-		RuleSet: rules,
+		Trie: t,
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).DialContext,
 	})
-
-	httpServer := proxy.NewServer(ghost, &proxy.PacHandler{Rules: rules})
+	pacHandler := proxy.PacHandler{Trie: t}
+	httpServer := proxy.NewServer(ghost, &pacHandler)
 	socksServer := socks5.Server{
 		Dialer: ghost.DialContext,
 		Logf: func(format string, v ...interface{}) {

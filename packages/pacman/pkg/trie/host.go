@@ -47,16 +47,21 @@ func (m *Host[V]) Match(host string) (V, bool) {
 	return m.host.Match(host)
 }
 
-var _ iter.Seq[struct{}] = (*Host[struct{}])(nil).Walk
+var _ iter.Seq2[string, struct{}] = (*Host[struct{}])(nil).Walk
 
-func (m *Host[V]) Walk(yield func(V) bool) {
-	for _, v := range m.host.wildcard {
-		if !yield(v) {
+func (m *Host[V]) Walk(yield func(string, V) bool) {
+	for k, v := range m.host.hosts {
+		if !yield(k, v) {
+			return
+		}
+	}
+	for k, v := range m.host.wildcard {
+		if !yield("*."+k, v) {
 			return
 		}
 	}
 	for _, n := range m.cidr {
-		if !yield(n.Value) {
+		if !yield(n.Network.String(), n.Value) {
 			return
 		}
 	}

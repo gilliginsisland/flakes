@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
+	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 func jsString(s string) string {
@@ -18,7 +19,7 @@ func jsString(s string) string {
 
 // PacHandler generates a PAC file for browser proxy configuration.
 type PacHandler struct {
-	Rules ghost.RuleSet
+	Trie *trie.Host[[]*ghost.URL]
 }
 
 func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -30,36 +31,14 @@ func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "\tswitch (host) {")
 	fmt.Fprintln(w, "\tdefault:")
 	fmt.Fprintln(w, "\t\tbreak;")
-	for _, rule := range h.Rules {
-		for _, host := range rule.Hosts {
-			var (
-				wildcard bool
-				literal  bool
-			)
-
-			switch {
-			case strings.HasPrefix(host, "."):
-				host = strings.TrimPrefix(host, ".")
-				wildcard = true
-				literal = true
-			case strings.HasPrefix(host, "*."):
-				host = strings.TrimPrefix(host, "*.")
-				wildcard = true
-			default:
-				if _, ipnet, err := net.ParseCIDR(host); err == nil {
-					checks = append(checks, fmt.Sprintf("isInNet(host, \"%s\", \"%s\")", ipnet.IP.String(), net.IP(ipnet.Mask).String()))
-					continue
-				}
-				literal = true
-			}
-
-			if wildcard {
-				checks = append(checks, fmt.Sprintf("host.substring(host.length - %d) === \".\" + %s", len(host)+1, jsString(host)))
-			}
-
-			if literal {
-				fmt.Fprintf(w, "\tcase %s:\n", jsString(host))
-			}
+	for host := range h.Trie.Walk {
+		if strings.HasPrefix(host, "*.") {
+			host = strings.TrimPrefix(host, "*")
+			checks = append(checks, fmt.Sprintf("host.substring(host.length - %d) === %s", len(host), jsString(host)))
+		} else if _, ipnet, err := net.ParseCIDR(host); err == nil {
+			checks = append(checks, fmt.Sprintf("isInNet(host, \"%s\", \"%s\")", ipnet.IP.String(), net.IP(ipnet.Mask).String()))
+		} else {
+			fmt.Fprintf(w, "\tcase %s:\n", jsString(host))
 		}
 	}
 	fmt.Fprintf(w, "\t\treturn \"PROXY %s\";\n", r.Host)
