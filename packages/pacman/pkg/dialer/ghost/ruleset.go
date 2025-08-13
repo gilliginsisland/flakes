@@ -2,26 +2,40 @@ package ghost
 
 import (
 	"encoding"
+	"errors"
 	"net/url"
 
 	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
-type RuleSet []*Rule
+var ErrProxyNotFound = errors.New("proxy not found")
 
-func (rs RuleSet) Compile() *trie.Host[[]*URL] {
+type RuleSet struct {
+	Proxies map[string]*URL `json:"proxies"`
+	Rules   []*Rule         `json:"rules"`
+}
+
+func (rs RuleSet) Compile() (*trie.Host[[]*URL], error) {
 	t := trie.NewHost[[]*URL]()
-	for _, r := range rs {
+	for _, r := range rs.Rules {
+		urls := make([]*URL, len(r.Proxies))
+		for i, proxy := range r.Proxies {
+			u, ok := rs.Proxies[proxy]
+			if !ok {
+				return nil, &url.Error{Op: "compile", URL: proxy, Err: ErrProxyNotFound}
+			}
+			urls[i] = u
+		}
 		for _, h := range r.Hosts {
-			t.Insert(h, r.Proxies)
+			t.Insert(h, urls)
 		}
 	}
-	return t
+	return t, nil
 }
 
 type Rule struct {
 	Hosts   []string `json:"hosts"`
-	Proxies []*URL   `json:"proxies"`
+	Proxies []string `json:"proxies"`
 }
 
 type URL struct {

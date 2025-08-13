@@ -31,7 +31,12 @@ func (c *CheckCmd) Execute(args []string) error {
 	}
 	c.RulesFile.Close()
 
-	if m, ok := rules.Compile().Match(c.Host); ok {
+	t, err := rules.Compile()
+	if err != nil {
+		return err
+	}
+
+	if m, ok := t.Match(c.Host); ok {
 		fmt.Printf("%s\n", m)
 		return nil
 	}
