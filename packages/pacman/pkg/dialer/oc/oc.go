@@ -59,6 +59,7 @@ func New(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
 		Protocol: openconnect.Protocol(u.Scheme),
 		Server:   fmt.Sprintf("%s%s", u.Host, u.Path),
 		CSD:      csd,
+		ForceDPD: 5,
 		LogLevel: openconnect.LogLevelDebug,
 		Callbacks: openconnect.Callbacks{
 			Progress: cb.Progress,
