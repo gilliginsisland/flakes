@@ -1,94 +1,167 @@
 package netutil
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
-	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
-type MuxListener struct {
-	net.Listener
-
-	Http  net.Listener
-	Socks net.Listener
-
-	http  chan net.Conn
-	socks chan net.Conn
+// ChanListener implements a net.Listener backed by a channel.
+type ChanListener struct {
+	c    chan net.Conn
+	addr net.Addr
 }
 
-func NewMuxListener(l net.Listener) *MuxListener {
-	mux := MuxListener{
-		Listener: l,
-		http:     make(chan net.Conn, 100),
-		socks:    make(chan net.Conn, 100),
-	}
-	mux.Http = &chanListener{ch: mux.http, p: &mux}
-	mux.Socks = &chanListener{ch: mux.socks, p: &mux}
+var _ net.Listener = (*ChanListener)(nil)
 
-	go mux.loop()
-
-	return &mux
-}
-
-func (m *MuxListener) loop() error {
-	defer close(m.http)
-	defer close(m.socks)
-
-	for {
-		conn, err := m.Listener.Accept()
-		if err != nil {
-			return err
-		}
-
-		m.handle(NewBuffConn(conn))
-	}
-}
-
-func (m *MuxListener) handle(conn *BuffConn) {
-	magic, err := conn.Peek(1)
-	if err != nil {
-		conn.Close()
-		return
-	}
-
-	var ch chan<- net.Conn
-	switch magic[0] {
-	case 0x05:
-		ch = m.socks
-	default:
-		ch = m.http
-	}
-
-	select {
-	case ch <- conn:
-	case <-time.After(5 * time.Second):
-		conn.Close()
-	}
-}
-
-var _ net.Listener = (*chanListener)(nil)
-
-type chanListener struct {
-	ch chan net.Conn
-	p  net.Listener
-}
-
-func (l *chanListener) Accept() (net.Conn, error) {
-	if conn, ok := <-l.ch; ok {
+func (l *ChanListener) Accept() (net.Conn, error) {
+	if conn, ok := <-l.c; ok {
 		return conn, nil
 	}
 	return nil, fmt.Errorf("listener closed")
 }
 
-func (l *chanListener) Close() error {
-	close(l.ch)
+func (l *ChanListener) Close() error {
+	close(l.c)
 	return nil
 }
 
-func (l *chanListener) Addr() net.Addr {
-	return l.p.Addr()
+func (l *ChanListener) Addr() net.Addr {
+	return l.addr
+}
+
+func (l *ChanListener) ServeConn(conn net.Conn) {
+	l.c <- conn
+}
+
+type ConnHandler interface {
+	ServeConn(net.Conn)
+}
+
+type ConnHandlerFn func(net.Conn)
+
+func (handle ConnHandlerFn) Handle(conn net.Conn) {
+	handle(conn)
+}
+
+type muxConnHandler struct {
+	ConnHandler
+	match func(*BuffConn) bool
+}
+
+// ConnMux wraps a net.Listener and dispatches connections based on match functions.
+type ConnMux struct {
+	handlers []*muxConnHandler
+}
+
+func (m *ConnMux) Handle(match func(*BuffConn) bool, handler ConnHandler) {
+	m.handlers = append(m.handlers, &muxConnHandler{
+		ConnHandler: handler,
+		match:       match,
+	})
+}
+
+func (m *ConnMux) ServeConn(conn net.Conn) {
+	bc := NewBuffConn(conn)
+	for _, h := range m.handlers {
+		if h.match(bc) {
+			h.ServeConn(bc)
+			return
+		}
+	}
+	bc.Close()
+}
+
+func (m *ConnMux) Serve(l net.Listener) error {
+	return Serve(l, m)
+}
+
+func Serve(l net.Listener, h ConnHandler) error {
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return err
+		}
+
+		go h.ServeConn(conn)
+	}
+}
+
+type Server interface {
+	Serve(l net.Listener) error
+}
+
+type muxServer struct {
+	Server
+	match func(*BuffConn) bool
+}
+
+// ServeMux wraps a net.Listener and dispatches connections based on match functions.
+type ServeMux struct {
+	servers []*muxServer
+}
+
+// Handle registers a Server with a match function.
+// Returns a channel that will receive at most one error from the server.
+func (m *ServeMux) Handle(match func(*BuffConn) bool, srv Server) {
+	m.servers = append(m.servers, &muxServer{
+		Server: srv,
+		match:  match,
+	})
+}
+
+// Serve runs the connection accept loop until an error occurs or the listener is closed.
+func (m *ServeMux) Serve(l net.Listener) error {
+	g, ctx := errgroup.WithContext(context.Background())
+
+	mux := ConnMux{}
+	for _, srv := range m.servers {
+		ch := ChanListener{
+			c:    make(chan net.Conn),
+			addr: l.Addr(),
+		}
+		mux.Handle(srv.match, &ch)
+
+		cancelFunc := context.AfterFunc(ctx, func() { ch.Close() })
+		defer cancelFunc()
+
+		g.Go(func() error {
+			return srv.Serve(&ch)
+		})
+	}
+
+	g.Go(func() error {
+		for {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			conn, err := l.Accept()
+			if err != nil {
+				return err
+			}
+
+			go mux.ServeConn(conn)
+		}
+	})
+
+	return g.Wait()
+}
+
+func SOCKS5Match(conn *BuffConn) bool {
+	magic, err := conn.Peek(1)
+	if err != nil {
+		return false
+	}
+	return magic[0] == 0x05
+}
+
+func DefaultMatch(conn *BuffConn) bool {
+	return true
 }
 
 // FreePort asks the kernel for a free open port that is ready to use.

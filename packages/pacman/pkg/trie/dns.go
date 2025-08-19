@@ -11,14 +11,14 @@ type node map[string]node
 // All values are stored in literal or wildcard map directly, not in the tree
 // Tree is used to quickly fail negative wildcard lookups
 
-type Hostname[V any] struct {
+type DNS[V any] struct {
 	hosts    map[string]V // exact match: example.com
 	wildcard map[string]V // wildcard match: *.example.com → example.com
 	root     node         // tree to fail early on wildcard lookups
 }
 
-func NewHostname[V any]() *Hostname[V] {
-	return &Hostname[V]{
+func NewDNS[V any]() *DNS[V] {
+	return &DNS[V]{
 		hosts:    make(map[string]V),
 		wildcard: make(map[string]V),
 		root:     make(node),
@@ -30,7 +30,7 @@ func NewHostname[V any]() *Hostname[V] {
 // A prefix of "." matches the base domain and all subdomains.
 // A prefix of "*." matches only subdomains.
 // All other hosts are treated as exact literal matches.
-func (h *Hostname[V]) Insert(host string, value V) {
+func (h *DNS[V]) Insert(host string, value V) {
 	host = canonocalizeHost(host)
 
 	if strings.HasPrefix(host, "*.") {
@@ -48,12 +48,12 @@ func (h *Hostname[V]) Insert(host string, value V) {
 }
 
 // insertHost adds an exact rule (e.g., example.com)
-func (h *Hostname[V]) insertHost(host string, value V) {
+func (h *DNS[V]) insertHost(host string, value V) {
 	h.hosts[host] = value
 }
 
 // insertWildcard adds a wildcard rule (*.example.com → example.com)
-func (h *Hostname[V]) insertWildcard(suffix string, value V) {
+func (h *DNS[V]) insertWildcard(suffix string, value V) {
 	h.wildcard[suffix] = value
 
 	// Build path in reversed-label trie for fail-fast
@@ -74,7 +74,7 @@ func (h *Hostname[V]) insertWildcard(suffix string, value V) {
 }
 
 // Match finds the most specific match for the given hostname.
-func (t *Hostname[V]) Match(host string) (V, bool) {
+func (t *DNS[V]) Match(host string) (V, bool) {
 	host = canonocalizeHost(host)
 
 	val, ok := t.hosts[host]

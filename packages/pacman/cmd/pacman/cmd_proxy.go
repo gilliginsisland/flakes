@@ -4,24 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
-	"net/http"
-	"os"
-	"sync"
-	"time"
 
 	_ "net/http/pprof"
 
-	"github.com/caseymrm/menuet"
 	"github.com/jessevdk/go-flags"
-	"tailscale.com/net/socks5"
 
-	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/gilliginsisland/pacman/pkg/launch"
-	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/proxy"
 )
 
@@ -34,122 +25,46 @@ var _ flags.Commander = (*ProxyCommand)(nil)
 type ProxyCommand struct {
 	ListenAddr flagutil.HostPort `short:"l" long:"listen" default:"127.0.0.1:8080" description:"Listening address"`
 	Launchd    bool              `long:"launchd" description:"Use launchd socket activation"`
-	RulesFile  flagutil.File     `short:"f" long:"file" description:"Path to the rules file" required:"true"`
 }
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	var rules proxy.RuleSet
+	err := json.NewDecoder(&opts.RulesFile).Decode(&rules)
+	opts.RulesFile.Close()
+	if err != nil {
+		return err
+	}
 
-	app := menuet.App()
-	app.Name = "PACman"
-	app.Label = "com.github.gilliginsisland.pacman"
-	app.NotificationResponder = func(id string, response string) {}
+	app, err := proxy.App(rules)
+	if err != nil {
+		return err
+	}
 
-	app.HideStartup()
-	app.SetMenuState(&menuet.MenuState{
-		Image: "menuicon.pdf",
-	})
+	listeners, err := c.listeners()
+	if err != nil {
+		return err
+	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		err := c.run()
-		errCh <- err
-		os.Exit(1)
-	}()
-
-	app.RunApplication()
-
-	return <-errCh
+	err = app.Serve(listeners)
+	slog.Info("PACman proxy server stopped")
+	return err
 }
 
-func (c *ProxyCommand) run() error {
-	var rules ghost.RuleSet
-	err := json.NewDecoder(&c.RulesFile).Decode(&rules)
-	c.RulesFile.Close()
-	if err != nil {
-		return err
-	}
-
-	t, err := rules.Compile()
-	if err != nil {
-		return err
-	}
-
-	ghost := ghost.NewDialer(ghost.Opts{
-		Trie: t,
-		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
-		}).DialContext,
-	})
-	pacHandler := proxy.PacHandler{Trie: t}
-	httpServer := proxy.NewServer(ghost, &pacHandler)
-	socksServer := socks5.Server{
-		Dialer: ghost.DialContext,
-		Logf: func(format string, v ...interface{}) {
-			slog.Debug(fmt.Sprintf(format, v...))
-		},
-	}
-
-	var listeners []net.Listener
+func (c *ProxyCommand) listeners() (listeners []net.Listener, err error) {
 	if c.Launchd {
-		listeners, err = launch.ActivateSocket("Socket")
-		if err != nil {
-			return err
+		if listeners, err = launch.ActivateSocket("Socket"); err != nil {
+			return nil, err
 		}
 		if len(listeners) == 0 {
-			return errors.New("no launchd sockets were passed")
+			return nil, errors.New("no launchd sockets were passed")
 		}
 	} else {
-		l, err := net.Listen("tcp", string(c.ListenAddr))
-		if err != nil {
-			return fmt.Errorf("failed to listen on %s: %w", c.ListenAddr, err)
+		if l, err := net.Listen("tcp", string(c.ListenAddr)); err != nil {
+			return nil, fmt.Errorf("failed to listen on %s: %w", c.ListenAddr, err)
+		} else {
+			listeners = []net.Listener{l}
 		}
-		listeners = []net.Listener{l}
 	}
-
-	var wg sync.WaitGroup
-	for _, l := range listeners {
-		slog.Info(
-			"PACman proxy server starting",
-			slog.String("address", l.Addr().String()),
-		)
-
-		mux := netutil.NewMuxListener(l)
-
-		slog.Debug(
-			"Mux listener created",
-			slog.String("address", l.Addr().String()),
-		)
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			slog.Debug(
-				"PACman http proxy server starting",
-				slog.String("address", l.Addr().String()),
-			)
-			if err := http.Serve(mux.Http, httpServer); err != nil {
-				slog.Error(fmt.Sprintf("http server stopped: %v\n", err))
-			}
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			slog.Debug(
-				"PACman socks proxy server starting",
-				slog.String("address", l.Addr().String()),
-			)
-			if err := socksServer.Serve(mux.Socks); err != nil {
-				slog.Error(fmt.Sprintf("socks server stopped: %v\n", err))
-			}
-		}()
-	}
-	wg.Wait()
-
-	slog.Info("PACman proxy server stopped")
-	return nil
+	return listeners, nil
 }

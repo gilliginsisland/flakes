@@ -46,7 +46,7 @@ type dialer struct {
 	*openconnect.Conn
 }
 
-func New(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
+func FromURL(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
 	cb := callbacks{url: u}
 
 	var csd string

@@ -11,7 +11,8 @@ import (
 )
 
 var opts struct {
-	LogLevel flagutil.LogLevel `short:"v" long:"verbosity" description:"Verbosity level"`
+	RulesFile flagutil.File     `short:"f" long:"file" description:"Path to the rules file" default:"${HOME}/.config/pacman/config.json"`
+	LogLevel  flagutil.LogLevel `short:"v" long:"verbosity" description:"Verbosity level"`
 }
 
 // Global parser instance

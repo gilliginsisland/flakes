@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/pkg/dialer/ghost"
 	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
@@ -18,11 +17,11 @@ func jsString(s string) string {
 }
 
 // PacHandler generates a PAC file for browser proxy configuration.
-type PacHandler struct {
-	Trie *trie.Host[[]*ghost.URL]
+type PacHandler[K any] struct {
+	Trie *trie.Host[K]
 }
 
-func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *PacHandler[K]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
 
 	var checks []string

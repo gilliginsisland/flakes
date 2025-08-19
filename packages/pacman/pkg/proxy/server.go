@@ -5,31 +5,28 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
-
-	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 )
 
 // HTTPServer struct
 type Server struct {
-	dialer proxy.ContextDialer
-	client *http.Client
-	hndlr  http.Handler
+	Dialer  func(ctx context.Context, network, address string) (net.Conn, error)
+	Handler http.Handler
+	Client  http.Client
 }
 
-func NewServer(dialer proxy.ContextDialer, hndlr http.Handler) *Server {
-	return &Server{
-		dialer: dialer,
-		client: &http.Client{
-			Transport: &http.Transport{
-				DialContext: dialer.DialContext,
-			},
-		},
-		hndlr: hndlr,
+func (s *Server) Serve(l net.Listener) error {
+	if s.Client.Transport == nil {
+		s.Client.Transport = &http.Transport{
+			DialContext: s.Dialer,
+		}
 	}
+
+	return http.Serve(l, s)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -42,12 +39,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	var err error
-	if strings.ToUpper(r.Method) == http.MethodConnect {
+	switch {
+	case strings.ToUpper(r.Method) == http.MethodConnect:
 		err = s.tunnel(w, r)
-	} else if r.URL.IsAbs() {
+	case r.URL.IsAbs():
 		err = s.forward(w, r)
-	} else {
-		s.handleRequest(w, r)
+	case s.Handler != nil:
+		s.Handler.ServeHTTP(w, r)
+	default:
+		http.Error(w, "400 Bad Request", http.StatusBadRequest)
 	}
 
 	if err != nil {
@@ -66,14 +66,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleRequest(w http.ResponseWriter, r *http.Request) {
-	if s.hndlr == nil {
-		http.Error(w, "400 Bad Request", http.StatusBadRequest)
-		return
-	}
-	s.hndlr.ServeHTTP(w, r)
-}
-
 func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -86,7 +78,7 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// connect to the destination (e.g. example.com:443)
-	destConn, err := s.dialer.DialContext(ctx, "tcp", r.Host)
+	destConn, err := s.Dialer(ctx, "tcp", r.Host)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return fmt.Errorf("failed to connect to upstream %s: %w", r.Host, err)
@@ -110,7 +102,7 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (h *Server) forward(w http.ResponseWriter, r *http.Request) error {
+func (s *Server) forward(w http.ResponseWriter, r *http.Request) error {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
@@ -121,7 +113,7 @@ func (h *Server) forward(w http.ResponseWriter, r *http.Request) error {
 	}
 	req.Header = r.Header
 
-	resp, err := h.client.Do(req)
+	resp, err := s.Client.Do(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return err

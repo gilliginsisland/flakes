@@ -16,7 +16,7 @@ var _ flags.Unmarshaler = (*File)(nil)
 
 // UnmarshalText allows opening from filename.
 func (f *File) UnmarshalText(text []byte) error {
-	file, err := os.Open(string(text))
+	file, err := os.Open(os.ExpandEnv(string(text)))
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
