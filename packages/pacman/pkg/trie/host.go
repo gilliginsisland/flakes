@@ -6,13 +6,13 @@ import (
 )
 
 type Host[V any] struct {
-	host *Hostname[V]
+	host *DNS[V]
 	cidr CIDR[V]
 }
 
 func NewHost[V any]() *Host[V] {
 	return &Host[V]{
-		host: NewHostname[V](),
+		host: NewDNS[V](),
 		cidr: NewCIDR[V](),
 	}
 }

@@ -7,6 +7,6 @@ import (
 )
 
 func init() {
-	proxy.RegisterDialerType("anyconnect", oc.New)
-	proxy.RegisterDialerType("gp", oc.New)
+	proxy.RegisterDialerType("anyconnect", oc.FromURL)
+	proxy.RegisterDialerType("gp", oc.FromURL)
 }

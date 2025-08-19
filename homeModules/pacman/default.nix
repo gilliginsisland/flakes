@@ -28,12 +28,10 @@ let
       })
       cfg.rules
     );
-
-    pacManRules = builtins.toJSON {
-      proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
-      rules = cfg.rules;
-    };
-  in pkgs.writeText "rulefile" pacManRules;
+  in builtins.toJSON {
+    proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
+    rules = cfg.rules;
+  };
 
   types = lib.types // rec {
     rule = types.submodule {
@@ -149,15 +147,23 @@ in {
   };
 
   config = mkIf cfg.enable (with cfg; {
+    assertions = [
+      {
+        assertion = lib.all (rule:
+          lib.all (name: builtins.hasAttr name cfg.proxies) rule.proxies
+        ) cfg.rules;
+        message = "All proxy names in rules must exist in top-level `proxies`.";
+      }
+    ];
+
+    xdg.configFile."pacman/config.json".text = rulefile;
+
     launchd.agents.pacman = {
       enable = true;
       config = {
         ProcessType = "Background";
         ProgramArguments = [
-          "${pacman}/Applications/PACman.app/Contents/MacOS/PACman"
-          "proxy"
-          "--file" "${rulefile}"
-          "--launchd"
+          "${pacman}/Applications/PACman.app/Contents/MacOS/PACman" "proxy" "--launchd"
         ] ++ optionals (loglevel != null) [
           "--verbosity" loglevel
         ];
@@ -173,7 +179,7 @@ in {
     };
 
     programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
-      match = ''exec "'${meta.getExe pacman}' check --file='${rulefile}' --host='%h'"'';
+      match = ''exec "'${meta.getExe pacman}' check '%h'"'';
       proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
     };
   });

@@ -1,4 +1,4 @@
-package lazy
+package dialer
 
 import (
 	"context"
@@ -9,9 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/net/proxy"
-
 	"github.com/gilliginsisland/pacman/pkg/contextutil"
+	"golang.org/x/net/proxy"
 )
 
 var (
@@ -20,7 +19,7 @@ var (
 	ErrIdleTimeout      = errors.New("idle timeout reached")
 )
 
-type Dialer struct {
+type Lazy struct {
 	proxy.ContextDialer
 
 	mu        sync.RWMutex
@@ -33,14 +32,14 @@ type Dialer struct {
 	factory func() (proxy.ContextDialer, error)
 }
 
-func NewDialer(factory func() (proxy.ContextDialer, error), timeout time.Duration) *Dialer {
-	return &Dialer{
+func NewLazy(factory func() (proxy.ContextDialer, error), timeout time.Duration) *Lazy {
+	return &Lazy{
 		factory: factory,
 		timeout: timeout,
 	}
 }
 
-func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	d.mu.RLock()
 
 	for d.ContextDialer == nil {
@@ -69,7 +68,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, addr string) (net.Con
 	return conn, err
 }
 
-func (d *Dialer) Close() error {
+func (d *Lazy) Close() error {
 	// signal to stop any ongoing operations
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -79,7 +78,7 @@ func (d *Dialer) Close() error {
 	return nil
 }
 
-func (d *Dialer) init() error {
+func (d *Lazy) init() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
