@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gilliginsisland/pacman/pkg/contextutil"
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 	"golang.org/x/net/proxy"
 )
 
@@ -19,8 +20,18 @@ var (
 	ErrIdleTimeout      = errors.New("idle timeout reached")
 )
 
+type ConnectionState int
+
+const (
+	Offline ConnectionState = iota
+	Connecting
+	Failed
+	Online
+)
+
 type Lazy struct {
 	proxy.ContextDialer
+	state syncutil.Observable[ConnectionState]
 
 	mu        sync.RWMutex
 	ctx       context.Context
@@ -44,11 +55,9 @@ func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn,
 
 	for d.ContextDialer == nil {
 		d.mu.RUnlock()
-
 		if err := d.init(); err != nil {
 			return nil, err
 		}
-
 		d.mu.RLock()
 	}
 
@@ -66,6 +75,14 @@ func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	})
 
 	return conn, err
+}
+
+func (d *Lazy) Observe() <-chan func() ConnectionState {
+	return d.state.Observe()
+}
+
+func (d *Lazy) State() ConnectionState {
+	return d.state.Load()
 }
 
 func (d *Lazy) Close() error {
@@ -86,10 +103,13 @@ func (d *Lazy) init() error {
 		return nil
 	}
 
+	d.state.Store(Connecting)
 	xd, err := d.factory()
 	if err != nil {
+		d.state.Store(Failed)
 		return err
 	}
+	d.state.Store(Online)
 
 	ctx, cancel := context.WithCancelCause(context.Background())
 	timer := time.NewTimer(d.timeout)
@@ -141,6 +161,7 @@ func (d *Lazy) init() error {
 		d.ctx, d.cancel = nil, nil
 		d.timer = nil
 		d.timerRace.Store(false)
+		d.state.Store(Offline)
 	}()
 
 	return nil
