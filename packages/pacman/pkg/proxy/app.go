@@ -21,6 +21,7 @@ import (
 )
 
 type Application struct {
+	*menuet.Application
 	rs     RuleSet
 	dialer dialer.ByHost
 	trie   *trie.Host[proxy.ContextDialer]
@@ -44,6 +45,7 @@ func App(rs RuleSet) (*Application, error) {
 				return &nd
 			}
 		}),
+		Application: menuet.App(),
 	}
 
 	for k, u := range rs.Proxies {
@@ -91,12 +93,11 @@ func App(rs RuleSet) (*Application, error) {
 	return app, nil
 }
 
-func (a *Application) Serve(listeners []net.Listener) error {
+func (app *Application) Serve(listeners []net.Listener) error {
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6060", nil))
 	}()
 
-	app := menuet.App()
 	app.Name = "PACman"
 	app.Label = "com.github.gilliginsisland.pacman"
 	app.NotificationResponder = func(id string, response string) {}
@@ -106,22 +107,23 @@ func (a *Application) Serve(listeners []net.Listener) error {
 		Image: "menuicon.pdf",
 	})
 
-	app.Children = StaticMenu{{
-		Text:     "Proxies",
-		Children: a.proxiesMenu,
-	}}.Children
+	menu := MenuNode{}
+	app.Children = menu.Children
+	buildProxiesMenu(menu.AddChild(menuet.MenuItem{
+		Text: "Proxies",
+	}), app.pool)
 
 	mux := netutil.ServeMux{}
 	mux.Handle(netutil.SOCKS5Match, &socks5.Server{
-		Dialer: a.dialer.DialContext,
+		Dialer: app.dialer.DialContext,
 		Logf: func(format string, v ...any) {
 			slog.Debug(fmt.Sprintf(format, v...))
 		},
 	})
 	mux.Handle(netutil.DefaultMatch, &Server{
-		Dialer: a.dialer.DialContext,
+		Dialer: app.dialer.DialContext,
 		Handler: &PacHandler[proxy.ContextDialer]{
-			Trie: a.trie,
+			Trie: app.trie,
 		},
 	})
 
@@ -143,40 +145,47 @@ func (a *Application) Serve(listeners []net.Listener) error {
 	return nil
 }
 
-func (a *Application) proxiesMenu() []menuet.MenuItem {
-	s := make([]menuet.MenuItem, 0, len(a.pool))
-	for n, d := range a.pool {
-		connected := d.ContextDialer != nil
-
-		var icon string
-		if connected {
-			icon = "🟢 "
-		} else {
-			icon = "⚪ "
+func buildProxiesMenu(menu *MenuNode, pool map[string]*dialer.Lazy) {
+	for l, d := range pool {
+		node := menu.AddChild(menuet.MenuItem{})
+		child := node.AddChild(menuet.MenuItem{})
+		refresh := func(state dialer.ConnectionState) {
+			node.Text = icon(state) + " " + l
+			child.Text, child.Clicked = action(state, d)
 		}
+		refresh(d.State())
 
-		s = append(s, menuet.MenuItem{
-			Text: icon + n,
-			Children: func() []menuet.MenuItem {
-				var action string
-				if connected {
-					action = "Disconnect"
-				} else {
-					action = "Connect"
-				}
-
-				return []menuet.MenuItem{
-					{
-						Text: action,
-						Clicked: func() {
-							if connected {
-								d.Close()
-							}
-						},
-					},
-				}
-			},
-		})
+		ch := d.Observe()
+		go func() {
+			for state := range ch {
+				refresh(state())
+			}
+		}()
 	}
-	return s
+}
+
+func icon(state dialer.ConnectionState) string {
+	switch state {
+	case dialer.Offline:
+		return "⚪"
+	case dialer.Online:
+		return "🟢"
+	case dialer.Failed:
+		return "🔴"
+	case dialer.Connecting:
+		return "🟡"
+	}
+	return ""
+}
+
+func action(state dialer.ConnectionState, d *dialer.Lazy) (string, func()) {
+	switch state {
+	case dialer.Offline, dialer.Failed:
+		return "Connect", nil
+	case dialer.Online:
+		return "Disconnect", func() { d.Close() }
+	case dialer.Connecting:
+		return "🟡", nil
+	}
+	return "", nil
 }
