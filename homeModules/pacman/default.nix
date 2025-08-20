@@ -182,5 +182,7 @@ in {
       match = ''exec "'${meta.getExe pacman}' check '%h'"'';
       proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
     };
+
+    home.packages = [pacman];
   });
 }
