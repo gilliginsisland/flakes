@@ -83,6 +83,8 @@ buildGoModule {
       -p @executable_path/../lib
 
     mkdir -p "$out/bin"
-    ln -s "$app/Contents/MacOS/PACman" "$out/bin/pacman"
+    echo '#!/bin/sh' > "$out/bin/pacman"
+    echo exec "'$app/Contents/MacOS/PACman'" '"$@"' >> "$out/bin/pacman"
+    chmod +x "$out/bin/pacman"
   '';
 }
