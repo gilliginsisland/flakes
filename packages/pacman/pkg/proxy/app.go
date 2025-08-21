@@ -29,24 +29,19 @@ type Application struct {
 }
 
 func App(rs RuleSet) (*Application, error) {
+	pool := make(map[string]*dialer.Lazy, len(rs.Proxies))
+	trie := trie.NewHost[proxy.ContextDialer]()
 	nd := net.Dialer{
 		Timeout: 5 * time.Second,
 	}
 
-	var app *Application
-	app = &Application{
-		rs:   rs,
-		trie: trie.NewHost[proxy.ContextDialer](),
-		pool: make(map[string]*dialer.Lazy, len(rs.Proxies)),
-		dialer: dialer.ByHost(func(host string) proxy.ContextDialer {
-			if pd, found := app.trie.Match(host); found {
-				return pd
-			} else {
-				return &nd
-			}
-		}),
-		Application: menuet.App(),
-	}
+	byHost := dialer.ByHost(func(host string) proxy.ContextDialer {
+		pd, found := trie.Match(host)
+		if !found {
+			pd = &nd
+		}
+		return pd
+	})
 
 	for k, u := range rs.Proxies {
 		var timeout time.Duration = 1 * time.Hour
@@ -60,16 +55,16 @@ func App(rs RuleSet) (*Application, error) {
 				"Creating dialer",
 				slog.String("proxy", u.Redacted()),
 			)
-			return FromURL(&u.URL, app.dialer)
+			return FromURL(&u.URL, byHost)
 		}
 		pd := dialer.NewLazy(init, timeout)
-		app.pool[k] = pd
+		pool[k] = pd
 	}
 
 	for _, r := range rs.Rules {
 		chain := make([]proxy.ContextDialer, len(r.Proxies))
 		for i, proxy := range r.Proxies {
-			pd, ok := app.pool[proxy]
+			pd, ok := pool[proxy]
 			if !ok {
 				return nil, errors.New("proxy not found: " + proxy)
 			}
@@ -79,18 +74,24 @@ func App(rs RuleSet) (*Application, error) {
 		var pd proxy.ContextDialer
 		switch len(chain) {
 		case 0:
-			continue
+			pd = &nd
 		case 1:
 			pd = chain[0]
 		default:
 			pd = dialer.Chain(chain)
 		}
 		for _, h := range r.Hosts {
-			app.trie.Insert(h, pd)
+			trie.Insert(h, pd)
 		}
 	}
 
-	return app, nil
+	return &Application{
+		rs:          rs,
+		trie:        trie,
+		pool:        pool,
+		dialer:      byHost,
+		Application: menuet.App(),
+	}, nil
 }
 
 func (app *Application) Serve(listeners []net.Listener) error {
@@ -109,9 +110,11 @@ func (app *Application) Serve(listeners []net.Listener) error {
 
 	menu := MenuNode{}
 	app.Children = menu.Children
-	buildProxiesMenu(menu.AddChild(menuet.MenuItem{
-		Text: "Proxies",
-	}), app.pool)
+	menu.AddChild(menuet.MenuItem{
+		Text:       "Proxies",
+		FontWeight: 400,
+	})
+	buildProxiesMenu(&menu, app.pool)
 
 	mux := netutil.ServeMux{}
 	mux.Handle(netutil.SOCKS5Match, &socks5.Server{
