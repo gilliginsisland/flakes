@@ -1,4 +1,4 @@
-package proxy
+package app
 
 import "github.com/caseymrm/menuet"
 

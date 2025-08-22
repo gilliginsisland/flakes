@@ -1,12 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/gilliginsisland/pacman/pkg/proxy"
 	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
@@ -21,11 +19,10 @@ type CheckCmd struct{}
 
 // Execute runs the check command.
 func (c *CheckCmd) Execute(args []string) error {
-	var rs proxy.RuleSet
-	if err := json.NewDecoder(&opts.RulesFile).Decode(&rs); err != nil {
+	rs, err := opts.RuleSet()
+	if err != nil {
 		return err
 	}
-	opts.RulesFile.Close()
 
 	t := trie.NewHost[string]()
 	for _, rule := range rs.Rules {
