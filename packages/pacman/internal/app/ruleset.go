@@ -1,4 +1,4 @@
-package proxy
+package app
 
 import (
 	"encoding"
@@ -9,6 +9,7 @@ import (
 var ErrProxyNotFound = errors.New("proxy not found")
 
 type RuleSet struct {
+	Path    string
 	Proxies map[string]*URL `json:"proxies"`
 	Rules   []*Rule         `json:"rules"`
 }

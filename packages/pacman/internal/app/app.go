@@ -1,12 +1,10 @@
-package proxy
+package app
 
 import (
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
-	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -16,19 +14,21 @@ import (
 	"tailscale.com/net/socks5"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/httpproxy"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/trie"
+	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
 
 type Application struct {
 	*menuet.Application
-	rs     RuleSet
+	rs     *RuleSet
 	dialer dialer.ByHost
 	trie   *trie.Host[proxy.ContextDialer]
 	pool   map[string]*dialer.Lazy
 }
 
-func App(rs RuleSet) (*Application, error) {
+func App(rs *RuleSet) (*Application, error) {
 	pool := make(map[string]*dialer.Lazy, len(rs.Proxies))
 	trie := trie.NewHost[proxy.ContextDialer]()
 	nd := net.Dialer{
@@ -95,15 +95,9 @@ func App(rs RuleSet) (*Application, error) {
 }
 
 func (app *Application) Serve(listeners []net.Listener) error {
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-
 	app.Name = "PACman"
 	app.Label = "com.github.gilliginsisland.pacman"
 	app.NotificationResponder = func(id string, response string) {}
-
-	app.HideStartup()
 	app.SetMenuState(&menuet.MenuState{
 		Image: "menuicon.pdf",
 	})
@@ -111,10 +105,35 @@ func (app *Application) Serve(listeners []net.Listener) error {
 	menu := MenuNode{}
 	app.Children = menu.Children
 	menu.AddChild(menuet.MenuItem{
+		Text:       "Server Address",
+		FontWeight: menuet.WeightMedium,
+	})
+	for _, l := range listeners {
+		menu.AddChild(menuet.MenuItem{
+			Text:       l.Addr().String(),
+			FontWeight: menuet.WeightLight,
+		})
+	}
+	menu.AddChild(menuet.MenuItem{
+		Type: menuet.Separator,
+	})
+	menu.AddChild(menuet.MenuItem{
 		Text:       "Proxies",
-		FontWeight: 400,
+		FontWeight: menuet.WeightMedium,
 	})
 	buildProxiesMenu(&menu, app.pool)
+	menu.AddChild(menuet.MenuItem{
+		Type: menuet.Separator,
+	})
+	settings := menu.AddChild(menuet.MenuItem{
+		Text: "Settings",
+	})
+	settings.AddChild(menuet.MenuItem{
+		Text: "Edit",
+		Clicked: func() {
+			xdg.Run(app.rs.Path)
+		},
+	})
 
 	mux := netutil.ServeMux{}
 	mux.Handle(netutil.SOCKS5Match, &socks5.Server{
@@ -123,9 +142,9 @@ func (app *Application) Serve(listeners []net.Listener) error {
 			slog.Debug(fmt.Sprintf(format, v...))
 		},
 	})
-	mux.Handle(netutil.DefaultMatch, &Server{
+	mux.Handle(netutil.DefaultMatch, &httpproxy.Server{
 		Dialer: app.dialer.DialContext,
-		Handler: &PacHandler[proxy.ContextDialer]{
+		Handler: &httpproxy.PacHandler[proxy.ContextDialer]{
 			Trie: app.trie,
 		},
 	})

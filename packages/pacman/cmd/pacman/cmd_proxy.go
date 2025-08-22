@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,9 +10,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/gilliginsisland/pacman/internal/app"
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/gilliginsisland/pacman/pkg/launch"
-	"github.com/gilliginsisland/pacman/pkg/proxy"
 )
 
 func init() {
@@ -29,14 +28,12 @@ type ProxyCommand struct {
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
-	var rules proxy.RuleSet
-	err := json.NewDecoder(&opts.RulesFile).Decode(&rules)
-	opts.RulesFile.Close()
+	rules, err := opts.RuleSet()
 	if err != nil {
 		return err
 	}
 
-	app, err := proxy.App(rules)
+	app, err := app.App(rules)
 	if err != nil {
 		return err
 	}
