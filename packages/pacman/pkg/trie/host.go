@@ -1,68 +1,17 @@
 package trie
 
-import (
-	"iter"
-	"net"
-)
+type Host[V any] map[string]V
 
-type Host[V any] struct {
-	host *DNS[V]
-	cidr CIDR[V]
-}
-
-func NewHost[V any]() *Host[V] {
-	return &Host[V]{
-		host: NewDNS[V](),
-		cidr: NewCIDR[V](),
-	}
-}
-
+// Insert adds a wildcard rule (*.example.com → example.com)
 func (m *Host[V]) Insert(host string, value V) {
-	_, ipnet, err := net.ParseCIDR(host)
-	if err != nil {
-		if ip := net.ParseIP(host); ip != nil {
-			// If the host is a single IP address, treat it as a CIDR with a /32 mask
-			ipnet = &net.IPNet{
-				IP:   ip,
-				Mask: net.CIDRMask(len(ip)*8, len(ip)*8),
-			}
-			err = nil
-		}
+	if *m == nil {
+		*m = make(map[string]V)
 	}
-
-	if ipnet != nil {
-		// If the host is a CIDR, insert it into the CIDR trie
-		m.cidr.Insert(ipnet, value)
-	} else {
-		// Otherwise, insert it into the host trie
-		m.host.Insert(host, value)
-	}
+	(*m)[canonocalizeHost(host)] = value
 }
 
-func (m *Host[V]) Match(host string) (V, bool) {
-	if ip := net.ParseIP(host); ip != nil {
-		// If the host is an IP address, check the CIDR trie
-		return m.cidr.Match(ip)
-	}
-	return m.host.Match(host)
-}
-
-var _ iter.Seq2[string, struct{}] = (*Host[struct{}])(nil).Walk
-
-func (m *Host[V]) Walk(yield func(string, V) bool) {
-	for k, v := range m.host.hosts {
-		if !yield(k, v) {
-			return
-		}
-	}
-	for k, v := range m.host.wildcard {
-		if !yield("*."+k, v) {
-			return
-		}
-	}
-	for _, n := range m.cidr {
-		if !yield(n.Network.String(), n.Value) {
-			return
-		}
-	}
+// Match finds the most specific match for the given hostname.
+func (m Host[V]) Match(host string) (V, bool) {
+	val, ok := m[canonocalizeHost(host)]
+	return val, ok
 }

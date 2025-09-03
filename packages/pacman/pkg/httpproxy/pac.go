@@ -3,11 +3,10 @@ package httpproxy
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net"
 	"net/http"
 	"strings"
-
-	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 func jsString(s string) string {
@@ -17,11 +16,11 @@ func jsString(s string) string {
 }
 
 // PacHandler generates a PAC file for browser proxy configuration.
-type PacHandler[K any] struct {
-	Trie *trie.Host[K]
+type PacHandler struct {
+	Hosts iter.Seq[string]
 }
 
-func (h *PacHandler[K]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/x-ns-proxy-autoconfig")
 
 	var checks []string
@@ -30,7 +29,7 @@ func (h *PacHandler[K]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "\tswitch (host) {")
 	fmt.Fprintln(w, "\tdefault:")
 	fmt.Fprintln(w, "\t\tbreak;")
-	for host := range h.Trie.Walk {
+	for host := range h.Hosts {
 		if strings.HasPrefix(host, "*.") {
 			host = strings.TrimPrefix(host, "*")
 			checks = append(checks, fmt.Sprintf("host.substring(host.length - %d) === %s", len(host), jsString(host)))

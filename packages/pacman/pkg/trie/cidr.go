@@ -12,10 +12,6 @@ type cidrNode[V any] struct {
 
 type CIDR[V any] []*cidrNode[V]
 
-func NewCIDR[V any]() CIDR[V] {
-	return make(CIDR[V], 0)
-}
-
 func (t *CIDR[V]) Insert(cidr *net.IPNet, value V) {
 	m := cidrNode[V]{Network: cidr, Value: value}
 	ones, _ := cidr.Mask.Size()

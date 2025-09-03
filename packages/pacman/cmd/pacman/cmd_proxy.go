@@ -33,35 +33,45 @@ func (c *ProxyCommand) Execute(args []string) error {
 		return err
 	}
 
-	app, err := app.App(rules)
+	app := app.App()
+	if err = app.LoadRuleSet(rules); err != nil {
+		return err
+	}
+
+	l, err := c.listener()
 	if err != nil {
 		return err
 	}
 
-	listeners, err := c.listeners()
-	if err != nil {
-		return err
-	}
+	go func() {
+		slog.Info(
+			"PACman server listening",
+			slog.String("address", l.Addr().String()),
+		)
+		err = app.Serve(l)
+		slog.Info("PACman proxy server stopped")
+	}()
+	app.RunApplication()
 
-	err = app.Serve(listeners)
-	slog.Info("PACman proxy server stopped")
 	return err
 }
 
-func (c *ProxyCommand) listeners() (listeners []net.Listener, err error) {
+func (c *ProxyCommand) listener() (net.Listener, error) {
 	if c.Launchd {
-		if listeners, err = launch.ActivateSocket("Socket"); err != nil {
+		listeners, err := launch.ActivateSocket("Socket")
+		if err != nil {
 			return nil, err
 		}
 		if len(listeners) == 0 {
 			return nil, errors.New("no launchd sockets were passed")
 		}
-	} else {
-		if l, err := net.Listen("tcp", string(c.ListenAddr)); err != nil {
-			return nil, fmt.Errorf("failed to listen on %s: %w", c.ListenAddr, err)
-		} else {
-			listeners = []net.Listener{l}
-		}
+		return listeners[0], nil
 	}
-	return listeners, nil
+
+	l, err := net.Listen("tcp", string(c.ListenAddr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on %s: %w", c.ListenAddr, err)
+	}
+
+	return l, nil
 }
