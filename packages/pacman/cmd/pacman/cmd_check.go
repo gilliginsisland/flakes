@@ -3,9 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/jessevdk/go-flags"
-
 	"github.com/gilliginsisland/pacman/pkg/trie"
+	"github.com/jessevdk/go-flags"
 )
 
 func init() {
@@ -24,7 +23,7 @@ func (c *CheckCmd) Execute(args []string) error {
 		return err
 	}
 
-	t := trie.NewHost[string]()
+	var t trie.Trie[string]
 	for _, rule := range rs.Rules {
 		for _, host := range rule.Hosts {
 			t.Insert(host, host)

@@ -16,85 +16,20 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/httpproxy"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
-	"github.com/gilliginsisland/pacman/pkg/trie"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
 
-type Application struct {
-	*menuet.Application
+type PACMan struct {
 	rs     *RuleSet
 	dialer dialer.ByHost
-	trie   *trie.Host[proxy.ContextDialer]
 	pool   map[string]*dialer.Lazy
+	menuet *menuet.Application
+	menu   *MainMenu
+	server netutil.Server
 }
 
-func App(rs *RuleSet) (*Application, error) {
-	pool := make(map[string]*dialer.Lazy, len(rs.Proxies))
-	trie := trie.NewHost[proxy.ContextDialer]()
-	nd := net.Dialer{
-		Timeout: 5 * time.Second,
-	}
-
-	byHost := dialer.ByHost(func(host string) proxy.ContextDialer {
-		pd, found := trie.Match(host)
-		if !found {
-			pd = &nd
-		}
-		return pd
-	})
-
-	for k, u := range rs.Proxies {
-		var timeout time.Duration = 1 * time.Hour
-		if t := u.Query().Get("timeout"); t != "" {
-			if i, err := strconv.Atoi(t); err == nil {
-				timeout = time.Duration(i) * time.Second
-			}
-		}
-		init := func() (proxy.ContextDialer, error) {
-			slog.Debug(
-				"Creating dialer",
-				slog.String("proxy", u.Redacted()),
-			)
-			return FromURL(&u.URL, byHost)
-		}
-		pd := dialer.NewLazy(init, timeout)
-		pool[k] = pd
-	}
-
-	for _, r := range rs.Rules {
-		chain := make([]proxy.ContextDialer, len(r.Proxies))
-		for i, proxy := range r.Proxies {
-			pd, ok := pool[proxy]
-			if !ok {
-				return nil, errors.New("proxy not found: " + proxy)
-			}
-			chain[i] = pd
-		}
-
-		var pd proxy.ContextDialer
-		switch len(chain) {
-		case 0:
-			pd = &nd
-		case 1:
-			pd = chain[0]
-		default:
-			pd = dialer.Chain(chain)
-		}
-		for _, h := range r.Hosts {
-			trie.Insert(h, pd)
-		}
-	}
-
-	return &Application{
-		rs:          rs,
-		trie:        trie,
-		pool:        pool,
-		dialer:      byHost,
-		Application: menuet.App(),
-	}, nil
-}
-
-func (app *Application) Serve(listeners []net.Listener) error {
+var App = sync.OnceValue(func() *PACMan {
+	app := menuet.App()
 	app.Name = "PACman"
 	app.Label = "com.github.gilliginsisland.pacman"
 	app.NotificationResponder = func(id string, response string) {}
@@ -102,112 +37,106 @@ func (app *Application) Serve(listeners []net.Listener) error {
 		Image: "menuicon.pdf",
 	})
 
-	menu := MenuNode{}
+	var menu Menu
 	app.Children = menu.Children
-	menu.AddChild(menuet.MenuItem{
-		Text:       "Server Address",
-		FontWeight: menuet.WeightMedium,
-	})
-	for _, l := range listeners {
-		menu.AddChild(menuet.MenuItem{
-			Text:       l.Addr().String(),
-			FontWeight: menuet.WeightLight,
-		})
-	}
-	menu.AddChild(menuet.MenuItem{
-		Type: menuet.Separator,
-	})
-	menu.AddChild(menuet.MenuItem{
-		Text:       "Proxies",
-		FontWeight: menuet.WeightMedium,
-	})
-	buildProxiesMenu(&menu, app.pool)
-	menu.AddChild(menuet.MenuItem{
-		Type: menuet.Separator,
-	})
-	settings := menu.AddChild(menuet.MenuItem{
-		Text: "Settings",
-	})
-	settings.AddChild(menuet.MenuItem{
-		Text: "Edit",
-		Clicked: func() {
-			xdg.Run(app.rs.Path)
-		},
-	})
 
-	mux := netutil.ServeMux{}
+	pacman := PACMan{
+		menuet: app,
+		menu:   RootMenu(&menu),
+	}
+	pacman.server = ProxyServer(&pacman.dialer)
+	return &pacman
+})
+
+func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
+	pacman.menu.Settings.Clicked = func() {
+		xdg.Run(pacman.rs.Path)
+	}
+
+	pool := make(map[string]*dialer.Lazy, len(rs.Proxies))
+	byHost := dialer.ByHost{
+		Default: &net.Dialer{
+			Timeout: 5 * time.Second,
+		},
+	}
+
+	for k, u := range rs.Proxies {
+		menu := DialerMenuItem{
+			label: k,
+			node:  pacman.menu.Proxies.AddChild(menuet.MenuItem{}),
+		}
+		menu.child = menu.node.AddChild(menuet.MenuItem{})
+
+		var timeout time.Duration = 1 * time.Hour
+		if t := u.Query().Get("timeout"); t != "" {
+			if i, err := strconv.Atoi(t); err == nil {
+				timeout = time.Duration(i) * time.Second
+			}
+		}
+		menu.lazy = &dialer.Lazy{
+			Timeout: timeout,
+			New: func() (proxy.ContextDialer, error) {
+				return FromURL(&u.URL, &byHost, menu.StateChanged)
+			},
+		}
+		menu.StateChanged(dialer.Offline)
+
+		pool[k] = menu.lazy
+	}
+
+	for _, r := range rs.Rules {
+		chain := make([]proxy.ContextDialer, len(r.Proxies))
+		for i, proxy := range r.Proxies {
+			pd, ok := pool[proxy]
+			if !ok {
+				return errors.New("proxy not found: " + proxy)
+			}
+			chain[i] = pd
+		}
+
+		var pd proxy.ContextDialer
+		switch len(chain) {
+		case 0:
+			pd = nil
+		case 1:
+			pd = chain[0]
+		default:
+			pd = dialer.Chain(chain)
+		}
+		for _, h := range r.Hosts {
+			byHost.Add(h, pd)
+		}
+	}
+
+	pacman.rs = rs
+	pacman.pool = pool
+	pacman.dialer = byHost
+	return nil
+}
+
+func (pacman *PACMan) Serve(l net.Listener) error {
+	pacman.menu.Server.AddChild(menuet.MenuItem{
+		Text:       l.Addr().String(),
+		FontWeight: menuet.WeightLight,
+	})
+	return pacman.server.Serve(l)
+}
+
+func (pacman *PACMan) RunApplication() {
+	pacman.menuet.RunApplication()
+}
+
+func ProxyServer(pd *dialer.ByHost) netutil.Server {
+	var mux netutil.ServeMux
 	mux.Handle(netutil.SOCKS5Match, &socks5.Server{
-		Dialer: app.dialer.DialContext,
+		Dialer: pd.DialContext,
 		Logf: func(format string, v ...any) {
 			slog.Debug(fmt.Sprintf(format, v...))
 		},
 	})
 	mux.Handle(netutil.DefaultMatch, &httpproxy.Server{
-		Dialer: app.dialer.DialContext,
-		Handler: &httpproxy.PacHandler[proxy.ContextDialer]{
-			Trie: app.trie,
-		},
+		Dialer:  pd.DialContext,
+		Handler: &httpproxy.PacHandler{Hosts: pd.Hosts},
 	})
-
-	var wg sync.WaitGroup
-	for _, l := range listeners {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			slog.Info(
-				"PACman server listening",
-				slog.String("address", l.Addr().String()),
-			)
-			mux.Serve(l)
-		}()
-	}
-	app.RunApplication()
-	wg.Wait()
-
-	return nil
-}
-
-func buildProxiesMenu(menu *MenuNode, pool map[string]*dialer.Lazy) {
-	for l, d := range pool {
-		node := menu.AddChild(menuet.MenuItem{})
-		child := node.AddChild(menuet.MenuItem{})
-		refresh := func(state dialer.ConnectionState) {
-			node.Text = icon(state) + " " + l
-			child.Text, child.Clicked = action(state, d)
-		}
-		refresh(d.State())
-
-		ch := d.Observe()
-		go func() {
-			for state := range ch {
-				refresh(state())
-			}
-		}()
-	}
-}
-
-func icon(state dialer.ConnectionState) string {
-	switch state {
-	case dialer.Offline:
-		return "⚪"
-	case dialer.Online:
-		return "🟢"
-	case dialer.Failed:
-		return "🔴"
-	case dialer.Connecting:
-		return "🟡"
-	}
-	return ""
-}
-
-func action(state dialer.ConnectionState, d *dialer.Lazy) (string, func()) {
-	switch state {
-	case dialer.Offline, dialer.Failed:
-		return "Connect", nil
-	case dialer.Online:
-		return "Disconnect", func() { d.Close() }
-	case dialer.Connecting:
-		return "🟡", nil
-	}
-	return "", nil
+	return &mux
 }

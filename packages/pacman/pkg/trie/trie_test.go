@@ -3,7 +3,7 @@ package trie
 import "testing"
 
 func TestHostTrieMatch(t *testing.T) {
-	tree := NewHost[string]()
+	var tree Trie[string]
 
 	tree.Insert("*.example.com", "wild-example")
 	tree.Insert("*.test.example.com", "wild-test-example")

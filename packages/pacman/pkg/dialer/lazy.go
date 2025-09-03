@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gilliginsisland/pacman/pkg/contextutil"
-	"github.com/gilliginsisland/pacman/pkg/syncutil"
 	"golang.org/x/net/proxy"
 )
 
@@ -30,24 +29,16 @@ const (
 )
 
 type Lazy struct {
+	Timeout time.Duration
+	New     func() (proxy.ContextDialer, error)
+
 	proxy.ContextDialer
-	state syncutil.Observable[ConnectionState]
 
 	mu        sync.RWMutex
 	ctx       context.Context
 	cancel    context.CancelCauseFunc
 	timer     *time.Timer
 	timerRace atomic.Bool
-
-	timeout time.Duration
-	factory func() (proxy.ContextDialer, error)
-}
-
-func NewLazy(factory func() (proxy.ContextDialer, error), timeout time.Duration) *Lazy {
-	return &Lazy{
-		factory: factory,
-		timeout: timeout,
-	}
 }
 
 func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -70,19 +61,11 @@ func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	ctx = contextutil.Merge(ctx, d.ctx)
 	conn, err := d.ContextDialer.DialContext(ctx, network, addr)
 	context.AfterFunc(ctx, func() {
-		d.timer.Reset(d.timeout)
+		d.timer.Reset(d.Timeout)
 		d.mu.RUnlock()
 	})
 
 	return conn, err
-}
-
-func (d *Lazy) Observe() <-chan func() ConnectionState {
-	return d.state.Observe()
-}
-
-func (d *Lazy) State() ConnectionState {
-	return d.state.Load()
 }
 
 func (d *Lazy) Close() error {
@@ -103,19 +86,16 @@ func (d *Lazy) init() error {
 		return nil
 	}
 
-	d.state.Store(Connecting)
-	xd, err := d.factory()
+	xd, err := d.New()
 	if err != nil {
-		d.state.Store(Failed)
 		return err
 	}
-	d.state.Store(Online)
 
 	ctx, cancel := context.WithCancelCause(context.Background())
-	timer := time.NewTimer(d.timeout)
+	timer := time.NewTimer(d.Timeout)
 
 	var tc <-chan time.Time
-	if d.timeout > 0 {
+	if d.Timeout > 0 {
 		tc = timer.C
 	}
 
@@ -161,7 +141,6 @@ func (d *Lazy) init() error {
 		d.ctx, d.cancel = nil, nil
 		d.timer = nil
 		d.timerRace.Store(false)
-		d.state.Store(Offline)
 	}()
 
 	return nil
