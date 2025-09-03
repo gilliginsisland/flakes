@@ -15,6 +15,7 @@ import (
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/httpproxy"
+	"github.com/gilliginsisland/pacman/pkg/iterutil"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
@@ -60,7 +61,7 @@ func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
 		},
 	}
 
-	for k, u := range rs.Proxies {
+	for k, u := range iterutil.SortedMapIter(rs.Proxies) {
 		menu := DialerMenuItem{
 			label: k,
 			node:  pacman.menu.Proxies.AddChild(menuet.MenuItem{}),
