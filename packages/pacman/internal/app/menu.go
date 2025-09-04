@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/caseymrm/menuet"
-	"github.com/gilliginsisland/pacman/pkg/dialer"
 )
 
 // Menu owns the flat slice of MenuItems and manages groups.
@@ -95,71 +94,4 @@ func (n *MenuNode) AddChild(item menuet.MenuItem) *MenuNode {
 // Children returns the children slice for this node.
 func (n *MenuNode) Children() []menuet.MenuItem {
 	return n.children
-}
-
-type MainMenu struct {
-	Server   *MenuGroup
-	Proxies  *MenuGroup
-	Settings *MenuNode
-}
-
-func RootMenu(m *Menu) *MainMenu {
-	mm := MainMenu{
-		Server:  m.AddGroup(),
-		Proxies: m.AddGroup(),
-		Settings: m.AddGroup().AddChild(
-			menuet.MenuItem{
-				Text: "Edit RuleSet",
-			},
-		),
-	}
-
-	mm.Server.AddChild(menuet.MenuItem{
-		Text:       "Server Address",
-		FontWeight: menuet.WeightMedium,
-	})
-	mm.Proxies.AddChild(menuet.MenuItem{
-		Text:       "Proxies",
-		FontWeight: menuet.WeightMedium,
-	})
-
-	return &mm
-}
-
-type DialerMenuItem struct {
-	label string
-	lazy  *dialer.Lazy
-	node  *MenuNode
-	child *MenuNode
-}
-
-func (m *DialerMenuItem) StateChanged(state dialer.ConnectionState) {
-	m.node.Text = icon(state) + " " + m.label
-	m.child.Text, m.child.Clicked = action(state, m.lazy)
-}
-
-func icon(state dialer.ConnectionState) string {
-	switch state {
-	case dialer.Offline:
-		return "⚪"
-	case dialer.Online:
-		return "🟢"
-	case dialer.Failed:
-		return "🔴"
-	case dialer.Connecting:
-		return "🟡"
-	}
-	return ""
-}
-
-func action(state dialer.ConnectionState, d *dialer.Lazy) (string, func()) {
-	switch state {
-	case dialer.Offline, dialer.Failed:
-		return "Connect", nil
-	case dialer.Online:
-		return "Disconnect", func() { d.Close() }
-	case dialer.Connecting:
-		return "Connecting...", nil
-	}
-	return "", nil
 }

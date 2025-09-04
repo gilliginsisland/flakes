@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 type PACMan struct {
 	rs     *RuleSet
 	dialer dialer.ByHost
-	pool   map[string]*dialer.Lazy
 	menuet *menuet.Application
 	menu   *MainMenu
 	server netutil.Server
@@ -44,6 +42,11 @@ var App = sync.OnceValue(func() *PACMan {
 	pacman := PACMan{
 		menuet: app,
 		menu:   RootMenu(&menu),
+		dialer: dialer.ByHost{
+			Default: &net.Dialer{
+				Timeout: 5 * time.Second,
+			},
+		},
 	}
 	pacman.server = ProxyServer(&pacman.dialer)
 	return &pacman
@@ -54,35 +57,15 @@ func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
 		xdg.Run(pacman.rs.Path)
 	}
 
-	pool := make(map[string]*dialer.Lazy, len(rs.Proxies))
-	byHost := dialer.ByHost{
-		Default: &net.Dialer{
-			Timeout: 5 * time.Second,
-		},
-	}
-
+	pool := make(map[string]proxy.ContextDialer, len(rs.Proxies))
 	for k, u := range iterutil.SortedMapIter(rs.Proxies) {
-		menu := DialerMenuItem{
-			label: k,
-			node:  pacman.menu.Proxies.AddChild(menuet.MenuItem{}),
+		pd := PooledDialer{
+			Label: k,
+			URL:   &u.URL,
+			Fwd:   &pacman.dialer,
 		}
-		menu.child = menu.node.AddChild(menuet.MenuItem{})
-
-		var timeout time.Duration = 1 * time.Hour
-		if t := u.Query().Get("timeout"); t != "" {
-			if i, err := strconv.Atoi(t); err == nil {
-				timeout = time.Duration(i) * time.Second
-			}
-		}
-		menu.lazy = &dialer.Lazy{
-			Timeout: timeout,
-			New: func() (proxy.ContextDialer, error) {
-				return FromURL(&u.URL, &byHost, menu.StateChanged)
-			},
-		}
-		menu.StateChanged(dialer.Offline)
-
-		pool[k] = menu.lazy
+		pd.AttachMenu(pacman.menu.Proxies)
+		pool[k] = pd.Dialer()
 	}
 
 	for _, r := range rs.Rules {
@@ -104,14 +87,13 @@ func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
 		default:
 			pd = dialer.Chain(chain)
 		}
+
 		for _, h := range r.Hosts {
-			byHost.Add(h, pd)
+			pacman.dialer.Add(h, pd)
 		}
 	}
 
 	pacman.rs = rs
-	pacman.pool = pool
-	pacman.dialer = byHost
 	return nil
 }
 
@@ -140,4 +122,33 @@ func ProxyServer(pd *dialer.ByHost) netutil.Server {
 		Handler: &httpproxy.PacHandler{Hosts: pd.Hosts},
 	})
 	return &mux
+}
+
+type MainMenu struct {
+	Server   *MenuGroup
+	Proxies  *MenuGroup
+	Settings *MenuNode
+}
+
+func RootMenu(m *Menu) *MainMenu {
+	mm := MainMenu{
+		Server:  m.AddGroup(),
+		Proxies: m.AddGroup(),
+		Settings: m.AddGroup().AddChild(
+			menuet.MenuItem{
+				Text: "Edit RuleSet",
+			},
+		),
+	}
+
+	mm.Server.AddChild(menuet.MenuItem{
+		Text:       "Server Address",
+		FontWeight: menuet.WeightMedium,
+	})
+	mm.Proxies.AddChild(menuet.MenuItem{
+		Text:       "Proxies",
+		FontWeight: menuet.WeightMedium,
+	})
+
+	return &mm
 }
