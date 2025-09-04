@@ -36,12 +36,12 @@ var App = sync.OnceValue(func() *PACMan {
 		Image: "menuicon.pdf",
 	})
 
-	var menu Menu
+	menu := RootMenu()
 	app.Children = menu.Children
 
 	pacman := PACMan{
 		menuet: app,
-		menu:   RootMenu(&menu),
+		menu:   menu,
 		dialer: dialer.ByHost{
 			Default: &net.Dialer{
 				Timeout: 5 * time.Second,
@@ -125,30 +125,32 @@ func ProxyServer(pd *dialer.ByHost) netutil.Server {
 }
 
 type MainMenu struct {
+	Menu
 	Server   *MenuGroup
 	Proxies  *MenuGroup
 	Settings *MenuNode
 }
 
-func RootMenu(m *Menu) *MainMenu {
-	mm := MainMenu{
-		Server:  m.AddGroup(),
-		Proxies: m.AddGroup(),
-		Settings: m.AddGroup().AddChild(
-			menuet.MenuItem{
-				Text: "Edit RuleSet",
-			},
-		),
-	}
+func RootMenu() *MainMenu {
+	var m MainMenu
 
-	mm.Server.AddChild(menuet.MenuItem{
+	m.Server = m.Menu.AddGroup()
+	m.Server.AddChild(menuet.MenuItem{
 		Text:       "Server Address",
 		FontWeight: menuet.WeightMedium,
 	})
-	mm.Proxies.AddChild(menuet.MenuItem{
+
+	m.Proxies = m.Menu.AddGroup()
+	m.Proxies.AddChild(menuet.MenuItem{
 		Text:       "Proxies",
 		FontWeight: menuet.WeightMedium,
 	})
 
-	return &mm
+	m.Settings = m.Menu.AddGroup().AddChild(
+		menuet.MenuItem{
+			Text: "Edit RuleSet",
+		},
+	)
+
+	return &m
 }

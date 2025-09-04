@@ -41,7 +41,7 @@ func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
 	)
 }
 
-type dialer struct {
+type Dialer struct {
 	*stackutil.Dialer
 	*openconnect.Conn
 }
@@ -127,7 +127,7 @@ func WithConn(conn *openconnect.Conn) (proxy.Dialer, error) {
 		conn.Run()
 	}()
 
-	return &dialer{
+	return &Dialer{
 		Conn:   conn,
 		Dialer: d,
 	}, nil

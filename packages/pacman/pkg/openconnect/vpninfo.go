@@ -11,7 +11,9 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"syscall"
 	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
@@ -132,19 +134,13 @@ func (v *VpnInfo) ParseOpts(opts Options) error {
 func (v *VpnInfo) SetUserAgent(userAgent string) error {
 	cStr := C.CString(userAgent)
 	defer C.free(unsafe.Pointer(cStr))
-	if C.openconnect_set_useragent(v.vpninfo, cStr) != 0 {
-		return errors.New("failed to set user agent")
-	}
-	return nil
+	return ocErrno("set user agent", C.openconnect_set_useragent(v.vpninfo, cStr))
 }
 
 func (v *VpnInfo) ParseURL(url string) error {
 	cStr := C.CString(url)
 	defer C.free(unsafe.Pointer(cStr))
-	if C.openconnect_parse_url(v.vpninfo, cStr) != 0 {
-		return errors.New("failed to parse URL")
-	}
-	return nil
+	return ocErrno("parse URL", C.openconnect_parse_url(v.vpninfo, cStr))
 }
 
 // Hostname returns the VPN server hostname.
@@ -156,10 +152,7 @@ func (v *VpnInfo) Hostname() string {
 func (v *VpnInfo) SetHostname(hostname string) error {
 	cStr := C.CString(hostname)
 	defer C.free(unsafe.Pointer(cStr))
-	if C.openconnect_set_hostname(v.vpninfo, cStr) != 0 {
-		return errors.New("failed to set hostname")
-	}
-	return nil
+	return ocErrno("set hostname", C.openconnect_set_hostname(v.vpninfo, cStr))
 }
 
 // Protocol returns the VPN protocol.
@@ -171,26 +164,17 @@ func (v *VpnInfo) Protocol() string {
 func (v *VpnInfo) SetProtocol(protocol string) error {
 	cStr := C.CString(protocol)
 	defer C.free(unsafe.Pointer(cStr))
-	if C.openconnect_set_protocol(v.vpninfo, cStr) != 0 {
-		return errors.New("failed to set protocol")
-	}
-	return nil
+	return ocErrno("set protocol", C.openconnect_set_protocol(v.vpninfo, cStr))
 }
 
 func (v *VpnInfo) SetupTunScript(script string) error {
 	cStr := C.CString(script)
 	defer C.free(unsafe.Pointer(cStr))
-	if C.openconnect_setup_tun_script(v.vpninfo, cStr) != 0 {
-		return errors.New("failed to set up tun script")
-	}
-	return nil
+	return ocErrno("setup tun script", C.openconnect_setup_tun_script(v.vpninfo, cStr))
 }
 
 func (v *VpnInfo) SetupTunFd(fd int) error {
-	if C.openconnect_setup_tun_fd(v.vpninfo, C.int(fd)) != 0 {
-		return errors.New("failed to set up tun fd")
-	}
-	return nil
+	return ocErrno("setup tun fd", C.openconnect_setup_tun_fd(v.vpninfo, C.int(fd)))
 }
 
 func (v *VpnInfo) SetLogLevel(level LogLevel) {
@@ -206,24 +190,15 @@ func (v *VpnInfo) SetupCSD(uid int, silent bool, wrapper string) error {
 		silentC = 1
 	}
 
-	if C.openconnect_setup_csd(v.vpninfo, C.uid_t(uid), silentC, cWrapper) != 0 {
-		return errors.New("failed to set up CSD")
-	}
-	return nil
+	return ocErrno("setup CSD", C.openconnect_setup_csd(v.vpninfo, C.uid_t(uid), silentC, cWrapper))
 }
 
 func (v *VpnInfo) SetupDTLS(attemptPeriod int) error {
-	if C.openconnect_setup_dtls(v.vpninfo, C.int(attemptPeriod)) != 0 {
-		return errors.New("failed to set up DTLS")
-	}
-	return nil
+	return ocErrno("setup DTLS", C.openconnect_setup_dtls(v.vpninfo, C.int(attemptPeriod)))
 }
 
 func (v *VpnInfo) DisableDTLS() error {
-	if C.openconnect_disable_dtls(v.vpninfo) != 0 {
-		return errors.New("failed to disable DTLS")
-	}
-	return nil
+	return ocErrno("disable DTLS", C.openconnect_disable_dtls(v.vpninfo))
 }
 
 func (v *VpnInfo) SetDPD(min_seconds int) {
@@ -231,35 +206,33 @@ func (v *VpnInfo) SetDPD(min_seconds int) {
 }
 
 func (v *VpnInfo) ObtainCookie() error {
-	if C.openconnect_obtain_cookie(v.vpninfo) != 0 {
-		return errors.New("failed to obtain auth cookie")
-	}
-	return nil
+	return ocErrno("obtain cookie", C.openconnect_obtain_cookie(v.vpninfo))
 }
 
 func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {
 	fd := C.openconnect_setup_cmd_pipe(v.vpninfo)
 	if fd < 0 {
-		return nil, errors.New("failed to open cmd pipe")
+		return nil, ocErrno("setup cmd pipe", fd)
 	}
 	f := os.NewFile(uintptr(fd), "")
 	return &CMDPipe{w: f}, nil
 }
 
 func (v *VpnInfo) MakeCSTPConnection() error {
-	if C.openconnect_make_cstp_connection(v.vpninfo) != 0 {
-		return errors.New("failed to make CSTP connection")
-	}
-	return nil
+	return ocErrno("make CSTP connection", C.openconnect_make_cstp_connection(v.vpninfo))
 }
 
 func (v *VpnInfo) MainLoop() error {
-	if C.openconnect_mainloop(v.vpninfo, 5, C.RECONNECT_INTERVAL_MIN) != 0 {
-		return errors.New("failed to enter main loop")
-	}
-	return nil
+	return ocErrno("main loop", C.openconnect_mainloop(v.vpninfo, 5, C.RECONNECT_INTERVAL_MIN))
 }
 
 func (v *VpnInfo) GetTunFd() (int, error) {
-	return -1, errors.New("tun FD not set")
+	return -1, fmt.Errorf("get tun fd: %w", syscall.ENOTSUP)
+}
+
+func ocErrno(context string, rc C.int) error {
+	if rc == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", context, syscall.Errno(-rc))
 }
