@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/caseymrm/menuet"
-	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
@@ -46,7 +45,7 @@ type Dialer struct {
 	*openconnect.Conn
 }
 
-func FromURL(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
+func NewDialer(u *url.URL) (*Dialer, error) {
 	cb := callbacks{url: u}
 
 	var csd string
@@ -103,7 +102,7 @@ func FromURL(u *url.URL, _ proxy.Dialer) (proxy.Dialer, error) {
 	return d, nil
 }
 
-func WithConn(conn *openconnect.Conn) (proxy.Dialer, error) {
+func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 	rwc, ipinfo, err := conn.TunClient()
 	if err != nil {
 		return nil, err

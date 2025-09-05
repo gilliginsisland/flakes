@@ -5,8 +5,9 @@ import (
 	"errors"
 	"net"
 
-	"github.com/gilliginsisland/pacman/pkg/trie"
 	"golang.org/x/net/proxy"
+
+	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 var resolver = net.Resolver{
