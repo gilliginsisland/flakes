@@ -2,21 +2,23 @@ package openconnect
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
 type Conn struct {
 	vpn    *VpnInfo
 	cmd    *CMDPipe
-	done   chan struct{}
-	cancel context.CancelFunc
-	once   sync.Once
+	ctx    context.Context
+	cancel context.CancelCauseFunc
+	once   syncutil.Once
 }
 
 func Connect(ctx context.Context, opts Options) (*Conn, error) {
@@ -31,11 +33,6 @@ func Connect(ctx context.Context, opts Options) (*Conn, error) {
 		return nil, err
 	}
 
-	go func() {
-		conn.Wait()
-		vpn.Free()
-	}()
-
 	return conn, nil
 }
 
@@ -45,17 +42,11 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 	defer cp.PropagateContext(ctx)()
-
-	conn := Conn{
-		vpn:    vpn,
-		cmd:    cp,
-		done:   make(chan struct{}),
-		cancel: cancel,
-	}
-
-	defer time.AfterFunc(2*time.Minute, cancel).Stop()
+	defer time.AfterFunc(2*time.Minute, func() {
+		cancel(context.DeadlineExceeded)
+	}).Stop()
 
 	err = vpn.ObtainCookie()
 	if err != nil {
@@ -67,28 +58,41 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		return nil, err
 	}
 
+	conn := Conn{
+		vpn: vpn,
+		cmd: cp,
+	}
+	conn.ctx, conn.cancel = context.WithCancelCause(ctx)
 	return &conn, nil
 }
 
 func (c *Conn) Run() error {
-	var err error
-	c.once.Do(func() {
-		c.vpn.MainLoop()
-		close(c.done)
+	c.once.Go(func() {
+		c.cancel(c.vpn.MainLoop())
+		c.vpn.Free()
 	})
-	return err
+	<-c.ctx.Done()
+	return context.Cause(c.ctx)
 }
 
 func (c *Conn) Wait() error {
-	<-c.done
-	return nil
+	<-c.ctx.Done()
+	return context.Cause(c.ctx)
 }
 
 func (c *Conn) Close() error {
-	c.cancel()
 	c.once.Do(func() {
-		close(c.done)
+		// If this executes, Run() was never called, so free resources now
+		c.cancel(errors.New("connection closed by user"))
+		c.vpn.Free()
 	})
+
+	if c.ctx.Err() == nil {
+		// Run() was called (or is active)
+		// signal termination via command pipe
+		c.cmd.Cancel()
+	}
+
 	return nil
 }
 
