@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/caseymrm/menuet"
@@ -19,6 +20,8 @@ type PooledDialer struct {
 	lazy  *dialer.Lazy
 	node  *MenuNode
 	child *MenuNode
+	// synchronize factory and state changes
+	mu sync.Mutex
 }
 
 func (pd *PooledDialer) Dialer() proxy.ContextDialer {
@@ -85,31 +88,34 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	switch state {
 	case dialer.Offline:
 		notif.Title = "Proxy disconnected"
-		notif.Message = "The connection was terminated"
-		if err != nil {
-			notif.Message += err.Error()
-		}
+		notif.Message = "The connection was terminated."
 	case dialer.Connecting:
 		notif.Title = "Connecting to proxy"
 		notif.Message = "The connection to the proxy is being established."
 	case dialer.Online:
 		notif.Title = "Proxy connected"
-		notif.Message = "The proxy connection has been established"
+		notif.Message = "The proxy connection has been established."
 	case dialer.Failed:
 		notif.Title = "Proxy connection failed"
 		notif.Message = err.Error()
 	default:
 		notif.Title = "Unknown connection state"
-		notif.Message = "Dialer is in an unknown state"
+		notif.Message = "Dialer is in an unknown state."
+	}
+	if err != nil {
+		notif.Message += " " + err.Error()
 	}
 	menuet.App().Notification(notif)
 }
 
 func (pd *PooledDialer) factory() (proxy.ContextDialer, error) {
+	pd.mu.Lock()
+
 	pd.StateChanged(dialer.Connecting, nil)
 	dd, err := proxy.FromURL(pd.URL, pd.Fwd)
 	if err != nil {
 		pd.StateChanged(dialer.Failed, err)
+		pd.mu.Unlock()
 		return nil, err
 	}
 
@@ -117,6 +123,7 @@ func (pd *PooledDialer) factory() (proxy.ContextDialer, error) {
 	if !ok {
 		err = fmt.Errorf("Dialer does not support DialContext: %s", pd.URL.Scheme)
 		pd.StateChanged(dialer.Failed, err)
+		pd.mu.Unlock()
 		return nil, err
 	}
 	pd.StateChanged(dialer.Online, nil)
@@ -124,7 +131,10 @@ func (pd *PooledDialer) factory() (proxy.ContextDialer, error) {
 	if w, ok := dd.(interface{ Wait() error }); ok {
 		go func() {
 			pd.StateChanged(dialer.Offline, w.Wait())
+			pd.mu.Unlock()
 		}()
+	} else {
+		pd.mu.Unlock()
 	}
 
 	return xd, nil

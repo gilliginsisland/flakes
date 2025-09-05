@@ -9,8 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gilliginsisland/pacman/pkg/contextutil"
 	"golang.org/x/net/proxy"
+
+	"github.com/gilliginsisland/pacman/pkg/contextutil"
 )
 
 var (
@@ -32,8 +33,7 @@ type Lazy struct {
 	Timeout time.Duration
 	New     func() (proxy.ContextDialer, error)
 
-	proxy.ContextDialer
-
+	xd        proxy.ContextDialer
 	mu        sync.RWMutex
 	ctx       context.Context
 	cancel    context.CancelCauseFunc
@@ -41,10 +41,14 @@ type Lazy struct {
 	timerRace atomic.Bool
 }
 
+func (d *Lazy) Dial(network, addr string) (net.Conn, error) {
+	return d.DialContext(context.Background(), network, addr)
+}
+
 func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	d.mu.RLock()
 
-	for d.ContextDialer == nil {
+	for d.xd == nil {
 		d.mu.RUnlock()
 		if err := d.init(); err != nil {
 			return nil, err
@@ -59,7 +63,7 @@ func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	}
 
 	ctx = contextutil.Merge(ctx, d.ctx)
-	conn, err := d.ContextDialer.DialContext(ctx, network, addr)
+	conn, err := d.xd.DialContext(ctx, network, addr)
 	context.AfterFunc(ctx, func() {
 		d.timer.Reset(d.Timeout)
 		d.mu.RUnlock()
@@ -82,7 +86,7 @@ func (d *Lazy) init() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.ContextDialer != nil {
+	if d.xd != nil {
 		return nil
 	}
 
@@ -99,7 +103,7 @@ func (d *Lazy) init() error {
 		tc = timer.C
 	}
 
-	d.ContextDialer = xd
+	d.xd = xd
 	d.ctx, d.cancel = ctx, cancel
 	d.timer = timer
 	d.timerRace.Store(false)
@@ -137,7 +141,7 @@ func (d *Lazy) init() error {
 			}
 		}
 
-		d.ContextDialer = nil
+		d.xd = nil
 		d.ctx, d.cancel = nil, nil
 		d.timer = nil
 		d.timerRace.Store(false)
