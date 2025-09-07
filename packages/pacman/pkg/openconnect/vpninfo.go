@@ -6,6 +6,7 @@ package openconnect
 #include <stdlib.h>
 
 extern struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata);
+extern int go_mainloop(struct openconnect_info *vpninfo);
 */
 import "C"
 
@@ -53,6 +54,8 @@ type Options struct {
 // VpnInfo represents a VPN session in Go.
 type VpnInfo struct {
 	vpninfo *C.struct_openconnect_info
+	done    chan struct{}
+	err     syncutil.AtomicValue[error]
 	Callbacks
 }
 
@@ -65,14 +68,17 @@ func New(opts Options) (*VpnInfo, error) {
 	cUserAgent := C.CString(opts.UserAgent)
 	defer C.free(unsafe.Pointer(cUserAgent))
 
-	v := VpnInfo{}
-
-	v.vpninfo = C.go_vpninfo_new(cUserAgent, nil)
-	if v.vpninfo == nil {
+	vpninfo := C.go_vpninfo_new(cUserAgent, nil)
+	if vpninfo == nil {
 		return nil, errors.New("failed to create VPN session")
 	}
 
-	handles.Store(uintptr(unsafe.Pointer(v.vpninfo)), &v)
+	v := VpnInfo{
+		vpninfo: vpninfo,
+		done:    make(chan struct{}),
+	}
+
+	handles.Store(uintptr(unsafe.Pointer(vpninfo)), &v)
 
 	err := v.ParseOpts(opts)
 	if err != nil {
@@ -88,10 +94,14 @@ func (v *VpnInfo) Free() {
 	if v.vpninfo == nil {
 		return
 	}
-
 	C.openconnect_vpninfo_free(v.vpninfo)
 	handles.Delete(uintptr(unsafe.Pointer(v.vpninfo)))
 	v.vpninfo = nil
+	select {
+	case <-v.done:
+	default:
+		close(v.done)
+	}
 }
 
 func (v *VpnInfo) ParseOpts(opts Options) error {
@@ -223,11 +233,22 @@ func (v *VpnInfo) MakeCSTPConnection() error {
 }
 
 func (v *VpnInfo) MainLoop() error {
-	return ocErrno("main loop", C.openconnect_mainloop(v.vpninfo, 5, C.RECONNECT_INTERVAL_MIN))
+	return ocErrno("main loop", C.go_mainloop(v.vpninfo))
 }
 
 func (v *VpnInfo) GetTunFd() (int, error) {
 	return -1, fmt.Errorf("get tun fd: %w", syscall.ENOTSUP)
+}
+
+// Err returns the error from mainloop if it has completed
+// or nil if it hasn’t run or isn’t done
+func (v *VpnInfo) Err() error {
+	return v.err.Load()
+}
+
+// Done returns a channel that is closed when the mainloop completes
+func (v *VpnInfo) Done() <-chan struct{} {
+	return v.done
 }
 
 func ocErrno(context string, rc C.int) error {

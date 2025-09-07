@@ -109,3 +109,13 @@ func go_external_browser_callback(_ *C.struct_openconnect_info, uri *C.char, con
 
 	return 0
 }
+
+//export go_mainloop_result
+func go_mainloop_result(vpninfo *C.struct_openconnect_info, result C.int) {
+	v, ok := handles.Load(uintptr(unsafe.Pointer(vpninfo)))
+	if !ok {
+		return
+	}
+	v.err.Store(ocErrno("main loop", result))
+	v.Free()
+}
