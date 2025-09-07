@@ -3,11 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
+#include <pthread.h>
 
 extern int go_validate_peer_cert(void *context, char *cert);
 extern int go_process_auth_form(void *context, struct oc_auth_form *form);
 extern void go_progress(void *context, int level, char *message);
 extern int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
+extern void go_mainloop_result(struct openconnect_info *vpninfo, int result);
 
 void go_progress_vargs(void *context, int level, const char *fmt, ...) {
 	va_list args;
@@ -52,4 +54,20 @@ struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {
 		(openconnect_open_webview_vfn) go_external_browser_callback
 	);
 	return vpninfo;
+}
+
+void* run_mainloop(void* arg) {
+	struct openconnect_info *vpninfo = (struct openconnect_info *)arg;
+	int result = openconnect_mainloop(vpninfo, 5, RECONNECT_INTERVAL_MIN);
+	go_mainloop_result(vpninfo, result);
+	return NULL;
+}
+
+int go_mainloop(struct openconnect_info *vpninfo) {
+	pthread_t thread;
+	int result = pthread_create(&thread, NULL, run_mainloop, vpninfo);
+	if (result == 0) {
+		pthread_detach(thread);
+	}
+	return -result;
 }

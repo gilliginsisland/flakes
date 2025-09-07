@@ -108,6 +108,12 @@ func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 		return nil, err
 	}
 
+	defer func() {
+		if err != nil {
+			rwc.Close()
+		}
+	}()
+
 	d, err := stackutil.NewTunDialer(rwc, &stackutil.NetOptions{
 		Addr:     ipinfo.Addr,
 		Netmask:  ipinfo.Netmask,
@@ -121,9 +127,14 @@ func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 		return nil, err
 	}
 
+	err = conn.Run()
+	if err != nil {
+		return nil, err
+	}
+
 	go func() {
 		defer rwc.Close()
-		conn.Run()
+		conn.Wait()
 	}()
 
 	return &Dialer{

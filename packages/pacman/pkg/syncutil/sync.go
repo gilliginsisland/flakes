@@ -9,8 +9,17 @@ type Once struct {
 
 // Go executes the function f in a goroutine if it hasn't been done before.
 // Subsequent calls return immediately without waiting for f to complete.
-func (o *Once) Go(f func()) {
-	o.Once.Do(func() {
+func (o *Once) Go(f func()) bool {
+	return o.Do(func() {
 		go f()
 	})
+}
+
+func (o *Once) Do(f func()) bool {
+	var ran bool
+	o.Once.Do(func() {
+		ran = true
+		f()
+	})
+	return ran
 }

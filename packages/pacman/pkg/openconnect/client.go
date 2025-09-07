@@ -8,17 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
+	"golang.org/x/sys/unix"
 )
 
 type Conn struct {
-	vpn    *VpnInfo
-	cmd    *CMDPipe
-	ctx    context.Context
-	cancel context.CancelCauseFunc
-	once   syncutil.Once
+	vpn  *VpnInfo
+	cmd  *CMDPipe
+	once syncutil.Once
 }
 
 func Connect(ctx context.Context, opts Options) (*Conn, error) {
@@ -62,38 +59,35 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		vpn: vpn,
 		cmd: cp,
 	}
-	conn.ctx, conn.cancel = context.WithCancelCause(ctx)
 	return &conn, nil
 }
 
 func (c *Conn) Run() error {
-	c.once.Go(func() {
-		c.cancel(c.vpn.MainLoop())
-		c.vpn.Free()
+	var err error
+	ran := c.once.Do(func() {
+		err = c.vpn.MainLoop()
 	})
-	<-c.ctx.Done()
-	return context.Cause(c.ctx)
+	if !ran {
+		return errors.New("cannot reuse completed connection")
+	}
+	return err
 }
 
 func (c *Conn) Wait() error {
-	<-c.ctx.Done()
-	return context.Cause(c.ctx)
+	<-c.vpn.Done()
+	return c.vpn.Err()
 }
 
 func (c *Conn) Close() error {
-	c.once.Do(func() {
-		// If this executes, Run() was never called, so free resources now
-		c.cancel(errors.New("connection closed by user"))
-		c.vpn.Free()
-	})
-
-	if c.ctx.Err() == nil {
-		// Run() was called (or is active)
-		// signal termination via command pipe
-		c.cmd.Cancel()
+	if c.once.Do(c.vpn.Free) {
+		return nil
 	}
-
-	return nil
+	select {
+	case <-c.vpn.Done():
+		return nil
+	default:
+		return c.cmd.Cancel()
+	}
 }
 
 func (c *Conn) TunClient() (*os.File, *IPInfo, error) {
