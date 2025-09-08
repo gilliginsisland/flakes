@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/gilliginsisland/pacman/internal/app"
+	"github.com/gilliginsisland/pacman/app"
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 	"github.com/gilliginsisland/pacman/pkg/launch"
 )
@@ -22,13 +22,13 @@ func init() {
 var _ flags.Commander = (*ProxyCommand)(nil)
 
 type ProxyCommand struct {
-	ListenAddr flagutil.HostPort `short:"l" long:"listen" default:"127.0.0.1:8080" description:"Listening address"`
+	ListenAddr flagutil.HostPort `short:"l" long:"listen" default:"127.0.0.1:11078" description:"Listening address"`
 	Launchd    bool              `long:"launchd" description:"Use launchd socket activation"`
 }
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
-	rules, err := opts.RuleSet()
+	rules, err := app.LoadRuleSetFile(string(opts.ConfigPath))
 	if err != nil {
 		return err
 	}

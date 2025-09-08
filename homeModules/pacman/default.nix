@@ -22,16 +22,11 @@ let
       (optionalString (options != {}) ("/?" + toQs options))
     ];
 
-    rules = builtins.toJSON (map
-      (rule: rule // {
-        proxies = map toProxyUrl rule.proxies;
-      })
-      cfg.rules
-    );
-  in builtins.toJSON {
-    proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
-    rules = cfg.rules;
-  };
+    rulefile = (pkgs.formats.yaml {}).generate "ruleset" {
+      proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
+      rules = cfg.rules;
+    };
+  in rulefile;
 
   types = lib.types // rec {
     rule = types.submodule {
@@ -156,12 +151,14 @@ in {
       }
     ];
 
-    xdg.configFile."pacman/config.json".text = rulefile;
+    xdg.configFile."pacman/config".source = "${rulefile}";
 
     launchd.agents.pacman = {
       enable = true;
       config = {
-        ProcessType = "Background";
+        Label = "io.github.gilliginsisland.pacman";
+        KeepAlive = true;
+        ProcessType = "Interactive";
         ProgramArguments = [
           "${pacman}/Applications/PACman.app/Contents/MacOS/PACman" "proxy" "--launchd"
         ] ++ optionals (loglevel != null) [

@@ -1,10 +1,12 @@
-package main
+package cmd
 
 import (
 	"os"
 
-	"github.com/gilliginsisland/pacman/pkg/trie"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/gilliginsisland/pacman/app"
+	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 func init() {
@@ -18,7 +20,7 @@ type CheckCmd struct{}
 
 // Execute runs the check command.
 func (c *CheckCmd) Execute(args []string) error {
-	rs, err := opts.RuleSet()
+	rs, err := app.LoadRuleSetFile(string(opts.ConfigPath))
 	if err != nil {
 		return err
 	}

@@ -11,7 +11,8 @@ require (
 	golang.org/x/net v0.43.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/tools v0.33.0
-	gvisor.dev/gvisor v0.0.0-20250828211149-1f30edfbb5d4
+	gvisor.dev/gvisor v0.0.0-20250905165804-6658538a7fec
+	sigs.k8s.io/yaml v1.4.0
 	tailscale.com v1.86.4
 )
 
