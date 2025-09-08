@@ -30,11 +30,12 @@ type PACMan struct {
 var App = sync.OnceValue(func() *PACMan {
 	app := menuet.App()
 	app.Name = "PACman"
-	app.Label = "com.github.gilliginsisland.pacman"
+	app.Label = "io.github.gilliginsisland.pacman"
 	app.NotificationResponder = func(id string, response string) {}
 	app.SetMenuState(&menuet.MenuState{
 		Image: "menuicon.pdf",
 	})
+	app.HideStartup()
 
 	menu := RootMenu()
 	app.Children = menu.Children

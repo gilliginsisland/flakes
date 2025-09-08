@@ -73,7 +73,7 @@ buildGoModule {
     cp menuicon.pdf "$app/Contents/Resources/menuicon.pdf"
 
     # Copy Info.plist
-    cp "${./Info.plist}" "$app/Contents/Info.plist"
+    cp Info.plist "$app/Contents/Info.plist"
 
     # Bundle dynamic libraries into Frameworks
     "${lib.getBin macdylibbundler}/bin/dylibbundler" \
