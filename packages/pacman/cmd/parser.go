@@ -7,13 +7,14 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/gilliginsisland/pacman/app"
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 )
 
 var opts Opts
 
 type Opts struct {
-	ConfigPath flagutil.Path     `short:"c" long:"config" description:"Path to the config file" default:"~/.config/pacman/config"`
+	ConfigPath app.Path          `short:"c" long:"config" description:"Path to the config file" default:"~/.config/pacman/config"`
 	LogLevel   flagutil.LogLevel `short:"v" long:"verbosity" description:"Verbosity level"`
 }
 

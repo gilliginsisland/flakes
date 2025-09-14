@@ -28,7 +28,7 @@ type ProxyCommand struct {
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
-	rules, err := app.LoadRuleSetFile(string(opts.ConfigPath))
+	rules, err := app.ParseConfigFile(opts.ConfigPath)
 	if err != nil {
 		return err
 	}

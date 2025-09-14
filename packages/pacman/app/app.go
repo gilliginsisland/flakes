@@ -20,8 +20,9 @@ import (
 )
 
 type PACMan struct {
-	rs     *RuleSet
+	config *Config
 	dialer dialer.ByHost
+	pool   map[string]*PooledDialer
 	menuet *menuet.Application
 	menu   *MainMenu
 	server netutil.Server
@@ -37,12 +38,8 @@ var App = sync.OnceValue(func() *PACMan {
 	})
 	app.HideStartup()
 
-	menu := RootMenu()
-	app.Children = menu.Children
-
 	pacman := PACMan{
 		menuet: app,
-		menu:   menu,
 		dialer: dialer.ByHost{
 			Default: &net.Dialer{
 				Timeout: 5 * time.Second,
@@ -53,22 +50,39 @@ var App = sync.OnceValue(func() *PACMan {
 	return &pacman
 })
 
-func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
-	pacman.menu.Settings.Clicked = func() {
-		xdg.Run(pacman.rs.Path)
+func (pacman *PACMan) LoadRuleSet(rs *Config) error {
+	menu := RootMenu()
+	menu.Settings.Clicked = func() {
+		xdg.Run(rs.Path.String())
 	}
 
-	pool := make(map[string]proxy.ContextDialer, len(rs.Proxies))
-	for k, u := range iterutil.SortedMapIter(rs.Proxies) {
-		pd := PooledDialer{
-			Label: k,
-			URL:   &u.URL,
-			Fwd:   &pacman.dialer,
+	pool := make(map[string]*PooledDialer, len(rs.Proxies))
+	for k, u := range rs.Proxies {
+		var pd *PooledDialer
+		pd, ok := pacman.pool[k]
+		// create a new PooledDialer if the URL is new or has changed
+		if !ok || pd.URL.String() != u.String() {
+			pd = &PooledDialer{
+				Label: k,
+				URL:   &u.URL,
+				Fwd:   &pacman.dialer,
+			}
 		}
-		pd.AttachMenu(pacman.menu.Proxies)
-		pool[k] = pd.Dialer()
+		pool[k] = pd
 	}
 
+	for _, pd := range iterutil.SortedMapIter(pool) {
+		pd.AttachMenu(menu.Proxies)
+	}
+
+	for k, pd := range pacman.pool {
+		if _, ok := pool[k]; ok {
+			continue
+		}
+		pd.lazy.Close()
+	}
+
+	byHost := &pacman.dialer
 	for _, r := range rs.Rules {
 		chain := make([]proxy.ContextDialer, len(r.Proxies))
 		for i, proxy := range r.Proxies {
@@ -76,7 +90,7 @@ func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
 			if !ok {
 				return errors.New("proxy not found: " + proxy)
 			}
-			chain[i] = pd
+			chain[i] = pd.Dialer()
 		}
 
 		var pd proxy.ContextDialer
@@ -90,11 +104,14 @@ func (pacman *PACMan) LoadRuleSet(rs *RuleSet) error {
 		}
 
 		for _, h := range r.Hosts {
-			pacman.dialer.Add(h, pd)
+			byHost.Add(h, pd)
 		}
 	}
 
-	pacman.rs = rs
+	pacman.config = rs
+	pacman.pool = pool
+	pacman.menu = menu
+	pacman.menuet.Children = menu.Children
 	return nil
 }
 
