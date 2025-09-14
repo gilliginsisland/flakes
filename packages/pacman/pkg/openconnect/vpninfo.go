@@ -2,6 +2,29 @@ package openconnect
 
 /*
 #cgo pkg-config: openconnect
+
+#cgo noescape go_vpninfo_new
+#cgo noescape go_mainloop
+#cgo noescape openconnect_vpninfo_free
+#cgo noescape openconnect_set_useragent
+#cgo noescape openconnect_parse_url
+#cgo noescape openconnect_get_hostname
+#cgo noescape openconnect_set_hostname
+#cgo noescape openconnect_get_protocol
+#cgo noescape openconnect_set_protocol
+#cgo noescape openconnect_setup_tun_script
+#cgo noescape openconnect_setup_tun_fd
+#cgo noescape openconnect_set_loglevel
+#cgo noescape openconnect_setup_csd
+#cgo noescape openconnect_setup_dtls
+#cgo noescape openconnect_disable_dtls
+#cgo noescape openconnect_set_dpd
+#cgo noescape openconnect_obtain_cookie
+#cgo noescape openconnect_setup_cmd_pipe
+#cgo noescape openconnect_make_cstp_connection
+
+#cgo nocallback go_mainloop
+
 #include <openconnect.h>
 #include <stdlib.h>
 

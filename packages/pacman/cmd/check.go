@@ -20,7 +20,7 @@ type CheckCmd struct{}
 
 // Execute runs the check command.
 func (c *CheckCmd) Execute(args []string) error {
-	rs, err := app.LoadRuleSetFile(string(opts.ConfigPath))
+	rs, err := app.ParseConfigFile(opts.ConfigPath)
 	if err != nil {
 		return err
 	}
