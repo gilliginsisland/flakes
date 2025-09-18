@@ -1,8 +1,6 @@
 module github.com/gilliginsisland/pacman
 
-go 1.24.4
-
-toolchain go1.24.5
+go 1.25
 
 require (
 	github.com/google/gopacket v1.1.19
@@ -11,7 +9,7 @@ require (
 	golang.org/x/net v0.43.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/tools v0.33.0
-	gvisor.dev/gvisor v0.0.0-20250905165804-6658538a7fec
+	gvisor.dev/gvisor v0.0.0-20250918025647-08f1b5df84e2
 	sigs.k8s.io/yaml v1.4.0
 	tailscale.com v1.86.4
 )
