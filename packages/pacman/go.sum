@@ -55,8 +55,8 @@ golang.org/x/tools v0.33.0/go.mod h1:CIJMaWEY88juyUfo7UbgPqbC8rU2OqfAV1h2Qp0oMYI
 golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
-gvisor.dev/gvisor v0.0.0-20250905165804-6658538a7fec h1:yN/XTA/KZkokfS1LHej5V6L/DeVNyYcusliCwDjBpi0=
-gvisor.dev/gvisor v0.0.0-20250905165804-6658538a7fec/go.mod h1:K16uJjZ+hSqDVsXhU2Rg2FpMN7kBvjZp/Ibt5BYZJjw=
+gvisor.dev/gvisor v0.0.0-20250918025647-08f1b5df84e2 h1:xUFzqH+fCl+1pLAXrX2I1ul8PldRVGTtoFnBj9vi/JM=
+gvisor.dev/gvisor v0.0.0-20250918025647-08f1b5df84e2/go.mod h1:K16uJjZ+hSqDVsXhU2Rg2FpMN7kBvjZp/Ibt5BYZJjw=
 sigs.k8s.io/yaml v1.4.0 h1:Mk1wCc2gy/F0THH0TAp1QYyJNzRm2KCLy3o5ASXVI5E=
 sigs.k8s.io/yaml v1.4.0/go.mod h1:Ejl7/uTz7PSA4eKMyQCUTnhZYNmLIl+5c2lQPGR2BPY=
 tailscale.com v1.86.4 h1:KHAmLyzVn50t2P5877wohBU0UPVeIMHC9XDzRw4Ycz4=
