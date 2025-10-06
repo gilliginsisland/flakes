@@ -25,10 +25,10 @@ func (c *CheckCmd) Execute(args []string) error {
 		return err
 	}
 
-	var t trie.Trie[string]
+	var t trie.Trie[struct{}]
 	for _, rule := range rs.Rules {
 		for _, host := range rule.Hosts {
-			t.Insert(host, host)
+			t.Insert(host, struct{}{})
 		}
 	}
 

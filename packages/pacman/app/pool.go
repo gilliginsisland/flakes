@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/caseymrm/menuet"
@@ -13,48 +13,75 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 )
 
+type DialerPool map[string]*PooledDialer
+
 type PooledDialer struct {
-	Label string
-	URL   *url.URL
-	Fwd   proxy.Dialer
-	lazy  *dialer.Lazy
-	node  *MenuNode
-	child *MenuNode
-	// synchronize factory and state changes
-	mu sync.Mutex
+	Label  string
+	URL    *url.URL
+	dialer *dialer.Lazy
+	cancel func()
+	state  atomic.Int32
 }
 
-func (pd *PooledDialer) Dialer() proxy.ContextDialer {
-	if pd.lazy != nil {
-		return pd.lazy
-	}
+func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 	var timeout time.Duration = 1 * time.Hour
-	if t := pd.URL.Query().Get("timeout"); t != "" {
+	if t := u.Query().Get("timeout"); t != "" {
 		if i, err := strconv.Atoi(t); err == nil {
 			timeout = time.Duration(i) * time.Second
 		}
 	}
-	pd.lazy = &dialer.Lazy{
+	lazy := dialer.Lazy{
 		Timeout: timeout,
-		New:     pd.factory,
+		New: func() (proxy.ContextDialer, error) {
+			d, err := proxy.FromURL(u, fwd)
+			if err != nil {
+				return nil, err
+			}
+			xd, ok := d.(proxy.ContextDialer)
+			if !ok {
+				err = fmt.Errorf("Dialer does not support DialContext: %s", u.Scheme)
+				return nil, err
+			}
+			return xd, nil
+		},
 	}
-	return pd.lazy
+	pd := PooledDialer{
+		Label:  l,
+		URL:    u,
+		dialer: &lazy,
+	}
+	pd.Track()
+	return &pd
 }
 
-func (pd *PooledDialer) AttachMenu(m *MenuGroup) {
-	pd.node = m.AddChild(menuet.MenuItem{})
-	pd.child = pd.node.AddChild(menuet.MenuItem{})
-	pd.update(dialer.Offline)
+func (pd *PooledDialer) MenuItem() menuet.MenuItem {
+	state := dialer.ConnectionState(pd.state.Load())
+
+	return menuet.MenuItem{
+		Text: pd.icon(state) + " " + pd.Label,
+		Children: func() []menuet.MenuItem {
+			var child menuet.MenuItem
+			child.Text, child.Clicked = pd.action(state)
+			return []menuet.MenuItem{child}
+		},
+	}
 }
 
-func (pd *PooledDialer) StateChanged(state dialer.ConnectionState, err error) {
-	pd.update(state)
-	pd.notification(state, err)
+func (pd *PooledDialer) Track() {
+	var ch <-chan dialer.StateSignal
+	ch, pd.cancel = pd.dialer.Subscribe()
+	go func() {
+		for msg := range ch {
+			pd.state.Store(int32(msg.State))
+			menuet.App().MenuChanged()
+			pd.notification(msg.State, msg.Err)
+		}
+	}()
 }
 
-func (pd *PooledDialer) update(state dialer.ConnectionState) {
-	pd.node.Text = pd.icon(state) + " " + pd.Label
-	pd.child.Text, pd.child.Clicked = pd.action(state)
+func (pd *PooledDialer) Close() {
+	pd.cancel()
+	pd.dialer.Close()
 }
 
 func (pd *PooledDialer) icon(state dialer.ConnectionState) string {
@@ -76,7 +103,7 @@ func (pd *PooledDialer) action(state dialer.ConnectionState) (string, func()) {
 	case dialer.Offline, dialer.Failed:
 		return "Offline", nil
 	case dialer.Online, dialer.Connecting:
-		return "Disconnect", func() { pd.lazy.Close() }
+		return "Disconnect", func() { pd.dialer.Close() }
 	}
 	return "", nil
 }
@@ -106,36 +133,4 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 		notif.Message += " " + err.Error()
 	}
 	menuet.App().Notification(notif)
-}
-
-func (pd *PooledDialer) factory() (proxy.ContextDialer, error) {
-	pd.mu.Lock()
-
-	pd.StateChanged(dialer.Connecting, nil)
-	dd, err := proxy.FromURL(pd.URL, pd.Fwd)
-	if err != nil {
-		pd.StateChanged(dialer.Failed, err)
-		pd.mu.Unlock()
-		return nil, err
-	}
-
-	xd, ok := dd.(proxy.ContextDialer)
-	if !ok {
-		err = fmt.Errorf("Dialer does not support DialContext: %s", pd.URL.Scheme)
-		pd.StateChanged(dialer.Failed, err)
-		pd.mu.Unlock()
-		return nil, err
-	}
-	pd.StateChanged(dialer.Online, nil)
-
-	if w, ok := dd.(interface{ Wait() error }); ok {
-		go func() {
-			pd.StateChanged(dialer.Offline, w.Wait())
-			pd.mu.Unlock()
-		}()
-	} else {
-		pd.mu.Unlock()
-	}
-
-	return xd, nil
 }
