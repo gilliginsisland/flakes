@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync/atomic"
 
 	"golang.org/x/net/proxy"
-
-	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 var resolver = net.Resolver{
@@ -21,22 +20,7 @@ var resolver = net.Resolver{
 // It supports recursive dialers.
 type ByHost struct {
 	Default proxy.ContextDialer
-	trie    trie.Trie[proxy.ContextDialer]
-}
-
-// Add parses a string specifying a host that should use the given proxy.
-// Each value is either an IP address, a CIDR range, a zone (*.example.com) or a
-// host name (example.com).
-func (d *ByHost) Add(host string, p proxy.ContextDialer) {
-	d.trie.Insert(host, p)
-}
-
-func (d *ByHost) Hosts(yield func(string) bool) {
-	for k := range d.trie.Walk {
-		if !yield(k) {
-			return
-		}
-	}
+	rs      atomic.Pointer[RuleSet]
 }
 
 func (d *ByHost) Dial(network, address string) (net.Conn, error) {
@@ -49,7 +33,8 @@ func (d *ByHost) DialContext(ctx context.Context, network, address string) (net.
 		return nil, err
 	}
 
-	pd, ok := d.trie.Match(host)
+	rs := d.rs.Load()
+	pd, ok := rs.Match(host)
 	// Check local resolver in case of /etc/hosts ip override
 	if ips, err := resolver.LookupIP(ctx, "ip", host); err == nil && len(ips) > 0 {
 		ip := ips[0].String()
@@ -58,13 +43,29 @@ func (d *ByHost) DialContext(ctx context.Context, network, address string) (net.
 			address, host = net.JoinHostPort(ip, port), ip
 			// If there was no hostname rule there may be an ip rule
 			if !ok {
-				pd, ok = d.trie.Match(host)
+				pd, ok = rs.Match(host)
 			}
 		}
 	}
 	if pd == nil {
-		pd = d.Default
+		if d.Default != nil {
+			pd = d.Default
+		} else {
+			pd = proxy.Direct
+		}
 	}
 
 	return pd.DialContext(ctx, network, address)
+}
+
+// Swap installs a new ruleset atomically.
+// If newRS == nil, an empty RuleSet is installed.
+func (d *ByHost) Swap(rs *RuleSet) {
+	d.rs.Store(rs)
+}
+
+func (d *ByHost) Hosts(yield func(string) bool) {
+	if rs := d.rs.Load(); rs != nil {
+		rs.Hosts(yield)
+	}
 }

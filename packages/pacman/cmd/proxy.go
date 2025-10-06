@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 
 	_ "net/http/pprof"
@@ -28,32 +27,12 @@ type ProxyCommand struct {
 
 // Execute runs the proxy subcommand
 func (c *ProxyCommand) Execute(args []string) error {
-	rules, err := app.ParseConfigFile(opts.ConfigPath)
-	if err != nil {
-		return err
-	}
-
-	app := app.App()
-	if err = app.LoadRuleSet(rules); err != nil {
-		return err
-	}
-
 	l, err := c.listener()
 	if err != nil {
 		return err
 	}
 
-	go func() {
-		slog.Info(
-			"PACman server listening",
-			slog.String("address", l.Addr().String()),
-		)
-		err = app.Serve(l)
-		slog.Info("PACman proxy server stopped")
-	}()
-	app.RunApplication()
-
-	return err
+	return app.Run(opts.ConfigPath, l)
 }
 
 func (c *ProxyCommand) listener() (net.Listener, error) {

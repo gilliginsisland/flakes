@@ -11,31 +11,31 @@ import (
 )
 
 // ChanListener implements a net.Listener backed by a channel.
-type ChanListener struct {
-	c    chan net.Conn
-	addr net.Addr
-}
+type ChanListener chan net.Conn
 
-var _ net.Listener = (*ChanListener)(nil)
+var (
+	_ net.Listener = (ChanListener)(nil)
+	_ ConnHandler  = (ChanListener)(nil)
+)
 
-func (l *ChanListener) Accept() (net.Conn, error) {
-	if conn, ok := <-l.c; ok {
+func (c ChanListener) Accept() (net.Conn, error) {
+	if conn, ok := <-c; ok {
 		return conn, nil
 	}
 	return nil, fmt.Errorf("listener closed")
 }
 
-func (l *ChanListener) Close() error {
-	close(l.c)
+func (c ChanListener) Close() error {
+	close(c)
 	return nil
 }
 
-func (l *ChanListener) Addr() net.Addr {
-	return l.addr
+func (c ChanListener) Addr() net.Addr {
+	return nil
 }
 
-func (l *ChanListener) ServeConn(conn net.Conn) {
-	l.c <- conn
+func (c ChanListener) ServeConn(conn net.Conn) {
+	c <- conn
 }
 
 type ConnHandler interface {
@@ -48,36 +48,38 @@ func (handle ConnHandlerFn) Handle(conn net.Conn) {
 	handle(conn)
 }
 
-type muxConnHandler struct {
-	ConnHandler
+type muxEntry struct {
+	h     ConnHandler
 	match func(*BuffConn) bool
 }
 
-// ConnMux wraps a net.Listener and dispatches connections based on match functions.
-type ConnMux struct {
-	handlers []*muxConnHandler
+// ListenMux wraps a net.Listener and dispatches connections based on match functions.
+type ListenMux struct {
+	entries []*muxEntry
 }
 
-func (m *ConnMux) Handle(match func(*BuffConn) bool, handler ConnHandler) {
-	m.handlers = append(m.handlers, &muxConnHandler{
-		ConnHandler: handler,
-		match:       match,
+func (m *ListenMux) Handle(match func(*BuffConn) bool, handler ConnHandler) {
+	m.entries = append(m.entries, &muxEntry{
+		h:     handler,
+		match: match,
 	})
 }
 
-func (m *ConnMux) ServeConn(conn net.Conn) {
+func (m *ListenMux) Listener(match func(*BuffConn) bool) net.Listener {
+	l := make(ChanListener)
+	m.Handle(match, l)
+	return l
+}
+
+func (m *ListenMux) ServeConn(conn net.Conn) {
 	bc := NewBuffConn(conn)
-	for _, h := range m.handlers {
-		if h.match(bc) {
-			h.ServeConn(bc)
+	for _, e := range m.entries {
+		if e.match(bc) {
+			e.h.ServeConn(bc)
 			return
 		}
 	}
 	bc.Close()
-}
-
-func (m *ConnMux) Serve(l net.Listener) error {
-	return Serve(l, m)
 }
 
 func Serve(l net.Listener, h ConnHandler) error {
@@ -95,61 +97,30 @@ type Server interface {
 	Serve(l net.Listener) error
 }
 
-type muxServer struct {
-	Server
-	match func(*BuffConn) bool
+type MuxServer struct {
+	mux *ListenMux
+	g   *errgroup.Group
+	ctx context.Context
 }
 
-// ServeMux wraps a net.Listener and dispatches connections based on match functions.
-type ServeMux struct {
-	servers []*muxServer
-}
-
-// Handle registers a Server with a match function.
-// Returns a channel that will receive at most one error from the server.
-func (m *ServeMux) Handle(match func(*BuffConn) bool, srv Server) {
-	m.servers = append(m.servers, &muxServer{
-		Server: srv,
-		match:  match,
-	})
-}
-
-// Serve runs the connection accept loop until an error occurs or the listener is closed.
-func (m *ServeMux) Serve(l net.Listener) error {
+func NewMuxServer() *MuxServer {
 	g, ctx := errgroup.WithContext(context.Background())
+	return &MuxServer{mux: &ListenMux{}, g: g, ctx: ctx}
+}
 
-	mux := ConnMux{}
-	for _, srv := range m.servers {
-		ch := ChanListener{
-			c:    make(chan net.Conn),
-			addr: l.Addr(),
-		}
-		mux.Handle(srv.match, &ch)
-
-		cancelFunc := context.AfterFunc(ctx, func() { ch.Close() })
-		defer cancelFunc()
-
-		g.Go(func() error {
-			return srv.Serve(&ch)
-		})
-	}
-
-	g.Go(func() error {
-		for {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-
-			conn, err := l.Accept()
-			if err != nil {
-				return err
-			}
-
-			go mux.ServeConn(conn)
-		}
+func (s *MuxServer) HandleServer(match func(*BuffConn) bool, srv Server) {
+	l := s.mux.Listener(match)
+	context.AfterFunc(s.ctx, func() { l.Close() })
+	s.g.Go(func() error {
+		return srv.Serve(l)
 	})
+}
 
-	return g.Wait()
+func (s *MuxServer) Serve(l net.Listener) error {
+	s.g.Go(func() error {
+		return Serve(l, s.mux)
+	})
+	return s.g.Wait()
 }
 
 func SOCKS5Match(conn *BuffConn) bool {

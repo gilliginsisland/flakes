@@ -12,6 +12,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/contextutil"
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
 var (
@@ -19,6 +20,10 @@ var (
 	ErrCloseRequested   = errors.New("close requested")
 	ErrIdleTimeout      = errors.New("idle timeout reached")
 )
+
+type waiter interface {
+	Wait() error
+}
 
 type ConnectionState int
 
@@ -29,12 +34,23 @@ const (
 	Online
 )
 
+type StateSignal struct {
+	State ConnectionState
+	Err   error
+}
+
 type Lazy struct {
 	Timeout time.Duration
 	New     func() (proxy.ContextDialer, error)
 
-	xd        proxy.ContextDialer
-	mu        sync.RWMutex
+	mu      sync.RWMutex // protects all state
+	initing atomic.Bool  // Tracks if initialization is in progress
+
+	xd     proxy.ContextDialer
+	err    error
+	state  ConnectionState
+	signal syncutil.Signal[StateSignal]
+
 	ctx       context.Context
 	cancel    context.CancelCauseFunc
 	timer     *time.Timer
@@ -46,30 +62,55 @@ func (d *Lazy) Dial(network, addr string) (net.Conn, error) {
 }
 
 func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	d.mu.RLock()
-
-	for d.xd == nil {
-		d.mu.RUnlock()
-		if err := d.init(); err != nil {
-			return nil, err
-		}
+	var ch <-chan StateSignal
+	for {
 		d.mu.RLock()
-	}
-
-	if d.timer != nil {
-		if !d.timer.Stop() {
-			d.timerRace.Store(true)
+		state := d.state
+		switch state {
+		case Online:
+			if d.timer != nil && !d.timer.Stop() {
+				d.timerRace.Store(true)
+			}
+			ctx = contextutil.Merge(ctx, d.ctx)
+			conn, err := d.xd.DialContext(ctx, network, addr)
+			context.AfterFunc(ctx, func() {
+				d.timer.Reset(d.Timeout)
+				d.mu.RUnlock()
+			})
+			return conn, err
+		case Failed:
+			if ch != nil {
+				defer d.mu.RUnlock()
+				return nil, d.err
+			}
+			fallthrough
+		case Offline:
+			if d.initing.CompareAndSwap(false, true) {
+				go d.init()
+			}
+		case Connecting:
+		default:
+			panic("invalid dialer state")
 		}
-	}
 
-	ctx = contextutil.Merge(ctx, d.ctx)
-	conn, err := d.xd.DialContext(ctx, network, addr)
-	context.AfterFunc(ctx, func() {
-		d.timer.Reset(d.Timeout)
+		if ch == nil {
+			var cancel func()
+			ch, cancel = d.signal.Subscribe()
+			defer cancel()
+		}
 		d.mu.RUnlock()
-	})
+		<-ch
+	}
+}
 
-	return conn, err
+func (d *Lazy) State() ConnectionState {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.state
+}
+
+func (d *Lazy) Subscribe() (<-chan StateSignal, func()) {
+	return d.signal.Subscribe()
 }
 
 func (d *Lazy) Close() error {
@@ -82,18 +123,22 @@ func (d *Lazy) Close() error {
 	return nil
 }
 
-func (d *Lazy) init() error {
+func (d *Lazy) init() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	if d.xd != nil {
-		return nil
-	}
+	d.state, d.err = Connecting, nil
+	d.signal.Publish(StateSignal{State: d.state, Err: d.err})
+	d.initing.CompareAndSwap(true, false)
+	d.mu.Unlock()
 
 	xd, err := d.New()
 	if err != nil {
-		return err
+		d.xd, d.state, d.err = nil, Failed, err
+		d.signal.Publish(StateSignal{State: d.state, Err: d.err})
+		return
 	}
+
+	d.xd, d.state, d.err = xd, Online, err
+	d.signal.Publish(StateSignal{State: d.state, Err: d.err})
 
 	ctx, cancel := context.WithCancelCause(context.Background())
 	timer := time.NewTimer(d.Timeout)
@@ -103,12 +148,11 @@ func (d *Lazy) init() error {
 		tc = timer.C
 	}
 
-	d.xd = xd
 	d.ctx, d.cancel = ctx, cancel
 	d.timer = timer
 	d.timerRace.Store(false)
 
-	if w, ok := xd.(interface{ Wait() error }); ok {
+	if w, ok := d.xd.(waiter); ok {
 		go func() {
 			w.Wait()
 			cancel(ErrUnderlyingClosed)
@@ -131,21 +175,23 @@ func (d *Lazy) init() error {
 			}
 			break
 		}
-
 		defer d.mu.Unlock()
 
-		switch context.Cause(ctx) {
+		cause := context.Cause(ctx)
+		switch cause {
 		case ErrCloseRequested, ErrIdleTimeout:
-			if c, ok := xd.(io.Closer); ok {
+			if c, ok := d.xd.(io.Closer); ok {
 				go c.Close()
 			}
 		}
 
-		d.xd = nil
 		d.ctx, d.cancel = nil, nil
 		d.timer = nil
 		d.timerRace.Store(false)
+
+		d.xd, d.state, d.err = nil, Offline, cause
+		d.signal.Publish(StateSignal{State: d.state, Err: d.err})
 	}()
 
-	return nil
+	return
 }
