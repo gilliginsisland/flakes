@@ -30,25 +30,22 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 			timeout = time.Duration(i) * time.Second
 		}
 	}
-	lazy := dialer.Lazy{
-		Timeout: timeout,
-		New: func() (proxy.ContextDialer, error) {
-			d, err := proxy.FromURL(u, fwd)
-			if err != nil {
-				return nil, err
-			}
-			xd, ok := d.(proxy.ContextDialer)
-			if !ok {
-				err = fmt.Errorf("Dialer does not support DialContext: %s", u.Scheme)
-				return nil, err
-			}
-			return xd, nil
-		},
+	factory := func() (proxy.ContextDialer, error) {
+		d, err := proxy.FromURL(u, fwd)
+		if err != nil {
+			return nil, err
+		}
+		xd, ok := d.(proxy.ContextDialer)
+		if !ok {
+			err = fmt.Errorf("Dialer does not support DialContext: %s", u.Scheme)
+			return nil, err
+		}
+		return xd, nil
 	}
 	pd := PooledDialer{
 		Label:  l,
 		URL:    u,
-		dialer: &lazy,
+		dialer: dialer.NewLazy(factory, timeout),
 	}
 	pd.Track()
 	return &pd
@@ -68,13 +65,11 @@ func (pd *PooledDialer) MenuItem() menuet.MenuItem {
 }
 
 func (pd *PooledDialer) Track() {
-	var ch <-chan dialer.StateSignal
-	ch, pd.cancel = pd.dialer.Subscribe()
 	go func() {
-		for msg := range ch {
-			pd.state.Store(int32(msg.State))
+		for state, err := range pd.dialer.Subscribe {
+			pd.state.Store(int32(state))
 			menuet.App().MenuChanged()
-			pd.notification(msg.State, msg.Err)
+			pd.notification(state, err)
 		}
 	}()
 }
