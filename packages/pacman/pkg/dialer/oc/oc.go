@@ -12,6 +12,7 @@ import (
 
 	"github.com/caseymrm/menuet"
 
+	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
 )
@@ -173,20 +174,16 @@ func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
 		case opt.Type == openconnect.FormOptionPassword:
 			passwd, _ := u.User.Password()
 			if u.Query().Get("token") == "otp" {
-				clicked := app.Alert(menuet.Alert{
-					MessageText:     "Authentication Required",
-					InformativeText: fmt.Sprintf("OTP is required for the proxy at %s\n\nEnter YubiKey OTP:", u.Redacted()),
-					Inputs:          []string{""},
-					Buttons: []string{
-						"Continue",
-						"Cancel",
-					},
+				response := <-notify.Notify(notify.Notification{
+					Title:               "Authentication Required",
+					Message:             fmt.Sprintf("OTP is required for the proxy at %s", u.Redacted()),
+					ResponsePlaceholder: "YubiKey OTP",
 				})
-				button := clicked.Button
-				if button == 1 {
+				if response == "" {
 					return errUserCancelled
+				} else {
+					passwd += response
 				}
-				passwd += clicked.Inputs[0]
 			}
 			opt.SetValue(passwd)
 		}

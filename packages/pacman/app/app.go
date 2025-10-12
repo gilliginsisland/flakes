@@ -36,7 +36,6 @@ func Run(configPath Path, l net.Listener) error {
 func run(configPath Path, l net.Listener) error {
 	app := menuet.App()
 	app.HideStartup()
-	app.NotificationResponder = func(id string, response string) {}
 	app.SetMenuState(&menuet.MenuState{
 		Image: "menuicon.pdf",
 	})
