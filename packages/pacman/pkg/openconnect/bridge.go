@@ -84,7 +84,7 @@ func go_process_auth_form(context unsafe.Pointer, form *C.struct_oc_auth_form) C
 	}
 
 	// Pass converted form to the callback
-	return C.int(v.ProcessAuthForm(f))
+	return C.int(v.ProcessAuthForm(&f))
 }
 
 //export go_progress

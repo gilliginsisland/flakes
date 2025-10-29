@@ -6,7 +6,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 	"golang.org/x/sys/unix"
@@ -39,11 +38,7 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancelCause(ctx)
 	defer cp.PropagateContext(ctx)()
-	defer time.AfterFunc(2*time.Minute, func() {
-		cancel(context.DeadlineExceeded)
-	}).Stop()
 
 	err = vpn.ObtainCookie()
 	if err != nil {

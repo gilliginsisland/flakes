@@ -9,6 +9,7 @@ import "C"
 import (
 	"context"
 	"io"
+	"log/slog"
 )
 
 type CMDPipe struct {
@@ -40,6 +41,8 @@ func (cp *CMDPipe) Stats() error {
 // It returns a cancel unregister function.
 func (cp *CMDPipe) PropagateContext(ctx context.Context) func() bool {
 	return context.AfterFunc(ctx, func() {
+		slog.Debug("propogating cancel from ctx to control pipe")
 		cp.Cancel()
+		slog.Debug("propogated cancel from ctx to control pipe")
 	})
 }

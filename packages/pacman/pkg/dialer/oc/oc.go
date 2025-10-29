@@ -2,13 +2,11 @@ package oc
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/caseymrm/menuet"
 
@@ -17,10 +15,9 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
 )
 
-var errUserCancelled = errors.New("User cancelled")
-
 type callbacks struct {
 	url *url.URL
+	ctx context.Context
 }
 
 func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
@@ -41,13 +38,60 @@ func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
 	)
 }
 
+func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
+	xtras = append(xtras, slog.String("proxy", cb.url.Redacted()))
+	slog.LogAttrs(context.Background(), slog.LevelDebug, msg, xtras...)
+}
+
+func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
+	app := menuet.App()
+
+	if form.Error != "" {
+		app.Alert(menuet.Alert{
+			MessageText:     "Authentication Error: " + cb.url.Redacted(),
+			InformativeText: form.Error,
+		})
+	}
+
+	passwd, _ := cb.url.User.Password()
+	if cb.url.Query().Get("token") == "otp" {
+		notif := notify.Notification{
+			Title:               "Authentication Required",
+			Message:             fmt.Sprintf("OTP is required for the proxy at %s", cb.url.Redacted()),
+			ResponsePlaceholder: "YubiKey OTP",
+		}
+		select {
+		case response := <-notify.Notify(notif):
+			if response == "" {
+				cb.DebugLog("Auth form user cancelled")
+				return openconnect.FormResultCancelled
+			}
+			passwd += response
+			cb.DebugLog("AuthForm YOTP received")
+		case <-cb.ctx.Done():
+			cb.DebugLog("AuthForm ctx cancelled")
+			return openconnect.FormResultCancelled
+		}
+	}
+
+	result := (&openconnect.CredentialsProcessor{
+		Username: cb.url.User.Username(),
+		Password: passwd,
+	}).ProcessForm(form)
+	cb.DebugLog("CredentialsProcessor", slog.String("result", result.String()))
+	return result
+}
+
 type Dialer struct {
 	*stackutil.Dialer
 	*openconnect.Conn
 }
 
-func NewDialer(u *url.URL) (*Dialer, error) {
-	cb := callbacks{url: u}
+func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
+	cb := callbacks{
+		url: u,
+		ctx: ctx,
+	}
 
 	var csd string
 	switch u.Scheme {
@@ -55,7 +99,7 @@ func NewDialer(u *url.URL) (*Dialer, error) {
 		csd, _ = os.Executable()
 	}
 
-	conn, err := openconnect.Connect(context.Background(), openconnect.Options{
+	conn, err := openconnect.Connect(ctx, openconnect.Options{
 		Protocol: openconnect.Protocol(u.Scheme),
 		Server:   fmt.Sprintf("%s%s", u.Host, u.Path),
 		CSD:      csd,
@@ -63,25 +107,10 @@ func NewDialer(u *url.URL) (*Dialer, error) {
 		LogLevel: openconnect.LogLevelDebug,
 		Callbacks: openconnect.Callbacks{
 			Progress: cb.Progress,
-			ProcessAuthForm: func(form openconnect.AuthForm) openconnect.FormResult {
-				err := processAuthForm(form, u)
-				if err != nil {
-					slog.Error(
-						"openconnect form authentication failed",
-						slog.String("proxy", u.Redacted()),
-						slog.Any("error", err),
-					)
-					if errors.Is(err, errUserCancelled) {
-						return openconnect.FormResultCancelled
-					}
-					return openconnect.FormResultErr
-				}
-				slog.Debug(
-					"form authentication succeeded",
-					slog.String("proxy", u.Redacted()),
-				)
-				return openconnect.FormResultOk
-			},
+			ProcessAuthForm: (&openconnect.AggregateProcessor{
+				openconnect.LoggerFunc(cb.DebugLog),
+				&cb,
+			}).ProcessForm,
 			ExternalBrowser: func(uri string) error {
 				return exec.Command("open", uri).Run()
 			},
@@ -142,59 +171,4 @@ func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 		Conn:   conn,
 		Dialer: d,
 	}, nil
-}
-
-func processAuthForm(form openconnect.AuthForm, u *url.URL) error {
-	app := menuet.App()
-
-	slog.Debug(
-		"Processing Auth Form",
-		slog.String("banner", form.Banner),
-		slog.String("message", form.Message),
-		slog.String("error", form.Error),
-	)
-
-	if form.Error != "" {
-		app.Alert(menuet.Alert{
-			MessageText:     "Authentication Error: " + u.Redacted(),
-			InformativeText: form.Error,
-		})
-	}
-
-	for _, opt := range form.Options {
-		slog.Debug(
-			"option",
-			slog.String("name", opt.Name),
-			slog.String("label", opt.Label),
-			slog.String("type", opt.Type.String()),
-		)
-		switch {
-		case opt.Type == openconnect.FormOptionText && strings.HasPrefix(strings.ToLower(opt.Name), "user"):
-			opt.SetValue(u.User.Username())
-		case opt.Type == openconnect.FormOptionPassword:
-			passwd, _ := u.User.Password()
-			if u.Query().Get("token") == "otp" {
-				response := <-notify.Notify(notify.Notification{
-					Title:               "Authentication Required",
-					Message:             fmt.Sprintf("OTP is required for the proxy at %s", u.Redacted()),
-					ResponsePlaceholder: "YubiKey OTP",
-				})
-				if response == "" {
-					return errUserCancelled
-				} else {
-					passwd += response
-				}
-			}
-			opt.SetValue(passwd)
-		}
-		for _, choice := range opt.Choices {
-			slog.Debug(
-				"choice",
-				slog.String("name", choice.Name),
-				slog.String("label", choice.Label),
-			)
-		}
-	}
-
-	return nil
 }
