@@ -59,7 +59,7 @@ var UserAgents = map[Protocol]string{
 
 type Callbacks struct {
 	ValidatePeerCert func(cert string) bool
-	ProcessAuthForm  func(form AuthForm) FormResult
+	ProcessAuthForm  func(form *AuthForm) FormResult
 	Progress         func(level LogLevel, message string)
 	ExternalBrowser  func(uri string) error
 }

@@ -12,15 +12,10 @@ import (
 )
 
 func init() {
-	proxy.RegisterDialerType("ssh", SSH)
+	RegisterContextDialerType("ssh", SSH)
 }
 
-func SSH(u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
-	xd, ok := fwd.(proxy.ContextDialer)
-	if !ok {
-		return nil, fmt.Errorf("fwd dialer does not support DialContext")
-	}
-
+func SSH(ctx context.Context, u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
 	config := ssh.ClientConfig{
 		User:            u.User.Username(),
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -51,9 +46,9 @@ func SSH(u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
 		config.Auth = append(config.Auth, ssh.PublicKeys(signer))
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
-	conn, err := xd.DialContext(ctx, "tcp", addr)
+	conn, err := dialContext(ctx, fwd, "tcp", addr)
 	if err != nil {
 		cancel()
 		return nil, err

@@ -1,6 +1,7 @@
 package dialer
 
 import (
+	"context"
 	"net/url"
 
 	"golang.org/x/net/proxy"
@@ -9,10 +10,10 @@ import (
 )
 
 func init() {
-	proxy.RegisterDialerType("anyconnect", Openconnect)
-	proxy.RegisterDialerType("gp", Openconnect)
+	RegisterContextDialerType("anyconnect", Openconnect)
+	RegisterContextDialerType("gp", Openconnect)
 }
 
-func Openconnect(u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
-	return oc.NewDialer(u)
+func Openconnect(ctx context.Context, u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
+	return oc.NewDialer(ctx, u)
 }

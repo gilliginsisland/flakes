@@ -3,6 +3,7 @@ package dialer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -15,9 +16,8 @@ import (
 )
 
 var (
-	ErrUnderlyingClosed = errors.New("underlying dialer closed")
-	ErrCloseRequested   = errors.New("close requested")
-	ErrIdleTimeout      = errors.New("idle timeout reached")
+	ErrCloseRequested = errors.New("close requested")
+	ErrIdleTimeout    = errors.New("idle timeout reached")
 )
 
 type waiter interface {
@@ -39,14 +39,14 @@ type StateSignal struct {
 }
 
 type Lazy struct {
-	new     func() (proxy.ContextDialer, error)
+	new     func(ctx context.Context) (proxy.Dialer, error)
 	timeout time.Duration
 
 	mu      sync.RWMutex
 	cond    sync.Cond
 	initing atomic.Bool
 
-	xd    proxy.ContextDialer
+	xd    proxy.Dialer
 	err   error
 	state ConnectionState
 
@@ -56,7 +56,7 @@ type Lazy struct {
 	timerRace atomic.Bool
 }
 
-func NewLazy(new func() (proxy.ContextDialer, error), timeout time.Duration) *Lazy {
+func NewLazy(new func(ctx context.Context) (proxy.Dialer, error), timeout time.Duration) *Lazy {
 	l := Lazy{
 		new:     new,
 		timeout: timeout,
@@ -81,7 +81,7 @@ func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn,
 				d.timerRace.Store(true)
 			}
 			ctx = contextutil.Merge(ctx, d.ctx)
-			conn, err := d.xd.DialContext(ctx, network, addr)
+			conn, err := dialContext(ctx, d.xd, network, addr)
 			context.AfterFunc(ctx, func() {
 				d.timer.Reset(d.timeout)
 				d.mu.RUnlock()
@@ -129,42 +129,42 @@ func (d *Lazy) Close() error {
 	defer d.mu.RUnlock()
 	if d.cancel != nil {
 		d.cancel(ErrCloseRequested)
+	} else {
+		d.cond.Broadcast()
 	}
-	d.cond.Broadcast()
 	return nil
 }
 
 func (d *Lazy) init() {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	timer := time.NewTimer(d.timeout)
+
 	d.mu.Lock()
 	d.xd, d.state, d.err = nil, Connecting, nil
+	d.ctx, d.cancel, d.timer = ctx, cancel, timer
+	d.timerRace.Store(false)
 	d.initing.CompareAndSwap(true, false)
 	d.cond.Broadcast()
 	d.mu.Unlock()
 
-	xd, err := d.new()
+	xd, err := d.new(ctx)
 	if err != nil {
 		d.mu.Lock()
 		d.xd, d.state, d.err = nil, Failed, err
+		d.ctx, d.cancel, d.timer = nil, nil, nil
 		d.cond.Broadcast()
 		d.mu.Unlock()
 		return
 	}
 
-	ctx, cancel := context.WithCancelCause(context.Background())
-	timer := time.NewTimer(d.timeout)
-
 	if w, ok := xd.(waiter); ok {
 		go func() {
-			w.Wait()
-			cancel(ErrUnderlyingClosed)
+			cancel(fmt.Errorf("underlying dialer closed: %w", w.Wait()))
 		}()
 	}
 
 	d.mu.Lock()
 	d.xd, d.state, d.err = xd, Online, err
-	d.ctx, d.cancel = ctx, cancel
-	d.timer = timer
-	d.timerRace.Store(false)
 	d.cond.Broadcast()
 	d.mu.Unlock()
 
@@ -199,8 +199,7 @@ func (d *Lazy) init() {
 		}
 
 		d.xd, d.state, d.err = nil, Offline, cause
-		d.ctx, d.cancel = nil, nil
-		d.timer = nil
+		d.ctx, d.cancel, d.timer = nil, nil, nil
 		d.timerRace.Store(false)
 		d.cond.Broadcast()
 		d.mu.Unlock()

@@ -1,7 +1,7 @@
 package app
 
 import (
-	"fmt"
+	"context"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -30,22 +30,16 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 			timeout = time.Duration(i) * time.Second
 		}
 	}
-	factory := func() (proxy.ContextDialer, error) {
-		d, err := proxy.FromURL(u, fwd)
-		if err != nil {
-			return nil, err
-		}
-		xd, ok := d.(proxy.ContextDialer)
-		if !ok {
-			err = fmt.Errorf("Dialer does not support DialContext: %s", u.Scheme)
-			return nil, err
-		}
-		return xd, nil
-	}
 	pd := PooledDialer{
-		Label:  l,
-		URL:    u,
-		dialer: dialer.NewLazy(factory, timeout),
+		Label: l,
+		URL:   u,
+		dialer: dialer.NewLazy(func(ctx context.Context) (proxy.Dialer, error) {
+			ctx, cancel := context.WithCancelCause(ctx)
+			defer time.AfterFunc(2*time.Minute, func() {
+				cancel(context.DeadlineExceeded)
+			}).Stop()
+			return dialer.FromURLContext(ctx, u, fwd)
+		}, timeout),
 	}
 	pd.Track()
 	return &pd
