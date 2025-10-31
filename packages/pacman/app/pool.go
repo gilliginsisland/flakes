@@ -18,8 +18,9 @@ type DialerPool map[string]*PooledDialer
 type PooledDialer struct {
 	Label  string
 	URL    *url.URL
-	dialer *dialer.Lazy
+	ctx    context.Context
 	cancel func()
+	dialer *dialer.Lazy
 	state  atomic.Int32
 }
 
@@ -41,7 +42,18 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 			return dialer.FromURLContext(ctx, u, fwd)
 		}, timeout),
 	}
-	pd.Track()
+	pd.ctx, pd.cancel = context.WithCancel(context.Background())
+	go func() {
+		for state, err := range pd.dialer.Subscribe {
+			if pd.state.Swap(int32(state)) != int32(state) {
+				menuet.App().MenuChanged()
+				pd.notification(state, err)
+			}
+			if pd.ctx.Err() != nil {
+				break
+			}
+		}
+	}()
 	return &pd
 }
 
@@ -56,16 +68,6 @@ func (pd *PooledDialer) MenuItem() menuet.MenuItem {
 			return []menuet.MenuItem{child}
 		},
 	}
-}
-
-func (pd *PooledDialer) Track() {
-	go func() {
-		for state, err := range pd.dialer.Subscribe {
-			pd.state.Store(int32(state))
-			menuet.App().MenuChanged()
-			pd.notification(state, err)
-		}
-	}()
 }
 
 func (pd *PooledDialer) Close() {
