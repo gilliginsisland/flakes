@@ -101,7 +101,8 @@ func (pd *PooledDialer) action(state dialer.ConnectionState) (string, func()) {
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	notif := menuet.Notification{
-		Subtitle: pd.Label,
+		Subtitle:                     pd.Label,
+		RemoveFromNotificationCenter: true,
 	}
 	switch state {
 	case dialer.Offline:
