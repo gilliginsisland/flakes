@@ -6,7 +6,8 @@
   macdylibbundler,
   stdenv,
   librsvg,
-  apple-sdk_15
+  apple-sdk_15,
+  bundleDylibs ? false
 }:
 
 let
@@ -37,10 +38,9 @@ buildGoModule {
     mainProgram = "pacman";
   };
 
-  nativeBuildInputs = [ pkg-config macdylibbundler librsvg iconutil ];
+  nativeBuildInputs = [ pkg-config librsvg iconutil ] ++ lib.optionals bundleDylibs [ macdylibbundler ];
   buildInputs = [ apple-sdk_15 openconnect.dev ];
 
-  # Ensure cgo picks up the correct .pc with internal header path
   env = {
     CGO_ENABLED = "1";
   };
@@ -76,11 +76,14 @@ buildGoModule {
     cp Info.plist "$app/Contents/Info.plist"
 
     # Bundle dynamic libraries into Frameworks
-    "${lib.getBin macdylibbundler}/bin/dylibbundler" \
-      -b \
-      -x "$app/Contents/MacOS/PACman" \
-      -d "$app/Contents/lib" \
-      -p @executable_path/../lib
+    if [ "$bundleDylibs" = "1" ]; then
+      echo "Embedding dynamic libraries..."
+      dylibbundler \
+        -b \
+        -x "$app/Contents/MacOS/PACman" \
+        -d "$app/Contents/lib" \
+        -p @executable_path/../lib
+    fi
 
     mkdir -p "$out/bin"
     echo '#!/bin/sh' > "$out/bin/pacman"
