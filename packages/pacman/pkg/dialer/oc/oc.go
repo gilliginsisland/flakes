@@ -55,12 +55,11 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 
 	passwd, _ := cb.url.User.Password()
 	if cb.url.Query().Get("token") == "otp" {
-		ch := make(chan string, 1)
-		cb.notify(notify.Notification{
+		ch, cleanup := cb.notify(notify.Notification{
 			Title:               "Authentication Required",
 			Message:             "Enter YubiKey OTP",
 			ResponsePlaceholder: "YubiKey OTP",
-		}, ch)
+		})
 		select {
 		case response := <-ch:
 			if response == "" {
@@ -70,6 +69,7 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 			passwd += response
 			cb.DebugLog("AuthForm YOTP received")
 		case <-cb.ctx.Done():
+			defer cleanup()
 			cb.DebugLog("AuthForm ctx cancelled")
 			return openconnect.FormResultCancelled
 		}
@@ -83,7 +83,7 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	return result
 }
 
-func (cb *callbacks) notify(n notify.Notification, ch chan<- string) {
+func (cb *callbacks) notify(n notify.Notification) (<-chan string, func()) {
 	if n.Subtitle == "" {
 		if l, _ := cb.ctx.Value("label").(string); l != "" {
 			n.Subtitle = l
@@ -91,7 +91,7 @@ func (cb *callbacks) notify(n notify.Notification, ch chan<- string) {
 			n.Subtitle = cb.url.Redacted()
 		}
 	}
-	notify.Notify(n, ch)
+	return notify.WithChannel(n)
 }
 
 type Dialer struct {
@@ -124,16 +124,16 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 				&cb,
 			}).ProcessForm,
 			ExternalBrowser: func(uri string) error {
-				ch := make(chan string, 1)
-				cb.notify(notify.Notification{
+				ch, cleanup := cb.notify(notify.Notification{
 					Title:    "Authentication Required",
 					Subtitle: cb.url.Redacted(),
 					Message:  "Click to complete authentication in browser",
-				}, ch)
+				})
 				select {
 				case <-ch:
 					return xdg.Run(uri)
 				case <-cb.ctx.Done():
+					defer cleanup()
 					cb.DebugLog("ExternalBrowser ctx cancelled")
 					return ctx.Err()
 				}

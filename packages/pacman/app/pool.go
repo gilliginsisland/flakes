@@ -128,5 +128,5 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	if err != nil {
 		notif.Message += " " + err.Error()
 	}
-	notify.Notify(notif, nil)
+	notify.Notify(notif)
 }

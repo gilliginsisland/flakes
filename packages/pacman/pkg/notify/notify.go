@@ -22,10 +22,23 @@ func init() {
 	menuet.App().NotificationResponder = ResponseHandler
 }
 
-// Notify displays a notification and returns a channel that will receive the user's response.
+// Notify displays a notification.
+// If Identifier is empty, a unique one is generated automatically.
+// If another notification with the same Identifier exists, it is replaced.
+func Notify(n Notification) {
+	notify(n, nil)
+}
+
+// WithChannel displays a notification and returns a channel that will receive the user's response.
 // If Identifier is empty, a unique one is generated automatically.
 // If another notification with the same Identifier exists, it is replaced and its channel closed.
-func Notify(n Notification, ch chan<- string) {
+// A cleanup function is provided to discard the channel
+func WithChannel(n Notification) (<-chan string, func()) {
+	ch := make(chan string, 1)
+	return ch, notify(n, ch)
+}
+
+func notify(n Notification, ch chan<- string) func() {
 	// Ensure a unique or provided identifier
 	if n.Identifier == "" {
 		n.Identifier = fmt.Sprintf("auto-%d", counter.Add(1))
@@ -33,11 +46,17 @@ func Notify(n Notification, ch chan<- string) {
 
 	// Atomically swap out any previous entry
 	var (
-		prev   chan<- string
-		loaded bool
+		prev    chan<- string
+		loaded  bool
+		cleanup func()
 	)
 	if ch != nil {
 		prev, loaded = chans.Swap(n.Identifier, ch)
+		cleanup = func() {
+			if chans.CompareAndDelete(n.Identifier, ch) {
+				close(ch)
+			}
+		}
 	} else {
 		prev, loaded = chans.LoadAndDelete(n.Identifier)
 	}
@@ -47,6 +66,8 @@ func Notify(n Notification, ch chan<- string) {
 
 	// Dispatch notification
 	menuet.App().Notification(menuet.Notification(n))
+
+	return cleanup
 }
 
 func ResponseHandler(id, response string) {
