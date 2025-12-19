@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/contextutil"
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
 var (
@@ -39,8 +40,8 @@ type StateSignal struct {
 }
 
 type Lazy struct {
-	new     func(ctx context.Context) (proxy.Dialer, error)
-	timeout time.Duration
+	new      func(ctx context.Context) (proxy.Dialer, error)
+	duration time.Duration
 
 	mu      sync.RWMutex
 	cond    sync.Cond
@@ -50,16 +51,15 @@ type Lazy struct {
 	err   error
 	state ConnectionState
 
-	ctx       context.Context
-	cancel    context.CancelCauseFunc
-	timer     *time.Timer
-	timerRace atomic.Bool
+	ctx     context.Context
+	cancel  context.CancelCauseFunc
+	timeout *syncutil.Timeout
 }
 
-func NewLazy(new func(ctx context.Context) (proxy.Dialer, error), timeout time.Duration) *Lazy {
+func NewLazy(new func(ctx context.Context) (proxy.Dialer, error), duration time.Duration) *Lazy {
 	l := Lazy{
-		new:     new,
-		timeout: timeout,
+		new:      new,
+		duration: duration,
 	}
 	l.cond.L = l.mu.RLocker()
 	return &l
@@ -70,38 +70,36 @@ func (d *Lazy) Dial(network, addr string) (net.Conn, error) {
 }
 
 func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	var waited bool
-
 	d.mu.RLock()
 	for {
 		state := d.state
 		switch state {
+		case Offline:
+			if d.initing.CompareAndSwap(false, true) {
+				go d.init()
+			}
 		case Online:
-			if d.timer != nil && !d.timer.Stop() {
-				d.timerRace.Store(true)
+			if d.duration > 0 {
+				d.timeout.Stop()
 			}
 			ctx = contextutil.Merge(ctx, d.ctx)
 			conn, err := dialContext(ctx, d.xd, network, addr)
 			context.AfterFunc(ctx, func() {
-				d.timer.Reset(d.timeout)
-				d.mu.RUnlock()
+				defer d.mu.RUnlock()
+				if d.duration > 0 {
+					d.timeout.Reset(d.duration)
+				}
 			})
 			return conn, err
-		case Offline, Failed:
-			if waited {
-				defer d.mu.RUnlock()
-				return nil, d.err
-			}
-			if d.initing.CompareAndSwap(false, true) {
-				go d.init()
-			}
+		case Failed:
+			defer d.mu.RUnlock()
+			return nil, d.err
 		case Connecting:
 		default:
 			panic("invalid dialer state")
 		}
 
 		d.cond.Wait()
-		waited = true
 	}
 }
 
@@ -123,41 +121,50 @@ func (d *Lazy) Subscribe(yield func(ConnectionState, error) bool) {
 	}
 }
 
-func (d *Lazy) Close() error {
-	// signal to stop any ongoing operations
+func (d *Lazy) Reset() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.state != Failed {
+		return
+	}
+
+	d.state, d.err = Offline, nil
+	d.cond.Broadcast()
+}
+
+func (d *Lazy) Close() {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if d.cancel != nil {
 		d.cancel(ErrCloseRequested)
 	} else {
+		// signal to stop any ongoing operations
 		d.cond.Broadcast()
 	}
-	return nil
 }
 
 func (d *Lazy) init() {
-	ctx, cancel := context.WithCancelCause(context.Background())
-	timer := time.NewTimer(d.timeout)
-
 	d.mu.Lock()
 	d.xd, d.state, d.err = nil, Connecting, nil
-	d.ctx, d.cancel, d.timer = ctx, cancel, timer
-	d.timerRace.Store(false)
-	d.initing.CompareAndSwap(true, false)
+	d.ctx, d.cancel = context.WithCancelCause(context.Background())
 	d.cond.Broadcast()
 	d.mu.Unlock()
 
-	xd, err := d.new(ctx)
+	xd, err := d.new(d.ctx)
 	if err != nil {
 		d.mu.Lock()
-		d.xd, d.state, d.err = nil, Failed, err
-		d.ctx, d.cancel, d.timer = nil, nil, nil
+		defer d.mu.Unlock()
+		d.cancel(err)
+		d.xd, d.state, d.err = nil, Failed, context.Cause(d.ctx)
+		d.ctx, d.cancel, d.timeout = nil, nil, nil
+		d.initing.Store(false)
 		d.cond.Broadcast()
-		d.mu.Unlock()
 		return
 	}
 
 	if w, ok := xd.(waiter); ok {
+		cancel := d.cancel
 		go func() {
 			cancel(fmt.Errorf("underlying dialer closed: %w", w.Wait()))
 		}()
@@ -165,45 +172,36 @@ func (d *Lazy) init() {
 
 	d.mu.Lock()
 	d.xd, d.state, d.err = xd, Online, err
+	if d.duration > 0 {
+		d.timeout = syncutil.NewTimeout(d.mu.RLocker(), d.duration, func() {
+			if d.state != Online {
+				return
+			}
+			d.cancel(ErrIdleTimeout)
+			if c, ok := d.xd.(io.Closer); ok {
+				go c.Close()
+			}
+			d.xd, d.state, d.err = nil, Offline, context.Cause(d.ctx)
+			d.ctx, d.cancel, d.timeout = nil, nil, nil
+			d.cond.Broadcast()
+		})
+	}
+	d.initing.Store(false)
 	d.cond.Broadcast()
 	d.mu.Unlock()
 
-	go func() {
-		var tc <-chan time.Time
-		if d.timeout > 0 {
-			tc = d.timer.C
-		}
-
-		for {
-			select {
-			case <-tc:
-				d.mu.Lock()
-				if d.timerRace.Load() {
-					// if timerRace is true a reader reset the timer
-					d.mu.Unlock()
-					continue
-				}
-				cancel(ErrIdleTimeout)
-			case <-ctx.Done():
-				d.mu.Lock()
-			}
-			break
-		}
-
-		cause := context.Cause(ctx)
-		switch cause {
-		case ErrCloseRequested, ErrIdleTimeout:
+	context.AfterFunc(d.ctx, func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if context.Cause(d.ctx) == ErrCloseRequested {
 			if c, ok := d.xd.(io.Closer); ok {
 				go c.Close()
 			}
 		}
-
-		d.xd, d.state, d.err = nil, Offline, cause
-		d.ctx, d.cancel, d.timer = nil, nil, nil
-		d.timerRace.Store(false)
+		d.xd, d.state, d.err = nil, Offline, context.Cause(d.ctx)
+		d.ctx, d.cancel, d.timeout = nil, nil, nil
 		d.cond.Broadcast()
-		d.mu.Unlock()
-	}()
+	})
 
 	return
 }

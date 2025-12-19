@@ -11,6 +11,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/notify"
 )
 
 type DialerPool map[string]*PooledDialer
@@ -35,7 +36,9 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 		Label: l,
 		URL:   u,
 		dialer: dialer.NewLazy(func(ctx context.Context) (proxy.Dialer, error) {
-			ctx, cancel := context.WithCancelCause(ctx)
+			ctx, cancel := context.WithCancelCause(
+				context.WithValue(ctx, "label", l),
+			)
 			defer time.AfterFunc(2*time.Minute, func() {
 				cancel(context.DeadlineExceeded)
 			}).Stop()
@@ -91,18 +94,19 @@ func (pd *PooledDialer) icon(state dialer.ConnectionState) string {
 
 func (pd *PooledDialer) action(state dialer.ConnectionState) (string, func()) {
 	switch state {
-	case dialer.Offline, dialer.Failed:
+	case dialer.Offline:
 		return "Offline", nil
+	case dialer.Failed:
+		return "Reset", pd.dialer.Reset
 	case dialer.Online, dialer.Connecting:
-		return "Disconnect", func() { pd.dialer.Close() }
+		return "Disconnect", pd.dialer.Close
 	}
 	return "", nil
 }
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
-	notif := menuet.Notification{
-		Subtitle:                     pd.Label,
-		RemoveFromNotificationCenter: true,
+	notif := notify.Notification{
+		Subtitle: pd.Label,
 	}
 	switch state {
 	case dialer.Offline:
@@ -124,5 +128,5 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	if err != nil {
 		notif.Message += " " + err.Error()
 	}
-	menuet.App().Notification(notif)
+	notify.Notify(notif, nil)
 }
