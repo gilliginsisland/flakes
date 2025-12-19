@@ -55,7 +55,8 @@ func (d *ByHost) DialContext(ctx context.Context, network, address string) (net.
 		}
 	}
 
-	return pd.DialContext(ctx, network, address)
+	conn, err := pd.DialContext(ctx, network, address)
+	return conn, err
 }
 
 // Swap installs a new ruleset atomically.
