@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/url"
 	"sync"
 	"time"
 
@@ -80,7 +81,16 @@ func run(configPath Path, l net.Listener) error {
 }
 
 func (pacman *PACMan) OpenConfig() {
-	xdg.Run(pacman.config.Path.String())
+	p, err := pacman.config.Path.ExpandUser()
+	if err != nil {
+		return
+	}
+
+	u := url.URL{
+		Scheme: "file",
+		Path:   p,
+	}
+	xdg.Run(u.String())
 }
 
 func (pacman *PACMan) LoadConfig(cfg *Config) error {
