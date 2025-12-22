@@ -58,10 +58,11 @@ var UserAgents = map[Protocol]string{
 }
 
 type Callbacks struct {
-	ValidatePeerCert func(cert string) bool
-	ProcessAuthForm  func(form *AuthForm) FormResult
-	Progress         func(level LogLevel, message string)
-	ExternalBrowser  func(uri string) error
+	ValidatePeerCert   func(cert string) bool
+	ProcessAuthForm    func(form *AuthForm) FormResult
+	Progress           func(level LogLevel, message string)
+	ExternalBrowser    func(uri string) error
+	ReconnectedHandler func()
 }
 
 type Options struct {
@@ -139,7 +140,7 @@ func (v *VpnInfo) ParseOpts(opts Options) error {
 	}
 
 	if opts.Protocol != "" {
-		if err := v.SetProtocol(string(opts.Protocol)); err != nil {
+		if err := v.SetProtocol(opts.Protocol); err != nil {
 			return err
 		}
 	}
@@ -189,13 +190,13 @@ func (v *VpnInfo) SetHostname(hostname string) error {
 }
 
 // Protocol returns the VPN protocol.
-func (v *VpnInfo) Protocol() string {
-	return C.GoString(C.openconnect_get_protocol(v.vpninfo))
+func (v *VpnInfo) Protocol() Protocol {
+	return Protocol(C.GoString(C.openconnect_get_protocol(v.vpninfo)))
 }
 
 // SetProtocol sets the VPN protocol.
-func (v *VpnInfo) SetProtocol(protocol string) error {
-	cStr := C.CString(protocol)
+func (v *VpnInfo) SetProtocol(protocol Protocol) error {
+	cStr := C.CString(string(protocol))
 	defer C.free(unsafe.Pointer(cStr))
 	return ocErrno("set protocol", C.openconnect_set_protocol(v.vpninfo, cStr))
 }

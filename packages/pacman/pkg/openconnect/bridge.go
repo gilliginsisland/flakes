@@ -110,6 +110,15 @@ func go_external_browser_callback(_ *C.struct_openconnect_info, uri *C.char, con
 	return 0
 }
 
+//export go_reconnected_handler
+func go_reconnected_handler(context unsafe.Pointer) {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.ReconnectedHandler == nil {
+		return
+	}
+	v.ReconnectedHandler()
+}
+
 //export go_mainloop_result
 func go_mainloop_result(vpninfo *C.struct_openconnect_info, result C.int) {
 	v, ok := handles.Load(uintptr(unsafe.Pointer(vpninfo)))
