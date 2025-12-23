@@ -1,11 +1,9 @@
 package stackutil
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -110,17 +108,17 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 
 	var ep stack.LinkEndpoint
 	ch := channel.New(1024, opts.MTU, "")
-	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-		ep = &DumpingLinkEndpoint{
-			LinkEndpoint: ch,
-			Dumper: PacketDumperFunc(func(pkt *stack.PacketBuffer, chain string) {
-				b := pkt.ToBuffer()
-				netutil.DumpPacket(b.Flatten(), chain)
-			}),
-		}
-	} else {
-		ep = ch
-	}
+	// if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+	// 	ep = &DumpingLinkEndpoint{
+	// 		LinkEndpoint: ch,
+	// 		Dumper: PacketDumperFunc(func(pkt *stack.PacketBuffer, chain string) {
+	// 			b := pkt.ToBuffer()
+	// 			netutil.DumpPacket(b.Flatten(), chain)
+	// 		}),
+	// 	}
+	// } else {
+	ep = ch
+	// }
 
 	cleanup := func() {
 		ep.Close()

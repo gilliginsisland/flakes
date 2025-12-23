@@ -106,9 +106,21 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 	}
 
 	var csd string
-	switch u.Scheme {
-	case "anyconnect":
-		csd, _ = os.Executable()
+	if csd = u.Query().Get("csd"); csd == "" {
+		switch u.Scheme {
+		case "anyconnect":
+			csd, _ = os.Executable()
+		}
+	}
+
+	var logLevel openconnect.LogLevel
+	switch {
+	case slog.Default().Enabled(ctx, slog.LevelDebug):
+		logLevel = openconnect.LogLevelTrace
+	case slog.Default().Enabled(ctx, slog.LevelInfo):
+		logLevel = openconnect.LogLevelInfo
+	case slog.Default().Enabled(ctx, slog.LevelError):
+		logLevel = openconnect.LogLevelErr
 	}
 
 	conn, err := openconnect.Connect(ctx, openconnect.Options{
@@ -116,7 +128,7 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		Server:   fmt.Sprintf("%s%s", u.Host, u.Path),
 		CSD:      csd,
 		ForceDPD: 5,
-		LogLevel: openconnect.LogLevelDebug,
+		LogLevel: logLevel,
 		Callbacks: openconnect.Callbacks{
 			Progress: cb.Progress,
 			ProcessAuthForm: (&openconnect.AggregateProcessor{
