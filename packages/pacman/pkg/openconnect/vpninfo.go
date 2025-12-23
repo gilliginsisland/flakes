@@ -53,7 +53,7 @@ const (
 )
 
 var UserAgents = map[Protocol]string{
-	ProtocolAnyConnect:    "AnyConnect Darwin_i386 4.10.01075",
+	ProtocolAnyConnect:    "AnyConnect Darwin_i386 5.1.8.122",
 	ProtocolGlobalProtect: "Global Protect",
 }
 
