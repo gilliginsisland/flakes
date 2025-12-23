@@ -14,7 +14,7 @@ func (s *mockScanner) Scan() *Report {
 	r := Report{
 		OS: OS{
 			Version:      "Darwin",
-			ServicePack:  "24.5.0",
+			ServicePack:  "26.1",
 			Architecture: "arm64",
 		},
 		Policy: Policy{
@@ -22,38 +22,52 @@ func (s *mockScanner) Scan() *Report {
 		},
 		Device: Device{
 			Protection:          "none",
-			ProtectionVersion:   "4.10.01094",
-			ProtectionExtension: "4.3.1858.0",
+			ProtectionVersion:   "5.1.8.122",
+			ProtectionExtension: "4.3.3902.0",
 		},
 		Enforce: "success",
 		PersonalFireWall: map[string]PersonalFireWall{
+			"100386": {
+				Exists:      true,
+				Description: "Packet Filter (Mac)",
+				Version:     "26.1",
+				Enabled:     "ok",
+			},
+			"100250": {
+				Exists:      true,
+				Description: "CrowdStrike Falcon (Mac)",
+				Version:     "7.29.20103.0",
+				Enabled:     "ok",
+			},
 			"100022": {
 				Exists:      true,
 				Description: "Mac OS X Builtin Firewall (Mac)",
-				Version:     "11.5.1",
-				Enabled:     "ok",
-			},
-			"100194": {
-				Exists:      true,
-				Description: "McAfee Endpoint Security for Mac (Mac)",
-				Version:     "10.7.7",
+				Version:     "26.1",
 				Enabled:     "ok",
 			},
 		},
 		AntiMalware: map[string]AntiMalware{
+			"100366": {
+				Exists:      true,
+				Description: "Xprotect (Mac)",
+				Version:     "5325",
+				Activescan:  "ok",
+				LastUpdate:  545119,
+				Timestamp:   int(time.Now().Unix()) - 545119,
+			},
+			"100250": {
+				Exists:      true,
+				Description: "CrowdStrike Falcon (Mac)",
+				Version:     "7.29.20103.0",
+				Activescan:  "ok",
+				LastUpdate:  9447,
+				Timestamp:   int(time.Now().Unix()) - 9447,
+			},
 			"100137": {
 				Exists:      true,
 				Description: "Gatekeeper (Mac)",
-				Version:     "11.5.1",
+				Version:     "26.1",
 				Activescan:  "ok",
-			},
-			"100194": {
-				Exists:      true,
-				Description: "McAfee Endpoint Security for Mac (Mac)",
-				Version:     "10.7.7",
-				Activescan:  "ok",
-				LastUpdate:  56266,
-				Timestamp:   int(time.Now().Unix()) - 56266,
 			},
 		},
 		Files:     map[string]File{},
