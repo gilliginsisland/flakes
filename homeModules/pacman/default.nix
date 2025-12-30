@@ -90,6 +90,15 @@ let
       };
     };
   };
+
+  app = let
+    appsDir =
+      if config.targets.darwin.copyApps.enable
+      then "${config.home.homeDirectory}/${config.targets.darwin.copyApps.directory}"
+      else if config.targets.darwin.linkApps.enable
+      then "${config.home.homeDirectory}/${config.targets.darwin.linkApps.directory}"
+      else "${pacman}/Applications";
+    in "${appsDir}/PACman.app/Contents/MacOS/PACman";
 in {
   options.programs.pacman = {
     enable = mkEnableOption "PACman - Rule-based HTTP proxy server";
@@ -160,7 +169,7 @@ in {
         KeepAlive = true;
         ProcessType = "Interactive";
         ProgramArguments = [
-          "${pacman}/Applications/PACman.app/Contents/MacOS/PACman" "proxy" "--launchd"
+          "${app}" "proxy" "--launchd"
         ] ++ optionals (loglevel != null) [
           "--verbosity" loglevel
         ];
@@ -176,7 +185,7 @@ in {
     };
 
     programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
-      match = ''exec "'${meta.getExe pacman}' check '%h'"'';
+      match = ''exec "'${app}' check '%h'"'';
       proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
     };
 
