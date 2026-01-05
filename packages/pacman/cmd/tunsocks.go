@@ -13,7 +13,7 @@ import (
 	"tailscale.com/net/socks5"
 
 	"github.com/gilliginsisland/pacman/pkg/env"
-	"github.com/gilliginsisland/pacman/pkg/flagutil"
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
 )
 
@@ -42,7 +42,7 @@ type TunEnv struct {
 var _ flags.Commander = (*TunSocksCommand)(nil)
 
 type TunSocksCommand struct {
-	ListenAddr flagutil.HostPort `short:"l" long:"listen" default:"127.0.0.1:8080" description:"Listening address"`
+	ListenAddr netutil.HostPort `short:"l" long:"listen" default:"127.0.0.1:8080" description:"Listening address"`
 }
 
 // Execute runs the check command.

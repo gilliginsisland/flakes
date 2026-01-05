@@ -11,7 +11,7 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 )
 
-func NewProxyServer(pd *dialer.ByHost) netutil.Server {
+func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 	s := netutil.NewMuxServer()
 	s.HandleServer(netutil.SOCKS5Match, &socks5.Server{
 		Dialer: pd.DialContext,

@@ -13,75 +13,100 @@ import (
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
+	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
 
 type PACMan struct {
-	config *Config
-	pool   DialerPool
-	dialer dialer.ByHost
-	server netutil.Server
-	menu   Menuer
-	mu     sync.Mutex
+	config   Path
+	pool     DialerPool
+	dialer   dialer.ByHost
+	listener net.Listener
+	server   netutil.Server
+	menu     Menuer
+	mu       sync.Mutex
 }
 
-func Run(configPath Path, l net.Listener) error {
+func Run(config Path, l net.Listener) error {
 	var err error
 	go func() {
-		err = run(configPath, l)
+		err = run(config, l)
 	}()
 	menuet.App().RunApplication()
 	return err
 }
 
-func run(configPath Path, l net.Listener) error {
+func run(config Path, l net.Listener) error {
 	app := menuet.App()
 	app.HideStartup()
 	app.SetMenuState(&menuet.MenuState{
 		Image: "menuicon.pdf",
 	})
 
-	cfg, err := ParseConfigFile(configPath)
+	cfg, err := ParseConfigFile(config)
 	if err != nil {
 		return err
 	}
 
+	if l == nil {
+		if cfg.Listen == "" {
+			return errors.New("no listener provided")
+		} else {
+			if l, err = net.Listen("tcp", cfg.Listen.String()); err != nil {
+				return err
+			}
+		}
+	}
+
 	pacman := PACMan{
+		config:   config,
+		listener: l,
 		dialer: dialer.ByHost{
 			Default: &net.Dialer{
 				Timeout: 5 * time.Second,
 			},
 		},
-		pool: make(DialerPool, len(cfg.Proxies)),
+		pool: make(DialerPool),
 	}
 	pacman.menu = Sections{
 		Section{
-			Title:   "Server Address",
-			Content: &AddrItem{l},
+			Title: "Server Address",
+			Content: AddrFuncerItem(func() net.Addr {
+				return pacman.listener.Addr()
+			}),
 		},
 		Section{
 			Title:   "Proxies",
 			Content: pacman.pool,
 		},
 		StaticItem{
-			Text:    "Edit RuleSet",
-			Clicked: pacman.OpenConfig,
+			Text: "Settings",
+			Children: (StaticItems{
+				menuet.MenuItem{
+					Text:    "Edit",
+					Clicked: pacman.OpenConfig,
+				},
+				menuet.MenuItem{
+					Text:    "Reload",
+					Clicked: pacman.ReloadConfig,
+				},
+			}).MenuItems,
 		},
 	}
-	app.Children = pacman.menu.MenuItems
 	pacman.server = NewProxyServer(&pacman.dialer)
-
-	if err = pacman.LoadConfig(cfg); err != nil {
+	if err := pacman.LoadConfig(cfg); err != nil {
 		return err
 	}
 
+	app.Children = pacman.menu.MenuItems
 	slog.Info("PACman server listening", slog.String("address", l.Addr().String()))
-	defer slog.Info("PACman proxy server stopped", slog.Any("error", err))
-	return pacman.server.Serve(l)
+	err = pacman.server.Serve(l)
+	slog.Info("PACman proxy server stopped", slog.Any("error", err))
+	return err
 }
 
 func (pacman *PACMan) OpenConfig() {
-	p, err := pacman.config.Path.ExpandUser()
+	p, err := pacman.config.ExpandUser()
 	if err != nil {
 		return
 	}
@@ -93,20 +118,35 @@ func (pacman *PACMan) OpenConfig() {
 	xdg.Run(u.String())
 }
 
+func (pacman *PACMan) ReloadConfig() {
+	cfg, err := ParseConfigFile(pacman.config)
+	if err == nil {
+		err = pacman.LoadConfig(cfg)
+	}
+	if err == nil {
+		return
+	}
+	notify.Notify(notify.Notification{
+		Title:   "Config Reload Error",
+		Message: err.Error(),
+	})
+}
+
 func (pacman *PACMan) LoadConfig(cfg *Config) error {
 	pacman.mu.Lock()
 	defer pacman.mu.Unlock()
 
-	pacman.config = cfg
-
 	for k, u := range cfg.Proxies {
-		// new PooledDialer if the URL has changed
-		if pd := pacman.pool[k]; pd == nil || pd.URL.String() != u.String() {
-			pacman.pool[k] = NewPooledDialer(k, &u.URL, &pacman.dialer)
-		} else if pd != nil {
+		pd := pacman.pool[k]
+		if pd != nil {
+			// skip new PooledDialer if the URL has not changed
+			if pd.URL.String() == u.String() {
+				continue
+			}
 			// close existing dialer after we update the dialer ruleset
 			defer pd.Close()
 		}
+		pacman.pool[k] = NewPooledDialer(k, &u.URL, &pacman.dialer)
 	}
 
 	var rs dialer.RuleSet

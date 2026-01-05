@@ -1,16 +1,15 @@
-package flagutil
+package netutil
 
 import (
+	"encoding"
 	"fmt"
 	"net"
-
-	"github.com/jessevdk/go-flags"
 )
 
 // HostPort stores a validated host:port string
 type HostPort string
 
-var _ flags.Unmarshaler = (*HostPort)(nil)
+var _ encoding.TextUnmarshaler = (*HostPort)(nil)
 
 // UnmarshalText validates and sets the host:port value.
 func (hp *HostPort) UnmarshalText(text []byte) error {
@@ -25,7 +24,9 @@ func (hp *HostPort) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// UnmarshalFlag calls UnmarshalText for go-flags compatibility.
-func (hp *HostPort) UnmarshalFlag(value string) error {
-	return hp.UnmarshalText([]byte(value))
+func (hp *HostPort) String() string {
+	if hp == nil {
+		return ""
+	}
+	return string(*hp)
 }

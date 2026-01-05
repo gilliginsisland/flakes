@@ -23,6 +23,7 @@ let
     ];
 
     rulefile = (pkgs.formats.yaml {}).generate "ruleset" {
+      listen = "${cfg.address}:${builtins.toString cfg.port}";
       proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
       rules = cfg.rules;
     };
@@ -160,7 +161,12 @@ in {
       }
     ];
 
-    xdg.configFile."pacman/config".source = "${rulefile}";
+    xdg.configFile."pacman/config" = {
+      source = "${rulefile}";
+      onChange = ''
+        run /bin/launchctl kill SIGHUP gui/$(id -u)/io.github.gilliginsisland.pacman || true
+      '';
+    };
 
     launchd.agents.pacman = {
       enable = true;
