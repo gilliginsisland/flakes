@@ -75,13 +75,11 @@ func (item StaticItem) MenuItems() []menuet.MenuItem {
 	}
 }
 
-type AddrItem struct {
-	Listener net.Listener
-}
+type AddrFuncerItem func() net.Addr
 
-func (ai *AddrItem) MenuItems() []menuet.MenuItem {
+func (f AddrFuncerItem) MenuItems() []menuet.MenuItem {
 	return []menuet.MenuItem{{
-		Text:       ai.Listener.Addr().String(),
+		Text:       f().String(),
 		FontWeight: menuet.WeightLight,
 	}}
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"sigs.k8s.io/yaml"
 )
 
@@ -16,8 +17,9 @@ var ErrProxyNotFound = errors.New("proxy not found")
 
 type Config struct {
 	Path    Path
-	Proxies map[string]*URL `json:"proxies"`
-	Rules   []*Rule         `json:"rules"`
+	Listen  netutil.HostPort `json:"listen"`
+	Proxies map[string]*URL  `json:"proxies"`
+	Rules   []*Rule          `json:"rules"`
 }
 
 type Rule struct {
