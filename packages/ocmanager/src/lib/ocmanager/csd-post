@@ -20,36 +20,48 @@ trap "rm '${RESPONSE}'" EXIT
 
 
 '@COREUTILS@/bin/cat' >> "$RESPONSE" <<-EOF
-	endpoint.os.version="$(uname -s)";
-	endpoint.os.servicepack="$(uname -r)";
+	endpoint.os.version="Darwin";
+	endpoint.os.servicepack="26.1";
 	endpoint.os.architecture="$(uname -m)";
 	endpoint.policy.location="Default";
 	endpoint.device.protection="none";
-	endpoint.device.protection_version="4.10.01094";
-	endpoint.device.protection_extension="4.3.1858.0";
+	endpoint.device.protection_version="5.1.8.122";
+	endpoint.device.protection_extension="4.3.3902.0";
 	endpoint.enforce="success";
 	endpoint.pfw["100022"]={};
 	endpoint.pfw["100022"].exists="true";
 	endpoint.pfw["100022"].description="Mac OS X Builtin Firewall (Mac)";
-	endpoint.pfw["100022"].version="11.5.1";
+	endpoint.pfw["100022"].version="26.1";
 	endpoint.pfw["100022"].enabled="ok";
-	endpoint.pfw["100194"]={};
-	endpoint.pfw["100194"].exists="true";
-	endpoint.pfw["100194"].description="McAfee Endpoint Security for Mac (Mac)";
-	endpoint.pfw["100194"].version="10.7.7";
-	endpoint.pfw["100194"].enabled="ok";
+	endpoint.pfw["100386"]={};
+	endpoint.pfw["100386"].exists="true";
+	endpoint.pfw["100386"].description="Packet Filter (Mac)";
+	endpoint.pfw["100386"].version="26.1";
+	endpoint.pfw["100386"].enabled="ok";
+	endpoint.pfw["100250"]={};
+	endpoint.pfw["100250"].exists="true";
+	endpoint.pfw["100250"].description="CrowdStrike Falcon (Mac)";
+	endpoint.pfw["100250"].version="7.29.20103.0";
+	endpoint.pfw["100250"].enabled="ok";
 	endpoint.am["100137"]={};
 	endpoint.am["100137"].exists="true";
 	endpoint.am["100137"].description="Gatekeeper (Mac)";
-	endpoint.am["100137"].version="11.5.1";
+	endpoint.am["100137"].version="26.1";
 	endpoint.am["100137"].activescan="ok";
-	endpoint.am["100194"]={};
-	endpoint.am["100194"].exists="true";
-	endpoint.am["100194"].description="McAfee Endpoint Security for Mac (Mac)";
-	endpoint.am["100194"].version="10.7.7";
-	endpoint.am["100194"].activescan="ok";
-	endpoint.am["100194"].lastupdate="56266";
-	endpoint.am["100194"].timestamp="1629072000";
+	endpoint.am["100250"]={};
+	endpoint.am["100250"].exists="true";
+	endpoint.am["100250"].description="CrowdStrike Falcon (Mac)";
+	endpoint.am["100250"].version="7.29.20103.0";
+	endpoint.am["100250"].enabled="ok";
+	endpoint.am["100250"].lastupdate="9447";
+	endpoint.am["100250"].timestamp="1767710857";
+	endpoint.am["100366"]={};
+	endpoint.am["100366"].exists="true";
+	endpoint.am["100366"].description="Xprotect (Mac)";
+	endpoint.am["100366"].version="5325";
+	endpoint.am["100366"].activescan="ok";
+	endpoint.am["100366"].lastupdate="545119";
+	endpoint.am["100366"].timestamp="1767710857";
 EOF
 
 shift
