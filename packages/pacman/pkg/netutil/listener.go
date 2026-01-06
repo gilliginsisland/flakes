@@ -129,6 +129,14 @@ func SOCKS5Match(conn *BuffConn) bool {
 	return magic[0] == 0x05
 }
 
+func SSHMatch(conn *BuffConn) bool {
+	magic, err := conn.Peek(4)
+	if err != nil {
+		return false
+	}
+	return string(magic) == "SSH-"
+}
+
 func DefaultMatch(conn *BuffConn) bool {
 	return true
 }
