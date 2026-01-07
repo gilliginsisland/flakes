@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -31,6 +32,11 @@ func Run(config Path, l net.Listener) error {
 	var err error
 	go func() {
 		err = run(config, l)
+		if err != nil {
+			slog.Error("app exited:", slog.Any("error", err))
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}()
 	menuet.App().RunApplication()
 	return err
