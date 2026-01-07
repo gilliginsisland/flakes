@@ -98,7 +98,7 @@ let
       then "${config.home.homeDirectory}/${config.targets.darwin.copyApps.directory}"
       else if config.targets.darwin.linkApps.enable
       then "${config.home.homeDirectory}/${config.targets.darwin.linkApps.directory}"
-      else "${pacman}/Applications";
+      else "${cfg.package}/Applications";
     in "${appsDir}/PACman.app/Contents/MacOS/PACman";
 in {
   options.programs.pacman = {
@@ -149,6 +149,15 @@ in {
       type = types.listOf types.rule;
       default = [];
     };
+
+    package = mkOption {
+      description = ''
+        The package to use for the service.
+        You can pass a custom derivation here directly.
+      '';
+      type = types.package;
+      default = pacman;
+    };
   };
 
   config = mkIf cfg.enable (with cfg; {
@@ -195,6 +204,6 @@ in {
       proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
     };
 
-    home.packages = [pacman];
+    home.packages = [cfg.package];
   });
 }

@@ -13,7 +13,12 @@
       packages = forAllSystems (system: import ./. {
         pkgs = nixpkgs.legacyPackages.${system};
       });
-
+      legacyPackages = forAllSystems (system: self.packages.${system} // {
+        pkgs = self.legacyPackages.${system};
+        pkgsStatic = self.legacyPackages.${system} // (import ./. {
+          pkgs = nixpkgs.legacyPackages.${system}.pkgsStatic;
+        });
+      });
       homeModules = loadModulePaths "${self}/homeModules";
     };
 }
