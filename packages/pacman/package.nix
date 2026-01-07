@@ -2,12 +2,9 @@
   lib,
   buildGoModule,
   pkg-config,
-  openconnect,
-  macdylibbundler,
   stdenv,
   librsvg,
-  apple-sdk_15,
-  bundleDylibs ? false
+  openconnect,
 }:
 
 let
@@ -38,8 +35,8 @@ buildGoModule {
     mainProgram = "pacman";
   };
 
-  nativeBuildInputs = [ pkg-config librsvg iconutil ] ++ lib.optionals bundleDylibs [ macdylibbundler ];
-  buildInputs = [ apple-sdk_15 openconnect.dev ];
+  nativeBuildInputs = [ pkg-config librsvg iconutil ];
+  buildInputs = [ openconnect ];
 
   env = {
     CGO_ENABLED = "1";
@@ -51,7 +48,7 @@ buildGoModule {
 
   installPhase = ''
     app=$out/Applications/PACman.app
-    mkdir -p "$app"/Contents/{MacOS,Resources,lib}
+    mkdir -p "$app"/Contents/{MacOS,Resources}
     cp "$GOPATH/bin/pacman" "$app/Contents/MacOS/PACman"
 
     # Generate .icns from icon.png
@@ -74,20 +71,5 @@ buildGoModule {
 
     # Copy Info.plist
     cp Info.plist "$app/Contents/Info.plist"
-
-    # Bundle dynamic libraries into Frameworks
-    if [ "$bundleDylibs" = "1" ]; then
-      echo "Embedding dynamic libraries..."
-      dylibbundler \
-        -b \
-        -x "$app/Contents/MacOS/PACman" \
-        -d "$app/Contents/lib" \
-        -p @executable_path/../lib
-    fi
-
-    mkdir -p "$out/bin"
-    echo '#!/bin/sh' > "$out/bin/pacman"
-    echo exec "'$app/Contents/MacOS/PACman'" '"$@"' >> "$out/bin/pacman"
-    chmod +x "$out/bin/pacman"
   '';
 }
