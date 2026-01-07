@@ -124,11 +124,12 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 	}
 
 	conn, err := openconnect.Connect(ctx, openconnect.Options{
-		Protocol: openconnect.Protocol(u.Scheme),
-		Server:   fmt.Sprintf("%s%s", u.Host, u.Path),
-		CSD:      csd,
-		ForceDPD: 5,
-		LogLevel: logLevel,
+		Protocol:            openconnect.Protocol(u.Scheme),
+		Server:              fmt.Sprintf("%s%s", u.Host, u.Path),
+		CSD:                 csd,
+		ForceDPD:            5,
+		LogLevel:            logLevel,
+		AllowInsecureCrypto: true,
 		Callbacks: openconnect.Callbacks{
 			Progress: cb.Progress,
 			ProcessAuthForm: (&openconnect.AggregateProcessor{

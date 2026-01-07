@@ -66,12 +66,13 @@ type Callbacks struct {
 }
 
 type Options struct {
-	UserAgent string
-	Protocol  Protocol
-	Server    string
-	CSD       string
-	LogLevel  LogLevel
-	ForceDPD  int
+	UserAgent           string
+	Protocol            Protocol
+	Server              string
+	CSD                 string
+	LogLevel            LogLevel
+	ForceDPD            int
+	AllowInsecureCrypto bool
 	Callbacks
 }
 
@@ -161,6 +162,12 @@ func (v *VpnInfo) ParseOpts(opts Options) error {
 		v.SetDPD(opts.ForceDPD)
 	}
 
+	if opts.AllowInsecureCrypto {
+		if err := v.SetAllowInsecureCrypto(opts.AllowInsecureCrypto); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -225,6 +232,14 @@ func (v *VpnInfo) SetupCSD(uid int, silent bool, wrapper string) error {
 	}
 
 	return ocErrno("setup CSD", C.openconnect_setup_csd(v.vpninfo, C.uid_t(uid), silentC, cWrapper))
+}
+
+func (v *VpnInfo) SetAllowInsecureCrypto(allowed bool) error {
+	var allowedC C.uint
+	if allowed {
+		allowedC = 1
+	}
+	return ocErrno("set allow-insecure-crypto", C.openconnect_set_allow_insecure_crypto(v.vpninfo, allowedC))
 }
 
 func (v *VpnInfo) SetupDTLS(attemptPeriod int) error {
