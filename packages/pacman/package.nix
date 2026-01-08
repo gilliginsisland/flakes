@@ -4,7 +4,7 @@
   pkg-config,
   stdenv,
   librsvg,
-  openconnect,
+  openconnect_openssl,
 }:
 
 let
@@ -36,7 +36,7 @@ buildGoModule {
   };
 
   nativeBuildInputs = [ pkg-config librsvg iconutil ];
-  buildInputs = [ openconnect ];
+  buildInputs = [ openconnect_openssl ];
 
   env = {
     CGO_ENABLED = "1";
