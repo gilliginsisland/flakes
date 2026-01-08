@@ -31,7 +31,9 @@ PACman uses a YAML (or JSON, depending on your setup) configuration file to defi
 
 ### Config File Format
 
-The configuration `~/.config/pacman/config` consists of a root object with two primary keys: `proxies` and `rules`.
+The configuration `~/.config/pacman/config` consists of a root object with three primary keys: `listen`, `proxies`, and `rules`.
+
+- **`listen`**: Specifies the host and port on which PACman will listen for incoming connections. This is in the format `host:port` (e.g., `127.0.0.1:11078`). If not specified, it defaults to `127.0.0.1:11078`.
 
 - **`proxies`**: A map where:
   - The key is a unique label for the proxy (used in the UI status dropdown and for referencing in rules).
@@ -50,6 +52,7 @@ The configuration `~/.config/pacman/config` consists of a root object with two p
 ### Example Configuration
 
 ```yaml
+listen: 127.0.0.1:11078
 proxies:
   cisco_vpn: anyconnect://user:pass@vpn.example.com/usergroup?token=totp&timeout=0
   global_protect: gp://admin:secret@gateway.example.com/employee-group?token=totp&timeout=7200
@@ -116,7 +119,7 @@ This section provides guidance on enabling and configuring PACman for various ap
 
 ### Enabling the Proxy
 
-PACman listens on the following addresses by default:
+PACman listens on the following addresses by default (configurable via the `listen` field in the configuration file):
 - **HTTP Proxy**: `http://127.0.0.1:11078`
 - **SOCKS5 Proxy**: `socks5://127.0.0.1:11078`
 
@@ -128,21 +131,21 @@ To configure your browser on macOS to use PACman, you have two options:
 
 1. **Using the PAC File (Recommended for Performance)**:
    - Open your browser's proxy settings.
-   - Set the "Automatic Proxy Configuration" URL to `http://127.0.0.1:11078/proxy.pac`.
+   - Set the "Automatic Proxy Configuration" URL to `http://127.0.0.1:11078/proxy.pac` (or the custom address if you've changed the `listen` setting in the configuration).
    - This allows the browser to route only matching traffic through PACman, improving performance for non-matching traffic.
 
 2. **Using the SOCKS5 Proxy Directly**:
    - Alternatively, configure the browser to use a manual SOCKS5 proxy.
-   - Set the SOCKS5 proxy host to `127.0.0.1` and port to `11078`.
+   - Set the SOCKS5 proxy host to `127.0.0.1` and port to `11078` (or the custom address if you've changed the `listen` setting in the configuration).
    - This routes all browser traffic through PACman, which may impact performance for non-matching traffic.
 
 For system-wide proxy settings on macOS (affecting most browsers and applications):
 - Go to **System Settings > Network > [Your Active Network] > Details > Proxies**.
-- Enable "Automatic Proxy Configuration" and enter `http://127.0.0.1:11078/proxy.pac`, or manually set the SOCKS5 proxy to `127.0.0.1:11078`.
+- Enable "Automatic Proxy Configuration" and enter `http://127.0.0.1:11078/proxy.pac` (or the custom address if configured), or manually set the SOCKS5 proxy to `127.0.0.1:11078` (or the custom port).
 
 ### Proxy PAC File Support
 
-PACman serves a Proxy Auto-Config (PAC) file on the same HTTP port at `http://127.0.0.1:11078/proxy.pac`. This PAC file routes traffic with matching rules directly to the PACman proxy. For browsers and other applications that support PAC files, this can improve performance by avoiding unnecessary routing through PACman for non-matching traffic. Configure your browser or application to use this PAC file URL for automatic proxy configuration.
+PACman serves a Proxy Auto-Config (PAC) file on the same HTTP port at `http://127.0.0.1:11078/proxy.pac` (or the custom address if you've changed the `listen` setting in the configuration). This PAC file routes traffic with matching rules directly to the PACman proxy. For browsers and other applications that support PAC files, this can improve performance by avoiding unnecessary routing through PACman for non-matching traffic. Configure your browser or application to use this PAC file URL for automatic proxy configuration.
 
 ### SSH Integration
 
@@ -153,7 +156,7 @@ Match exec "'/Applications/PACman.app/Contents/MacOS/pacman' check '%h'"
     ProxyCommand nc -X 5 -x 127.0.0.1:11078 %h %p
 ```
 
-This configuration checks if the target host (`%h`) matches a rule in PACman using the `pacman check` command. If it matches, SSH will use the PACman proxy (on `127.0.0.1:11078` by default) via `nc` with SOCKS5 (`-X 5`) to forward traffic to the target host and port (`%h %p`).
+This configuration checks if the target host (`%h`) matches a rule in PACman using the `pacman check` command. If it matches, SSH will use the PACman proxy (on `127.0.0.1:11078` by default, or the custom address if configured) via `nc` with SOCKS5 (`-X 5`) to forward traffic to the target host and port (`%h %p`).
 
 ### Terminal and Other HTTP-Based Applications
 
@@ -161,13 +164,13 @@ For terminal applications or other tools that support HTTP proxies (e.g., `curl`
 
 - Set the following environment variables in your terminal (e.g., in `~/.zshrc`, `~/.bashrc`, or equivalent):
   ```bash
-  export HTTP_PROXY=http://127.0.0.1:11078
-  export HTTPS_PROXY=http://127.0.0.1:11078
+  export HTTP_PROXY=http://127.0.0.1:11078  # or custom address if configured
+  export HTTPS_PROXY=http://127.0.0.1:11078 # or custom address if configured
   export NO_PROXY=localhost,127.0.0.1
   ```
 - For applications like Rancher Desktop that require explicit proxy settings:
   - Open the application’s settings or configuration file.
-  - Set the HTTP and HTTPS proxy to `http://127.0.0.1:11078`.
+  - Set the HTTP and HTTPS proxy to `http://127.0.0.1:11078` (or the custom address if configured).
   - Add `localhost` and `127.0.0.1` to the "bypass proxy" or "no proxy" list to avoid local traffic routing issues.
 
-For tools supporting SOCKS5 proxies, configure them to use `socks5://127.0.0.1:11078` if HTTP proxy settings are not supported.
+For tools supporting SOCKS5 proxies, configure them to use `socks5://127.0.0.1:11078` (or the custom address if configured) if HTTP proxy settings are not supported.
