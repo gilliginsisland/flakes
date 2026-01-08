@@ -45,11 +45,11 @@ runCommand "pacman-bundled" {
   buildInputs = [ pacman-slim openssl.out ossl-conf-sidecar ];
 } ''
   app="$out/Applications/PACman.app"
-  mkdir -p "$app/Contents/{Frameworks,PlugIns,Resources}"
-  cp -Tr "${pacman-slim}/Applications/PACman.app" "$app"
+  mkdir -p "$app/Contents/"{Frameworks,PlugIns,Resources}
   cp -Tr "${openssl.out}/etc/ssl" "$app/Contents/Resources/ssl"
   cp -Tr "${openssl.out}/lib/engines-3" "$app/Contents/PlugIns/engines-3"
   cp -Tr "${openssl.out}/lib/ossl-modules" "$app/Contents/PlugIns/ossl-modules"
+  cp -Tr "${pacman-slim}/Applications/PACman.app" "$app"
   chmod -R u+w "$app"
 
   insert_dylib \
