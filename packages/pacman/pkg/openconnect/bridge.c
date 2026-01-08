@@ -2,7 +2,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <dlfcn.h>
 #include <pthread.h>
 
 extern int go_validate_peer_cert(void *context, char *cert);
