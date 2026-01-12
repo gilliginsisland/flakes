@@ -276,7 +276,12 @@ func (v *VpnInfo) MainLoop() error {
 }
 
 func (v *VpnInfo) GetTunFd() (int, error) {
-	return -1, fmt.Errorf("get tun fd: %w", syscall.ENOTSUP)
+	var err error
+	fd := int(C.openconnect_get_tun_fd(v.vpninfo))
+	if fd < 0 {
+		err = errors.New("get tun fd: fd not setup")
+	}
+	return fd, err
 }
 
 // Err returns the error from mainloop if it has completed
