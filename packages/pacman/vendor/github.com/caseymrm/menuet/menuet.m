@@ -120,16 +120,16 @@ NSStatusItem *_statusItem;
 		// For the root menu, we generate a new unique every time it's opened. Go
 		// handles all other unique generation.
 		self.unique = [[[[NSProcessInfo processInfo] globallyUniqueString]
-		                substringFromIndex:51] stringByAppendingString:@":root"];
+				substringFromIndex:51] stringByAppendingString:@":root"];
 	}
 	const char *str = children(self.unique.UTF8String);
 	NSArray *items = @[];
 	if (str != NULL) {
 		items = [NSJSONSerialization
-		         JSONObjectWithData:[[NSString stringWithUTF8String:str]
-		                             dataUsingEncoding:NSUTF8StringEncoding]
-		         options:0
-		         error:nil];
+			 JSONObjectWithData:[[NSString stringWithUTF8String:str]
+					     dataUsingEncoding:NSUTF8StringEncoding]
+			 options:0
+			 error:nil];
 		free((char *)str);
 	}
 	if (self.root) {
@@ -193,17 +193,17 @@ NSStatusItem *_statusItem;
 
 void setState(const char *jsonString) {
 	NSDictionary *state = [NSJSONSerialization
-	                       JSONObjectWithData:[[NSString stringWithUTF8String:jsonString]
-	                                           dataUsingEncoding:NSUTF8StringEncoding]
-	                       options:0
-	                       error:nil];
+			       JSONObjectWithData:[[NSString stringWithUTF8String:jsonString]
+						   dataUsingEncoding:NSUTF8StringEncoding]
+			       options:0
+			       error:nil];
 	dispatch_async(dispatch_get_main_queue(), ^{
 		_statusItem.button.attributedTitle = [[NSAttributedString alloc]
-		                                      initWithString:state[@"Title"]
-		                                      attributes:@{
-		                                              NSFontAttributeName :
-		                                              [NSFont monospacedDigitSystemFontOfSize:14
-		                                               weight:NSFontWeightRegular]
+						      initWithString:state[@"Title"]
+						      attributes:@{
+							      NSFontAttributeName :
+							      [NSFont monospacedDigitSystemFontOfSize:14
+							       weight:NSFontWeightRegular]
 		}];
 		NSString *imageName = state[@"Image"];
 		NSImage *image = [NSImage imageFromName:imageName withHeight:22];
@@ -214,40 +214,41 @@ void setState(const char *jsonString) {
 }
 
 void menuChanged() {
-        dispatch_async(dispatch_get_main_queue(), ^{
+	dispatch_async(dispatch_get_main_queue(), ^{
 		MenuetMenu *menu = (MenuetMenu *)_statusItem.menu;
 		[menu refreshVisibleMenus];
 	});
 }
 
 void createAndRunApplication() {
-        [NSAutoreleasePool new];
-        NSApplication *a = NSApplication.sharedApplication;
-        MenuetAppDelegate *d = [MenuetAppDelegate new];
-        [a setDelegate:d];
-        [[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:d];
-        [a setActivationPolicy:NSApplicationActivationPolicyAccessory];
-        _statusItem = [[NSStatusBar systemStatusBar]
-                       statusItemWithLength:NSVariableStatusItemLength];
-        MenuetMenu *menu = [MenuetMenu new];
-        menu.root = true;
-        _statusItem.menu = menu;
-        [a run];
+	@autoreleasepool {
+		NSApplication *a = NSApplication.sharedApplication;
+		MenuetAppDelegate *d = [MenuetAppDelegate new];
+		[a setDelegate:d];
+		[[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:d];
+		[a setActivationPolicy:NSApplicationActivationPolicyAccessory];
+		_statusItem = [[NSStatusBar systemStatusBar]
+			       statusItemWithLength:NSVariableStatusItemLength];
+		MenuetMenu *menu = [MenuetMenu new];
+		menu.root = true;
+		_statusItem.menu = menu;
+		[a run];
+	}
 }
 
 @implementation MenuetAppDelegate
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:
-        (NSApplication *)sender {
-        return NSTerminateNow;
+	(NSApplication *)sender {
+	return NSTerminateNow;
 }
 
 - (void)userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
-        if (notification.activationType == NSUserNotificationActivationTypeReplied) {
-                NSString* userResponse = notification.response.string;
-                notificationRespond(notification.identifier.UTF8String, userResponse.UTF8String);
+	if (notification.activationType == NSUserNotificationActivationTypeReplied) {
+		NSString* userResponse = notification.response.string;
+		notificationRespond(notification.identifier.UTF8String, userResponse.UTF8String);
 	} else {
-                notificationRespond(notification.identifier.UTF8String, @"".UTF8String);
+		notificationRespond(notification.identifier.UTF8String, @"".UTF8String);
 	}
 }
 

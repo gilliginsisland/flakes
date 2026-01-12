@@ -1,7 +1,7 @@
 package menuet
 
 /*
-#cgo CFLAGS: -x objective-c
+#cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa
 
 #import <Cocoa/Cocoa.h>
@@ -9,9 +9,9 @@ package menuet
 #ifndef __MENUET_H_H__
 #import "menuet.h"
 #endif
-
 */
 import "C"
+
 import (
 	"context"
 	"encoding/json"
@@ -54,9 +54,11 @@ type Application struct {
 	cancel context.CancelFunc
 }
 
-var appInstance *Application
-var appOnce sync.Once
-var shutdownOnce sync.Once
+var (
+	appInstance  *Application
+	appOnce      sync.Once
+	shutdownOnce sync.Once
+)
 
 // App returns the application singleton
 func App() *Application {
