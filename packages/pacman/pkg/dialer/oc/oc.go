@@ -7,8 +7,6 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/caseymrm/menuet"
-
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
@@ -44,12 +42,10 @@ func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 }
 
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
-	app := menuet.App()
-
 	if form.Error != "" {
-		app.Alert(menuet.Alert{
-			MessageText:     "Authentication Error: " + cb.url.Redacted(),
-			InformativeText: form.Error,
+		cb.notify(notify.Notification{
+			Title:   "Authentication Error",
+			Message: form.Error,
 		})
 	}
 
@@ -138,9 +134,8 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 			}).ProcessForm,
 			ExternalBrowser: func(uri string) error {
 				ch, cleanup := cb.notify(notify.Notification{
-					Title:    "Authentication Required",
-					Subtitle: cb.url.Redacted(),
-					Message:  "Click to complete authentication in browser",
+					Title:   "Authentication Required",
+					Message: "Click to complete authentication in browser",
 				})
 				select {
 				case <-ch:
