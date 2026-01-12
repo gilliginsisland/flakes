@@ -201,7 +201,7 @@ in {
 
     programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
       match = ''exec "'${app}' check '%h'"'';
-      proxyCommand = "${meta.getExe pkgs.netcat} -X 5 -x ${address}:${builtins.toString port} %h %p";
+      proxyJump = "${address}:${builtins.toString port}";
     };
 
     home.packages = [cfg.package];

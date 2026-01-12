@@ -33,7 +33,11 @@ func Run(config Path, l net.Listener) error {
 	go func() {
 		err = run(config, l)
 		if err != nil {
-			slog.Error("app exited:", slog.Any("error", err))
+			slog.Error("application terminated:", slog.Any("error", err))
+			notify.Notify(notify.Notification{
+				Title:   "Application Terminated",
+				Message: err.Error(),
+			})
 			os.Exit(1)
 		}
 		os.Exit(0)
