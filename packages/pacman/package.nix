@@ -22,6 +22,29 @@ let
       platforms = platforms.darwin;
     };
   };
+
+  openconnect = (openconnect_openssl.override {
+    vpnc-scripts = "/etc/vpnc/vpnc-script";
+    stoken = null;
+  }).overrideAttrs (prev: {
+    patches = (prev.patches or []) ++ (
+      let
+        patches = builtins.path {
+          name = "patches";
+          path = ./patches;
+          filter = path: type: lib.hasSuffix ".patch" path;
+          # sha256 = lib.fakeHash;
+        };
+      in builtins.map
+        (name: "${patches}/${name}")
+        (builtins.attrNames (builtins.readDir patches))
+    );
+
+    configureFlags = prev.configureFlags ++ [
+      "--without-libpcsclite"
+      "--without-stoken"
+    ];
+  });
 in
 
 buildGoModule {
@@ -36,7 +59,7 @@ buildGoModule {
   };
 
   nativeBuildInputs = [ pkg-config librsvg iconutil ];
-  buildInputs = [ openconnect_openssl ];
+  buildInputs = [ openconnect ];
 
   env = {
     CGO_ENABLED = "1";

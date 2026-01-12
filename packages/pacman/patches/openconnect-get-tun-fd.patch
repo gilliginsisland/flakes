@@ -1,0 +1,46 @@
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+index f036c07..2ca187b 100644
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -130,6 +130,7 @@ OPENCONNECT_5_8 {
+ OPENCONNECT_5_9 {
+  global:
+	openconnect_set_sni;
++	openconnect_get_tun_fd;
+ } OPENCONNECT_5_8;
+ 
+ OPENCONNECT_PRIVATE {
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+index 7cb04d0..cd54f80 100644
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -103,3 +103,4 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+  openconnect_set_mca_key_password@OPENCONNECT_5_8 9.00
+  openconnect_set_useragent@OPENCONNECT_5_8 9.00
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
++ openconnect_get_tun_fd@OPENCONNECT_5_9 9.12
+diff --git a/library.c b/library.c
+index 840846d..786cff5 100644
+--- a/library.c
++++ b/library.c
+@@ -1768,3 +1768,7 @@ int openconnect_webview_load_changed(struct openconnect_info *vpninfo,
+ 
+  return -EOPNOTSUPP;
+ }
++
++int openconnect_get_tun_fd(struct openconnect_info *vpninfo) {
++    return vpninfo->tun_fd;
++}
+diff --git a/openconnect.h b/openconnect.h
+index 5160937..7865b98 100644
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -839,6 +839,8 @@ typedef void (*openconnect_reconnected_vfn) (void *privdata);
+ void openconnect_set_reconnected_handler(struct openconnect_info *vpninfo,
+		 openconnect_reconnected_vfn reconnected_fn);
+ 
++int openconnect_get_tun_fd(struct openconnect_info *vpninfo);
++
+ #ifdef __cplusplus
+ }
+ #endif

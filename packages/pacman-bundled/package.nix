@@ -25,31 +25,19 @@ let
       cp libossl_conf_sidecar.dylib $out/lib/
     '';
   };
-
-  pacman-slim = pacman.override {
-    openconnect_openssl = (openconnect_openssl.override {
-      vpnc-scripts = "/etc/vpnc/vpnc-script";
-      stoken = null;
-    }).overrideAttrs (prev: {
-      configureFlags = prev.configureFlags ++ [
-        "--without-libpcsclite"
-        "--without-stoken"
-      ];
-    });
-  };
 in
 
 runCommand "pacman-bundled" {
   version = pacman.version;
   nativeBuildInputs = [ macdylibbundler cctools insert-dylib ];
-  buildInputs = [ pacman-slim openssl.out ossl-conf-sidecar ];
+  buildInputs = [ pacman openssl.out ossl-conf-sidecar ];
 } ''
   app="$out/Applications/PACman.app"
   mkdir -p "$app/Contents/"{Frameworks,PlugIns,Resources}
   cp -Tr "${openssl.out}/etc/ssl" "$app/Contents/Resources/ssl"
   cp -Tr "${openssl.out}/lib/engines-3" "$app/Contents/PlugIns/engines-3"
   cp -Tr "${openssl.out}/lib/ossl-modules" "$app/Contents/PlugIns/ossl-modules"
-  cp -Tr "${pacman-slim}/Applications/PACman.app" "$app"
+  cp -Tr "${pacman}/Applications/PACman.app" "$app"
   chmod -R u+w "$app"
 
   insert_dylib \
