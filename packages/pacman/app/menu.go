@@ -3,8 +3,8 @@ package app
 import (
 	"net"
 
-	"github.com/caseymrm/menuet"
 	"github.com/gilliginsisland/pacman/pkg/iterutil"
+	"github.com/gilliginsisland/pacman/pkg/menuet"
 )
 
 type Menuer interface {

@@ -27,9 +27,8 @@ package openconnect
 
 #include <openconnect.h>
 #include <stdlib.h>
+#include "bridge.h"
 
-extern struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata);
-extern int go_mainloop(struct openconnect_info *vpninfo);
 */
 import "C"
 

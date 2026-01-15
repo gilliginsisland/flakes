@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caseymrm/menuet"
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"

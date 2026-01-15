@@ -30,5 +30,10 @@
         });
       });
       homeModules = loadModulePaths "${self}/homeModules";
+      devShells = forAllSystems (system: {
+        pacman = pkgs.${system}.mkShell {
+          inputsFrom = [ self.packages.${system}.pacman ];
+        };
+      });
     };
 }

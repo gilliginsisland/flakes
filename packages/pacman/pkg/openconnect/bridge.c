@@ -4,12 +4,14 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-extern int go_validate_peer_cert(void *context, char *cert);
-extern int go_process_auth_form(void *context, struct oc_auth_form *form);
-extern void go_progress(void *context, int level, char *message);
-extern int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
-extern void go_reconnected_handler(void *context);
-extern void go_mainloop_result(struct openconnect_info *vpninfo, int result);
+#include "bridge.h"
+
+int go_validate_peer_cert(void *context, char *cert);
+int go_process_auth_form(void *context, struct oc_auth_form *form);
+void go_progress(void *context, int level, char *message);
+int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
+void go_reconnected_handler(void *context);
+void go_mainloop_result(struct openconnect_info *vpninfo, int result);
 
 void go_progress_vargs(void *context, int level, const char *fmt, ...) {
 	va_list args;
