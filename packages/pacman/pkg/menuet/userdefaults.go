@@ -6,12 +6,11 @@ package menuet
 
 #import <Cocoa/Cocoa.h>
 
-#ifndef __USERDEFAULTS_H_H__
 #import "userdefaults.h"
-#endif
 
 */
 import "C"
+
 import (
 	"encoding/json"
 	"sync"
@@ -25,8 +24,10 @@ type UserDefaults struct {
 	bools   map[string]bool
 }
 
-var defaultsInstance *UserDefaults
-var defaultsOnce sync.Once
+var (
+	defaultsInstance *UserDefaults
+	defaultsOnce     sync.Once
+)
 
 // Defaults returns the userDefaults singleton
 func Defaults() *UserDefaults {

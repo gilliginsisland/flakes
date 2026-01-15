@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/caseymrm/menuet"
-
+	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 

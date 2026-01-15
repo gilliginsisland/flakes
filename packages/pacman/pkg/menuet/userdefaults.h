@@ -1,7 +1,3 @@
-#ifndef __USERDEFAULTS_H__
-#define __USERDEFAULTS_H__
-#endif
-
 void setString(const char* key, const char* value);
 const char* getString(const char *key);
 

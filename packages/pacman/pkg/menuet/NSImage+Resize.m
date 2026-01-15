@@ -2,9 +2,7 @@
 
 @interface ImageCache : NSObject
 + (ImageCache *)instance;
-- (void)setImage:(NSImage *)image
-        forName:(NSString *)name
-        withHeight:(CGFloat)height;
+- (void)setImage:(NSImage *)image forName:(NSString *)name withHeight:(CGFloat)height;
 - (NSImage *)getImageForName:(NSString *)name withHeight:(CGFloat)height;
 @property(nonatomic, strong) NSCache *imageCache;
 @end
@@ -20,6 +18,7 @@ static ImageCache *instance;
 	});
 	return instance;
 }
+
 - (instancetype)init {
 	self = [super init];
 	if (self) {
@@ -32,16 +31,14 @@ static ImageCache *instance;
 	return [NSString stringWithFormat:@"%f/%@", height, name];
 }
 
-- (void)setImage:(NSImage *)image
-        forName:(NSString *)name
-        withHeight:(CGFloat)height {
-	[self.imageCache setObject:image
-	 forKey:[self keyForName:name withHeight:height]];
+- (void)setImage:(NSImage *)image forName:(NSString *)name withHeight:(CGFloat)height {
+	NSString* key = [self keyForName:name withHeight:height];
+	[self.imageCache setObject:image forKey:key];
 }
 
 - (NSImage *)getImageForName:(NSString *)name withHeight:(CGFloat)height {
-	return
-	        [self.imageCache objectForKey:[self keyForName:name withHeight:height]];
+	NSString* key = [self keyForName:name withHeight:height];
+	return [self.imageCache objectForKey:key];
 }
 
 @end
@@ -49,32 +46,26 @@ static ImageCache *instance;
 @implementation NSImage (Resize)
 
 - (NSImage *)imageWithHeight:(CGFloat)height {
-	NSImage *image = self;
-	if (![image isValid]) {
+	if (!self.isValid) {
 		NSLog(@"Can't resize invalid image");
 		return nil;
 	}
-	NSSize newSize =
-		NSMakeSize(image.size.width * height / image.size.height, height);
-	NSImage *newImage = [[NSImage alloc] initWithSize:newSize];
-	[newImage lockFocus];
-	[image setSize:newSize];
-	[[NSGraphicsContext currentContext]
-	 setImageInterpolation:NSImageInterpolationDefault];
-	[image drawAtPoint:NSZeroPoint
-	 fromRect:CGRectMake(0, 0, newSize.width, newSize.height)
-	 operation:NSCompositingOperationCopy
-	 fraction:1.0];
-	[newImage unlockFocus];
-	return newImage;
+	NSSize size = NSMakeSize(self.size.width * height / self.size.height, height);
+	NSImage *image = [[NSImage alloc] initWithSize:size];
+	[image lockFocus];
+	self.size = size;
+	[NSGraphicsContext.currentContext setImageInterpolation:NSImageInterpolationDefault];
+	CGRect rect = CGRectMake(0, 0, size.width, size.height);
+	[self drawAtPoint:NSZeroPoint fromRect:rect operation:NSCompositingOperationCopy fraction:1.0];
+	[image unlockFocus];
+	return image;
 }
 
 + (NSImage *)imageFromName:(NSString *)name withHeight:(CGFloat)height {
 	if (name.length == 0) {
 		return nil;
 	}
-	NSImage *image =
-		[[ImageCache instance] getImageForName:name withHeight:height];
+	NSImage *image = [ImageCache.instance getImageForName:name withHeight:height];
 	if (image != nil) {
 		return image;
 	}
@@ -86,7 +77,7 @@ static ImageCache *instance;
 	if (height > 0 && image.size.height > height) {
 		image = [image imageWithHeight:height];
 	}
-	[[ImageCache instance] setImage:image forName:name withHeight:height];
+	[ImageCache.instance setImage:image forName:name withHeight:height];
 	return image;
 }
 

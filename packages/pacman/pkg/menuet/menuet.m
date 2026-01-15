@@ -127,7 +127,7 @@ NSStatusItem *_statusItem;
 	if (str != NULL) {
 		items = [NSJSONSerialization
 			 JSONObjectWithData:[[NSString stringWithUTF8String:str]
-					     dataUsingEncoding:NSUTF8StringEncoding]
+						 dataUsingEncoding:NSUTF8StringEncoding]
 			 options:0
 			 error:nil];
 		free((char *)str);
@@ -187,23 +187,23 @@ NSStatusItem *_statusItem;
 
 @end
 
-@interface MenuetAppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate, NSUserNotificationCenterDelegate>
+@interface MenuetAppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate>
 
 @end
 
 void setState(const char *jsonString) {
 	NSDictionary *state = [NSJSONSerialization
-			       JSONObjectWithData:[[NSString stringWithUTF8String:jsonString]
+				   JSONObjectWithData:[[NSString stringWithUTF8String:jsonString]
 						   dataUsingEncoding:NSUTF8StringEncoding]
-			       options:0
-			       error:nil];
+				   options:0
+				   error:nil];
 	dispatch_async(dispatch_get_main_queue(), ^{
 		_statusItem.button.attributedTitle = [[NSAttributedString alloc]
-						      initWithString:state[@"Title"]
-						      attributes:@{
-							      NSFontAttributeName :
-							      [NSFont monospacedDigitSystemFontOfSize:14
-							       weight:NSFontWeightRegular]
+							  initWithString:state[@"Title"]
+							  attributes:@{
+								  NSFontAttributeName :
+								  [NSFont monospacedDigitSystemFontOfSize:14
+								   weight:NSFontWeightRegular]
 		}];
 		NSString *imageName = state[@"Image"];
 		NSImage *image = [NSImage imageFromName:imageName withHeight:22];
@@ -225,10 +225,9 @@ void createAndRunApplication() {
 		NSApplication *a = NSApplication.sharedApplication;
 		MenuetAppDelegate *d = [MenuetAppDelegate new];
 		[a setDelegate:d];
-		[[NSUserNotificationCenter defaultUserNotificationCenter] setDelegate:d];
 		[a setActivationPolicy:NSApplicationActivationPolicyAccessory];
 		_statusItem = [[NSStatusBar systemStatusBar]
-			       statusItemWithLength:NSVariableStatusItemLength];
+				   statusItemWithLength:NSVariableStatusItemLength];
 		MenuetMenu *menu = [MenuetMenu new];
 		menu.root = true;
 		_statusItem.menu = menu;
@@ -241,15 +240,6 @@ void createAndRunApplication() {
 - (NSApplicationTerminateReply)applicationShouldTerminate:
 	(NSApplication *)sender {
 	return NSTerminateNow;
-}
-
-- (void)userNotificationCenter:(NSUserNotificationCenter *)center didActivateNotification:(NSUserNotification *)notification {
-	if (notification.activationType == NSUserNotificationActivationTypeReplied) {
-		NSString* userResponse = notification.response.string;
-		notificationRespond(notification.identifier.UTF8String, userResponse.UTF8String);
-	} else {
-		notificationRespond(notification.identifier.UTF8String, @"".UTF8String);
-	}
 }
 
 @end
