@@ -7,11 +7,37 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
+
+var NotificationCategories = []menuet.NotificationCategory{
+	{
+		Identifier: "yubi-auth",
+		Actions: []menuet.Actioner{
+			menuet.NotificationActionText{
+				NotificationAction: menuet.NotificationAction{
+					Identifier: "yubi-auth-token",
+					Title:      "Reply",
+				},
+				TextInputButtonTitle: "Submit",
+				TextInputPlaceholder: "Enter YubiKey OTP",
+			},
+		},
+	},
+	{
+		Identifier: "external-browser-auth",
+		Actions: []menuet.Actioner{
+			menuet.NotificationAction{
+				Identifier: "external-browser-auth-open",
+				Title:      "Open",
+			},
+		},
+	},
+}
 
 type callbacks struct {
 	url *url.URL
@@ -44,17 +70,17 @@ func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
 	if form.Error != "" {
 		cb.notify(notify.Notification{
-			Title: "Authentication Error",
-			Body:  form.Error,
+			Subtitle: "Authentication Error",
+			Body:     form.Error,
 		})
 	}
 
 	passwd, _ := cb.url.User.Password()
 	if cb.url.Query().Get("token") == "otp" {
 		ch, cleanup := cb.notify(notify.Notification{
-			Title:               "Authentication Required",
-			Body:                "Enter YubiKey OTP",
-			ResponsePlaceholder: "YubiKey OTP",
+			CategoryIdentifier: "yubi-auth",
+			Subtitle:           "Authentication Required",
+			Body:               "Enter YubiKey OTP",
 		})
 		select {
 		case response := <-ch:
@@ -80,11 +106,11 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 }
 
 func (cb *callbacks) notify(n notify.Notification) (<-chan string, func()) {
-	if n.Subtitle == "" {
+	if n.Title == "" {
 		if l, _ := cb.ctx.Value("label").(string); l != "" {
-			n.Subtitle = l
+			n.Title = l
 		} else {
-			n.Subtitle = cb.url.Redacted()
+			n.Title = cb.url.Redacted()
 		}
 	}
 	return notify.WithChannel(n)
@@ -134,8 +160,9 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 			}).ProcessForm,
 			ExternalBrowser: func(uri string) error {
 				ch, cleanup := cb.notify(notify.Notification{
-					Title: "Authentication Required",
-					Body:  "Click to complete authentication in browser",
+					CategoryIdentifier: "external-browser-auth",
+					Subtitle:           "Authentication Required",
+					Body:               "Click to complete authentication in browser",
 				})
 				select {
 				case <-ch:

@@ -21,7 +21,6 @@ typedef struct NotificationActionText NotificationActionText;
 struct NotificationCategory {
 	struct NotificationCategory* next;
 	char* identifier;
-	char* name;
 	NotificationAction* actions;
 	int options;
 };

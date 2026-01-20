@@ -34,7 +34,6 @@ const (
 type NotificationAction struct {
 	Identifier string
 	Title      string
-	InputType  NotificationInputType // Type of input for this action
 }
 
 func (n NotificationAction) action() *C.NotificationAction {
@@ -76,7 +75,6 @@ func (n NotificationActionText) apply(action *C.NotificationActionText) {
 // NotificationCategory represents a UNNotificationCategory
 type NotificationCategory struct {
 	Identifier string
-	Name       string
 	Actions    []Actioner
 	Options    NotificationCategoryOptions
 }
@@ -109,7 +107,6 @@ func (a *Application) SetNotificationCategories(categories []NotificationCategor
 		ccat := C.make_notification_category_node()
 		*ccat = C.NotificationCategory{
 			identifier: C.CString(cat.Identifier),
-			name:       C.CString(cat.Name),
 			actions:    toNotificationNodeActions(cat.Actions...),
 			options:    C.int(cat.Options),
 		}

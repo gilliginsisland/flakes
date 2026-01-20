@@ -94,5 +94,7 @@ buildGoModule {
 
     # Copy Info.plist
     cp Info.plist "$app/Contents/Info.plist"
+
+    /usr/bin/codesign --force --sign --deep - --entitlements entitlements.plist "$app/Contents/MacOS/PACman"
   '';
 }
