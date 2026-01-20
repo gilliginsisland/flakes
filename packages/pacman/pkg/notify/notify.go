@@ -8,7 +8,7 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
-type Notification menuet.Notification
+type Notification = menuet.Notification
 
 var (
 	// Map of notification ID → weak pointer to response channel
@@ -25,6 +25,9 @@ func init() {
 // If Identifier is empty, a unique one is generated automatically.
 // If another notification with the same Identifier exists, it is replaced.
 func Notify(n Notification) {
+	if n.Title == "" {
+		n.Title = "PACman"
+	}
 	notify(n, nil)
 }
 
@@ -64,7 +67,7 @@ func notify(n Notification, ch chan<- string) func() {
 	}
 
 	// Dispatch notification
-	menuet.App().Notification(menuet.Notification(n))
+	menuet.App().Notification(n)
 
 	return cleanup
 }

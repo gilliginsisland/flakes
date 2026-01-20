@@ -11,6 +11,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/notify"
@@ -30,6 +31,7 @@ type PACMan struct {
 func Run(config Path, l net.Listener) error {
 	var err error
 	app := menuet.App()
+	app.SetNotificationCategories(oc.NotificationCategories)
 	app.Run(func() {
 		defer app.Terminate()
 		err = run(config, l)
@@ -38,8 +40,8 @@ func Run(config Path, l net.Listener) error {
 		}
 		slog.Error("application terminated:", slog.Any("error", err))
 		notify.Notify(notify.Notification{
-			Title: "Application Terminated",
-			Body:  err.Error(),
+			Subtitle: "Application Terminated",
+			Body:     err.Error(),
 		})
 		app.Terminate()
 	})

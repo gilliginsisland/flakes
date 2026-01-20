@@ -67,7 +67,6 @@ void destroy_notification_category_nodes(NotificationCategory* category) {
 	while (category) {
 		NotificationCategory* next = category->next;
 		free(category->identifier);
-		free(category->name);
 		destroy_notification_action_nodes(category->actions);
 		free(category);
 		category = next;
@@ -139,33 +138,28 @@ void set_notification_categories(NotificationCategory* categoryNode) {
 }
 
 void show_notification(Notification* notification) {
-	dispatch_async(dispatch_get_main_queue(), ^{
-		@autoreleasepool {
-			UNMutableNotificationContent *content = [UNMutableNotificationContent new];
-			if (notification->title) {
-				content.title = [NSString stringWithUTF8String:notification->title];
-			}
-			if (notification->subtitle) {
-				content.subtitle = [NSString stringWithUTF8String:notification->subtitle];
-			}
-			if (notification->body) {
-				content.body = [NSString stringWithUTF8String:notification->body];
-			}
-
-			NSString *identifier = notification->identifier ? [NSString stringWithUTF8String:notification->identifier] : [[NSUUID UUID] UUIDString];
-			NSString *categoryIdentifier = [NSString stringWithUTF8String:notification->categoryIdentifier];
-			content.categoryIdentifier = categoryIdentifier;
-
-			UNTimeIntervalNotificationTrigger *trigger = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:1 repeats:NO];
-			UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:trigger];
-
-			[[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
-				if (error) {
-					NSLog(@"Error showing notification: %@", error);
-				}
-			}];
+	@autoreleasepool {
+		UNMutableNotificationContent *content = [UNMutableNotificationContent new];
+		NSString *identifier = notification->identifier ? [NSString stringWithUTF8String:notification->identifier] : [[NSUUID UUID] UUIDString];
+		if (notification->categoryIdentifier) {
+			content.categoryIdentifier = [NSString stringWithUTF8String:notification->categoryIdentifier];
 		}
-	});
+		if (notification->title) {
+			content.title = [NSString stringWithUTF8String:notification->title];
+		}
+		if (notification->subtitle) {
+			content.subtitle = [NSString stringWithUTF8String:notification->subtitle];
+		}
+		if (notification->body) {
+			content.body = [NSString stringWithUTF8String:notification->body];
+		}
+		UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:nil];
+		[[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
+			if (error) {
+				NSLog(@"Error showing notification: %@", error);
+			}
+		}];
+	}
 }
 
 @implementation NotificationDelegate
@@ -185,7 +179,31 @@ void show_notification(Notification* notification) {
 	}
 	UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
 	center.delegate = self;
+
+	// Combine standard alert and sound with the provisional option
+	UNAuthorizationOptions options = UNAuthorizationOptionAlert |
+									 UNAuthorizationOptionSound |
+									 UNAuthorizationOptionBadge |
+									 UNAuthorizationOptionProvisional;
+
+	[center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError * _Nullable error) {
+		if (error) {
+			NSLog(@"Error requesting authorization: %@", error);
+			[center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
+				NSLog(@"Current Authorization Status: %ld", (long)settings.authorizationStatus);
+				// 1 = Denied, 2 = Authorized, 3 = Provisional
+			}];
+			return;
+		}
+		if (granted) {
+			NSLog(@"Authorization granted (may be provisional).");
+		} else {
+			NSLog(@"Authorization denied.");
+		}
+	}];
+
 	[center setNotificationCategories:self.categories];
+
 }
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler {
