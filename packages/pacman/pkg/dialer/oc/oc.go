@@ -44,8 +44,8 @@ func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
 	if form.Error != "" {
 		cb.notify(notify.Notification{
-			Title:   "Authentication Error",
-			Message: form.Error,
+			Title: "Authentication Error",
+			Body:  form.Error,
 		})
 	}
 
@@ -53,7 +53,7 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	if cb.url.Query().Get("token") == "otp" {
 		ch, cleanup := cb.notify(notify.Notification{
 			Title:               "Authentication Required",
-			Message:             "Enter YubiKey OTP",
+			Body:                "Enter YubiKey OTP",
 			ResponsePlaceholder: "YubiKey OTP",
 		})
 		select {
@@ -134,8 +134,8 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 			}).ProcessForm,
 			ExternalBrowser: func(uri string) error {
 				ch, cleanup := cb.notify(notify.Notification{
-					Title:   "Authentication Required",
-					Message: "Click to complete authentication in browser",
+					Title: "Authentication Required",
+					Body:  "Click to complete authentication in browser",
 				})
 				select {
 				case <-ch:

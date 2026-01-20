@@ -1,31 +1,12 @@
-#include <Foundation/Foundation.h>
 #import <stdlib.h>
 #import <string.h>
 
+#import <Cocoa/Cocoa.h>
 #import <UserNotifications/UserNotifications.h>
 
 #import "notification.h"
 
 void go_notification_response_received(NotificationResponse *resp);
-void go_notification_category_registered(NotificationCategory *category);
-
-static NotificationDelegate *delegate = nil;
-
-@implementation NotificationDelegate
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler {
-	NotificationResponse *resp = make_notification_response();
-	*resp = (NotificationResponse){
-		.notificationIdentifier = strdup([response.notification.request.identifier UTF8String]),
-		.actionIdentifier = strdup([response.actionIdentifier UTF8String]),
-	};
-	if ([response isKindOfClass:[UNTextInputNotificationResponse class]]) {
-		UNTextInputNotificationResponse *textResponse = (UNTextInputNotificationResponse *)response;
-		resp->text = strdup([textResponse.userText UTF8String]);
-	}
-	go_notification_response_received(resp);
-	completionHandler();
-}
-@end
 
 Notification* make_notification() {
 	return (Notification*)malloc(sizeof(Notification));
@@ -107,7 +88,7 @@ void destroy_notification_response(NotificationResponse* response) {
 	free(response);
 }
 
-void register_notification_categories(NotificationCategory* categoryNode) {
+void set_notification_categories(NotificationCategory* categoryNode) {
 	@autoreleasepool {
 		NSMutableSet *categories = [NSMutableSet<UNNotificationCategory *> new];
 		while (categoryNode) {
@@ -151,37 +132,74 @@ void register_notification_categories(NotificationCategory* categoryNode) {
 				];
 				[categories addObject:notificationCategory];
 			}
+			categoryNode = categoryNode->next;
 		}
-		delegate = [NotificationDelegate new];
-		[UNUserNotificationCenter currentNotificationCenter].delegate = delegate;
-		[UNUserNotificationCenter.currentNotificationCenter setNotificationCategories:categories];
+		[NotificationDelegate sharedInstance].categories = categories;
 	}
 }
 
 void show_notification(Notification* notification) {
 	dispatch_async(dispatch_get_main_queue(), ^{
-		UNMutableNotificationContent *content = [UNMutableNotificationContent new];
-		if (notification->title) {
-			content.title = [NSString stringWithUTF8String:notification->title];
-		}
-		if (notification->subtitle) {
-			content.subtitle = [NSString stringWithUTF8String:notification->subtitle];
-		}
-		if (notification->body) {
-			content.body = [NSString stringWithUTF8String:notification->body];
-		}
-
-		NSString *identifier = notification->identifier ? [NSString stringWithUTF8String:notification->identifier] : [[NSUUID UUID] UUIDString];
-		NSString *categoryIdentifier = [NSString stringWithUTF8String:notification->categoryIdentifier];
-		content.categoryIdentifier = categoryIdentifier;
-
-		UNTimeIntervalNotificationTrigger *trigger = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:1 repeats:NO];
-		UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:trigger];
-
-		[[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
-			if (error) {
-				NSLog(@"Error showing notification: %@", error);
+		@autoreleasepool {
+			UNMutableNotificationContent *content = [UNMutableNotificationContent new];
+			if (notification->title) {
+				content.title = [NSString stringWithUTF8String:notification->title];
 			}
-		}];
+			if (notification->subtitle) {
+				content.subtitle = [NSString stringWithUTF8String:notification->subtitle];
+			}
+			if (notification->body) {
+				content.body = [NSString stringWithUTF8String:notification->body];
+			}
+
+			NSString *identifier = notification->identifier ? [NSString stringWithUTF8String:notification->identifier] : [[NSUUID UUID] UUIDString];
+			NSString *categoryIdentifier = [NSString stringWithUTF8String:notification->categoryIdentifier];
+			content.categoryIdentifier = categoryIdentifier;
+
+			UNTimeIntervalNotificationTrigger *trigger = [UNTimeIntervalNotificationTrigger triggerWithTimeInterval:1 repeats:NO];
+			UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:trigger];
+
+			[[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
+				if (error) {
+					NSLog(@"Error showing notification: %@", error);
+				}
+			}];
+		}
 	});
 }
+
+@implementation NotificationDelegate
+
++ (NotificationDelegate *)sharedInstance {
+	static NotificationDelegate *_sharedInstance = nil;
+	static dispatch_once_t onceToken;
+	dispatch_once(&onceToken, ^{
+		_sharedInstance = [NotificationDelegate new];
+	});
+	return _sharedInstance;
+}
+
+- (void)register {
+	if (!self.categories) {
+		return;
+	}
+	UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
+	center.delegate = self;
+	[center setNotificationCategories:self.categories];
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler {
+	NotificationResponse *resp = make_notification_response();
+	*resp = (NotificationResponse){
+		.notificationIdentifier = strdup([response.notification.request.identifier UTF8String]),
+		.actionIdentifier = strdup([response.actionIdentifier UTF8String]),
+	};
+	if ([response isKindOfClass:[UNTextInputNotificationResponse class]]) {
+		UNTextInputNotificationResponse *textResponse = (UNTextInputNotificationResponse *)response;
+		resp->text = strdup([textResponse.userText UTF8String]);
+	}
+	go_notification_response_received(resp);
+	completionHandler();
+}
+
+@end

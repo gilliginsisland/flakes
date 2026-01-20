@@ -1,7 +1,12 @@
-#ifndef __MENUET_H__
-#define __MENUET_H__
-#endif
+#import <Cocoa/Cocoa.h>
 
 void setState(const char *jsonString);
 void menuChanged();
-void createAndRunApplication();
+
+@interface MenuetMenu : NSMenu <NSMenuDelegate>
+
+@property(nonatomic, copy) NSString *unique;
+@property(nonatomic, assign) BOOL root;
+@property(nonatomic, assign) BOOL open;
+
+@end

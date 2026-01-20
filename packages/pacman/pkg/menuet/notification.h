@@ -56,9 +56,15 @@ void destroy_notification_category_nodes(NotificationCategory* category);
 NotificationResponse* make_notification_response();
 void destroy_notification_response(NotificationResponse* response);
 
-void register_notification_categories(NotificationCategory* category);
+void set_notification_categories(NotificationCategory* category);
 void show_notification(Notification* notification);
 
 @interface NotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler;
+
+@property (nonatomic, strong) NSSet<UNNotificationCategory *> *categories;
+
++ (NotificationDelegate *)sharedInstance;
+
+- (void)register;
+
 @end
