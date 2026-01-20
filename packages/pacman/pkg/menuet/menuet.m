@@ -1,28 +1,15 @@
 #import <Cocoa/Cocoa.h>
 
 #import "NSImage+Resize.h"
+#import "AppDelegate.h"
 #import "menuet.h"
 
 void itemClicked(const char *);
-void notificationRespond(const char *, const char *);
 const char *children(const char *);
 void menuClosed(const char *);
-bool hideStartup();
-bool runningAtStartup();
-void toggleStartup();
-void shutdownWait();
-
-NSStatusItem *_statusItem;
-
-@interface MenuetMenu : NSMenu <NSMenuDelegate>
-
-@property(nonatomic, copy) NSString *unique;
-@property(nonatomic, assign) BOOL root;
-@property(nonatomic, assign) BOOL open;
-
-@end
 
 @implementation MenuetMenu
+
 - (id)init {
 	self = [super init];
 	if (self) {
@@ -119,47 +106,26 @@ NSStatusItem *_statusItem;
 	if (self.root) {
 		// For the root menu, we generate a new unique every time it's opened. Go
 		// handles all other unique generation.
-		self.unique = [[[[NSProcessInfo processInfo] globallyUniqueString]
-				substringFromIndex:51] stringByAppendingString:@":root"];
+		self.unique = [[[[NSProcessInfo processInfo] globallyUniqueString] substringFromIndex:51] stringByAppendingString:@":root"];
 	}
 	const char *str = children(self.unique.UTF8String);
 	NSArray *items = @[];
 	if (str != NULL) {
-		items = [NSJSONSerialization
-			 JSONObjectWithData:[[NSString stringWithUTF8String:str]
-						 dataUsingEncoding:NSUTF8StringEncoding]
-			 options:0
-			 error:nil];
+		items = [NSJSONSerialization JSONObjectWithData:[[NSString stringWithUTF8String:str] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
 		free((char *)str);
 	}
 	if (self.root) {
-		items = [items arrayByAddingObjectsFromArray:@[
-				 @{@"Type" : @"separator",
-				   @"Clickable" : @YES},
-		]];
-		if (!hideStartup()) {
-			items = [items arrayByAddingObjectsFromArray:@[
-					@{@"Text" : @"Start at Login",
-					@"Clickable" : @YES},
-			]];
-		}
-		items = [items arrayByAddingObjectsFromArray:@[
-				 @{@"Text" : @"Quit",
-				   @"Clickable" : @YES},
-		]];
+		items = [items arrayByAddingObjectsFromArray:@[@{
+			@"Type" : @"separator",
+			@"Clickable" : @YES,
+		}, @{
+			@"Text" : @"Quit",
+			@"Clickable" : @YES,
+		}]];
 	}
 	[self populate:items];
 	if (self.root) {
 		NSMenuItem *item = nil;
-		if (!hideStartup()) {
-			item = [self itemAtIndex:items.count - 2];
-			item.action = @selector(toggleStartup:);
-			if (runningAtStartup()) {
-				item.state = NSControlStateValueOn;
-			} else {
-				item.state = NSControlStateValueOff;
-			}
-		}
 		item = [self itemAtIndex:items.count - 1];
 		item.action = @selector(prepareShutdown:);
 	}
@@ -176,34 +142,14 @@ NSStatusItem *_statusItem;
 	itemClicked(callback.UTF8String);
 }
 
-- (void)toggleStartup:(id)sender {
-	toggleStartup();
-}
-
-- (void)prepareShutdown:(id)sender {
-	shutdownWait();
-	[NSApp terminate: nil];
-}
-
-@end
-
-@interface MenuetAppDelegate : NSObject <NSApplicationDelegate, NSMenuDelegate>
-
 @end
 
 void setState(const char *jsonString) {
-	NSDictionary *state = [NSJSONSerialization
-				   JSONObjectWithData:[[NSString stringWithUTF8String:jsonString]
-						   dataUsingEncoding:NSUTF8StringEncoding]
-				   options:0
-				   error:nil];
+	NSDictionary *state = [NSJSONSerialization JSONObjectWithData:[[NSString stringWithUTF8String:jsonString] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
 	dispatch_async(dispatch_get_main_queue(), ^{
-		_statusItem.button.attributedTitle = [[NSAttributedString alloc]
-							  initWithString:state[@"Title"]
-							  attributes:@{
-								  NSFontAttributeName :
-								  [NSFont monospacedDigitSystemFontOfSize:14
-								   weight:NSFontWeightRegular]
+		NSStatusItem *_statusItem = [AppDelegate sharedInstance].statusItem;
+		_statusItem.button.attributedTitle = [[NSAttributedString alloc] initWithString:state[@"Title"] attributes:@{
+			NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:14 weight:NSFontWeightRegular],
 		}];
 		NSString *imageName = state[@"Image"];
 		NSImage *image = [NSImage imageFromName:imageName withHeight:22];
@@ -215,31 +161,8 @@ void setState(const char *jsonString) {
 
 void menuChanged() {
 	dispatch_async(dispatch_get_main_queue(), ^{
+		NSStatusItem *_statusItem = [AppDelegate sharedInstance].statusItem;
 		MenuetMenu *menu = (MenuetMenu *)_statusItem.menu;
 		[menu refreshVisibleMenus];
 	});
 }
-
-void createAndRunApplication() {
-	@autoreleasepool {
-		NSApplication *a = NSApplication.sharedApplication;
-		MenuetAppDelegate *d = [MenuetAppDelegate new];
-		[a setDelegate:d];
-		[a setActivationPolicy:NSApplicationActivationPolicyAccessory];
-		_statusItem = [[NSStatusBar systemStatusBar]
-				   statusItemWithLength:NSVariableStatusItemLength];
-		MenuetMenu *menu = [MenuetMenu new];
-		menu.root = true;
-		_statusItem.menu = menu;
-		[a run];
-	}
-}
-
-@implementation MenuetAppDelegate
-
-- (NSApplicationTerminateReply)applicationShouldTerminate:
-	(NSApplication *)sender {
-	return NSTerminateNow;
-}
-
-@end

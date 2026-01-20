@@ -1,7 +1,7 @@
 package menuet
 
 /*
-#cgo CFLAGS: -x objective-c
+#cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa
 
 #include <stdlib.h>
@@ -69,7 +69,7 @@ func toAlertNode(s []string) *C.AlertNode {
 		cstr := C.CString(label)
 		*curr = C.make_alert_node(nil)
 		(*curr).text = cstr
-		curr = &(**curr).next
+		curr = &(*curr).next
 	}
 	return node
 }

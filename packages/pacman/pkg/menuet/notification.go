@@ -1,25 +1,16 @@
 package menuet
 
 /*
-#cgo CFLAGS: -x objective-c
+#cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa -framework UserNotifications
 
 #import <Cocoa/Cocoa.h>
 #import <UserNotifications/UserNotifications.h>
 
-#ifndef __NOTIFICATION_H__
 #import "notification.h"
-#endif
 
 */
 import "C"
-
-import (
-	"log"
-	"unsafe"
-
-	"github.com/gilliginsisland/pacman/pkg/syncutil"
-)
 
 // NotificationCategoryOptions represents UNNotificationCategoryOptions
 type NotificationCategoryOptions int
@@ -70,23 +61,23 @@ type NotificationActionText struct {
 func (n NotificationActionText) action() *C.NotificationAction {
 	action := C.make_notification_action_text_node()
 	n.apply(action)
-	return action
+	return &(action.action)
 }
 
 func (n NotificationActionText) apply(action *C.NotificationActionText) {
 	*action = C.NotificationActionText{
-		buttonTitle:  C.CString(n.TextInputButtonTitle),
-		cPlaceholder: C.CString(n.TextInputPlaceholder),
+		buttonTitle: C.CString(n.TextInputButtonTitle),
+		placeholder: C.CString(n.TextInputPlaceholder),
 	}
 	n.NotificationAction.apply(&action.action)
-	action.inputType = NotificationInputTypeText
+	action.action.inputType = C.int(NotificationInputTypeText)
 }
 
 // NotificationCategory represents a UNNotificationCategory
 type NotificationCategory struct {
 	Identifier string
 	Name       string
-	Actions    []NotificationAction
+	Actions    []Actioner
 	Options    NotificationCategoryOptions
 }
 
@@ -101,94 +92,67 @@ type Notification struct {
 
 // NotificationResponse represents the response from a notification action
 type NotificationResponse struct {
-	ActionIdentifier string
-	Text             string // Only filled if the action requires text input
+	NotificationIdentifier string
+	ActionIdentifier       string
+	Text                   string // Only filled if the action requires text input
 }
 
-var (
-	notificationResponses = make(chan NotificationResponse, 10)
-	categoryRegistrations = syncutil.Map[uintptr, chan<- struct{}]{}
-)
-
-// RegisterNotificationCategory registers a notification category with actions
-func (a *Application) RegisterNotificationCategory(category NotificationCategory) {
-	if !runningInAppBundle() {
-		log.Printf("Warning: notification categories won't be registered unless running inside an application bundle")
+// SetNotificationCategories registers all added notification categories
+func (a *Application) SetNotificationCategories(categories []NotificationCategory) {
+	if len(categories) == 0 {
 		return
 	}
-	ccategory := C.make_notification_category()
-	defer C.destroy_notification_category(ccategory)
-	*ccategory = C.NotificationCategory{
-		identifier: C.CString(category.Identifier),
-		name:       C.CString(category.Name),
-		actions:    toNotificationNodeActions(category.Actions),
-		options:    C.int(category.Options),
+	var head *C.NotificationCategory
+	defer C.destroy_notification_category_nodes(head)
+	curr := &head
+	for _, cat := range categories {
+		ccat := C.make_notification_category_node()
+		*ccat = C.NotificationCategory{
+			identifier: C.CString(cat.Identifier),
+			name:       C.CString(cat.Name),
+			actions:    toNotificationNodeActions(cat.Actions...),
+			options:    C.int(cat.Options),
+		}
+		*curr = ccat
+		curr = &(*curr).next
 	}
-	ch := make(chan struct{}, 1)
-	categoryRegistrations.Store(uintptr(unsafe.Pointer(ccategory)), ch)
-	C.registerNotificationCategory(ccategory)
-	<-ch // Wait for completion signal
+	C.set_notification_categories(head)
 }
 
 // Notification shows a notification to the user, tied to a registered category
-func (a *Application) Notification(notification Notification) {
-	if !runningInAppBundle() {
-		log.Printf("Warning: notifications won't show up unless running inside an application bundle")
-		return
-	}
+func (a *Application) Notification(notif Notification) {
 	cnotif := C.make_notification()
 	defer C.destroy_notification(cnotif)
 	*cnotif = C.Notification{
-		categoryIdentifier: C.CString(notification.CategoryIdentifier),
-		identifier:         C.CString(notification.Identifier),
-		title:              C.CString(notification.Title),
-		subtitle:           C.CString(notification.Subtitle),
-		body:               C.CString(notification.Body),
+		categoryIdentifier: C.CString(notif.CategoryIdentifier),
+		identifier:         C.CString(notif.Identifier),
+		title:              C.CString(notif.Title),
+		subtitle:           C.CString(notif.Subtitle),
+		body:               C.CString(notif.Body),
 	}
-	C.showNotification(cnotif)
+	C.show_notification(cnotif)
 }
 
-// NotificationResponses returns a channel to receive notification responses
-func (a *Application) NotificationResponses() <-chan NotificationResponse {
-	return notificationResponses
+//export go_notification_response_received
+func go_notification_response_received(resp *C.NotificationResponse) {
+	defer C.destroy_notification_response(resp)
+	go App().NotificationResponder(NotificationResponse{
+		NotificationIdentifier: C.GoString(resp.notificationIdentifier),
+		ActionIdentifier:       C.GoString(resp.actionIdentifier),
+		Text:                   C.GoString(resp.text),
+	})
 }
 
-//export notificationResponseReceived
-func notificationResponseReceived(actionIdentifier *C.char, text *C.char) {
-	response := NotificationResponse{
-		ActionIdentifier: C.GoString(actionIdentifier),
-		Text:             C.GoString(text),
-	}
-	notificationResponses <- response
-}
-
-//export notificationCategoryRegistered
-func notificationCategoryRegistered(category *C.NotificationCategory) {
-	if ch, ok := categoryRegistrations.LoadAndDelete(uintptr(unsafe.Pointer(category))); ok {
-		close(ch) // Signal completion by closing the channel
-	}
-}
-
-func toNotificationNodeActions(actions []NotificationAction) *C.NotificationAction {
+func toNotificationNodeActions(actions ...Actioner) *C.NotificationAction {
 	var node *C.NotificationAction
 	curr := &node
 	for _, action := range actions {
-		cIdentifier := C.CString(action.Identifier)
-		cTitle := C.CString(action.Title)
-		cInputType := C.int(action.InputType)
-		if action.InputType == NotificationInputTypeText {
-			textAction := action.(NotificationActionText)
-			cButtonTitle := C.CString(textAction.TextInputButtonTitle)
-			cPlaceholder := C.CString(textAction.TextInputPlaceholder)
-			*curr = (*C.NotificationAction)(C.make_notification_action_text_node(cIdentifier, cTitle, cButtonTitle, cPlaceholder))
-		} else {
-			*curr = C.make_notification_action_node(cIdentifier, cTitle, cInputType)
-		}
-		curr = &(**curr).next
+		*curr = action.action()
+		curr = &(*curr).next
 	}
 	return node
 }
 
-type Action interface {
+type Actioner interface {
 	action() *C.NotificationAction
 }

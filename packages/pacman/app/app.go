@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
-	"os"
 	"sync"
 	"time"
 
@@ -30,25 +29,25 @@ type PACMan struct {
 
 func Run(config Path, l net.Listener) error {
 	var err error
-	go func() {
+	app := menuet.App()
+	app.Run(func() {
+		defer app.Terminate()
 		err = run(config, l)
-		if err != nil {
-			slog.Error("application terminated:", slog.Any("error", err))
-			notify.Notify(notify.Notification{
-				Title:   "Application Terminated",
-				Message: err.Error(),
-			})
-			os.Exit(1)
+		if err == nil {
+			return
 		}
-		os.Exit(0)
-	}()
-	menuet.App().RunApplication()
+		slog.Error("application terminated:", slog.Any("error", err))
+		notify.Notify(notify.Notification{
+			Title: "Application Terminated",
+			Body:  err.Error(),
+		})
+		app.Terminate()
+	})
 	return err
 }
 
 func run(config Path, l net.Listener) error {
 	app := menuet.App()
-	app.HideStartup()
 	app.SetMenuState(&menuet.MenuState{
 		Image: "menuicon.pdf",
 	})
@@ -137,8 +136,8 @@ func (pacman *PACMan) ReloadConfig() {
 		return
 	}
 	notify.Notify(notify.Notification{
-		Title:   "Config Reload Error",
-		Message: err.Error(),
+		Title: "Config Reload Error",
+		Body:  err.Error(),
 	})
 }
 

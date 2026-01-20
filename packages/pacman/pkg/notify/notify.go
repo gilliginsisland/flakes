@@ -69,14 +69,14 @@ func notify(n Notification, ch chan<- string) func() {
 	return cleanup
 }
 
-func ResponseHandler(id, response string) {
-	ch, ok := chans.LoadAndDelete(id)
+func ResponseHandler(resp menuet.NotificationResponse) {
+	ch, ok := chans.LoadAndDelete(resp.NotificationIdentifier)
 	if !ok {
 		return
 	}
 
 	select {
-	case ch <- response:
+	case ch <- resp.Text:
 	default:
 	}
 

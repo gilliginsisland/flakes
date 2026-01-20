@@ -6,77 +6,18 @@ package menuet
 
 #import <Cocoa/Cocoa.h>
 
-#ifndef __MENUET_H_H__
 #import "menuet.h"
-#endif
+
 */
 import "C"
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"reflect"
-	"sync"
 	"time"
 	"unsafe"
 )
-
-// Application represents the OSX application
-type Application struct {
-	Name  string
-	Label string
-
-	// Children returns the top level children
-	Children func() []MenuItem
-
-	// If Version and Repo are set, checks for updates every day
-	AutoUpdate struct {
-		Version string
-		Repo    string // For example "caseymrm/menuet"
-	}
-
-	// NotificationResponder is a handler called when notification respond
-	NotificationResponder func(id, response string)
-
-	alertChannel          chan AlertClicked
-	currentState          *MenuState
-	nextState             *MenuState
-	hideStartupItem       bool
-	pendingStateChange    bool
-	debounceMutex         sync.Mutex
-	visibleMenuItemsMutex sync.RWMutex
-	visibleMenuItems      map[string]internalItem
-
-	// Used to coordinate graceful shutdown
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-var (
-	appInstance  *Application
-	appOnce      sync.Once
-	shutdownOnce sync.Once
-)
-
-// App returns the application singleton
-func App() *Application {
-	appOnce.Do(func() {
-		appInstance = &Application{
-			visibleMenuItems: make(map[string]internalItem),
-		}
-	})
-	return appInstance
-}
-
-// RunApplication does not return
-func (a *Application) RunApplication() {
-	if a.AutoUpdate.Version != "" && a.AutoUpdate.Repo != "" {
-		go a.checkForUpdates()
-	}
-	C.createAndRunApplication()
-}
 
 // SetMenuState changes what is shown in the dropdown
 func (a *Application) SetMenuState(state *MenuState) {
@@ -89,23 +30,6 @@ func (a *Application) SetMenuState(state *MenuState) {
 // MenuChanged refreshes any open menus
 func (a *Application) MenuChanged() {
 	C.menuChanged()
-}
-
-// GracefulShutdownHandles returns a WaitGroup and Context that can
-// be used to manage graceful shutdown of go resources when the
-// menuabar app is terminated.
-// Use the WaitGroup to track your running goroutines, then shut them
-// down when the context is Done.
-func (a *Application) GracefulShutdownHandles() (*sync.WaitGroup, context.Context) {
-	shutdownOnce.Do(func() {
-		a.ctx, a.cancel = context.WithCancel(context.Background())
-	})
-	return &a.wg, a.ctx
-}
-
-// HideStartup prevents the Start at Login menu item from being displayed
-func (a *Application) HideStartup() {
-	a.hideStartupItem = true
 }
 
 // MenuState represents the title and drop down,
@@ -179,38 +103,4 @@ func children(uniqueCString *C.char) *C.char {
 func menuClosed(uniqueCString *C.char) {
 	unique := C.GoString(uniqueCString)
 	App().menuClosed(unique)
-}
-
-//export notificationRespond
-func notificationRespond(id *C.char, response *C.char) {
-	App().NotificationResponder(C.GoString(id), C.GoString(response))
-}
-
-//export hideStartup
-func hideStartup() bool {
-	return App().hideStartupItem
-}
-
-//export runningAtStartup
-func runningAtStartup() bool {
-	return App().runningAtStartup()
-}
-
-//export toggleStartup
-func toggleStartup() {
-	a := App()
-	if a.runningAtStartup() {
-		a.removeStartupItem()
-	} else {
-		a.addStartupItem()
-	}
-	go a.sendState(a.currentState)
-}
-
-//export shutdownWait
-func shutdownWait() {
-	if App().cancel != nil {
-		App().cancel()
-	}
-	App().wg.Wait()
 }
