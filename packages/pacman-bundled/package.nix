@@ -1,6 +1,6 @@
 {
   stdenv,
-  pacman,
+  pacman-app,
   openssl,
   libiconv,
   darwin,
@@ -25,11 +25,26 @@ let
       cp libossl_conf_sidecar.dylib $out/lib/
     '';
   };
+
+  codesign = stdenv.mkDerivation {
+    name = "codesign";
+
+    phases = [ "installPhase" ];
+    installPhase = ''
+      mkdir -p $out/bin
+      ln -s /usr/bin/codesign $out/bin/codesign
+    '';
+
+    meta = with lib; {
+      description = "Wrapper exposing macOS native codesign command";
+      platforms = platforms.darwin;
+    };
+  };
 in
 
 runCommand "pacman-bundled" {
   version = pacman.version;
-  nativeBuildInputs = [ macdylibbundler cctools insert-dylib ];
+  nativeBuildInputs = [ macdylibbundler cctools insert-dylib codesign ];
   buildInputs = [ pacman openssl.out ossl-conf-sidecar ];
 } ''
   app="$out/Applications/PACman.app"
@@ -69,4 +84,6 @@ runCommand "pacman-bundled" {
     install_name_tool -change "${libiconv}/lib/libiconv.2.dylib" "/usr/lib/libiconv.2.dylib" "$file"
     install_name_tool -change "${darwin.libresolv}/lib/libresolv.9.dylib" "/usr/lib/libresolv.9.dylib" "$file"
   done
+
+  codesign -s - --force --deep --timestamp --options runtime --entitlements ${../pacman/entitlements.plist} "$app"
 ''

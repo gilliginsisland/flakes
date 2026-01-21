@@ -2,7 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Required -->
     <key>CFBundleIdentifier</key>
     <string>io.github.gilliginsisland.pacman</string>
     <key>CFBundleName</key>
@@ -10,19 +9,17 @@
     <key>CFBundleDisplayName</key>
     <string>PACman</string>
     <key>CFBundleExecutable</key>
-    <string>pacman</string>
+    <string>PACman</string>
     <key>CFBundleIconFile</key>
-    <string>icon</string>
+    <string>icon.icns</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleVersion</key>
     <string>3.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <!-- For Notification Center support -->
-    <key>NSUserNotificationAlertStyle</key>
-    <string>banner</string>
-    <!-- Needed for hardened runtime signing -->
+    <string>3.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.10</string>
     <key>LSUIElement</key>
