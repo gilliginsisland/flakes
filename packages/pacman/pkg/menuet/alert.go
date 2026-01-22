@@ -12,6 +12,7 @@ package menuet
 import "C"
 
 import (
+	"context"
 	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
@@ -36,6 +37,16 @@ type AlertResponse struct {
 // Alert shows an alert, and returns the index of the button pressed, or -1 if none
 func Display(alert Alert) AlertResponse {
 	return <-DisplayCh(alert)
+}
+
+func DisplayCtx(ctx context.Context, alert Alert) (AlertResponse, error) {
+	ch := DisplayCh(alert)
+	select {
+	case <-ctx.Done():
+		return AlertResponse{}, ctx.Err()
+	case resp := <-ch:
+		return resp, nil
+	}
 }
 
 func DisplayCh(alert Alert) <-chan AlertResponse {
