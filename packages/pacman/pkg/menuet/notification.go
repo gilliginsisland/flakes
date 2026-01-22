@@ -12,6 +12,11 @@ package menuet
 */
 import "C"
 
+var (
+	DefaultActionIdentifier = fromNSString(C.UNNotificationDefaultActionIdentifier)
+	DismissActionIdentifier = fromNSString(C.UNNotificationDismissActionIdentifier)
+)
+
 // NotificationCategoryOptions represents UNNotificationCategoryOptions
 type NotificationCategoryOptions int
 

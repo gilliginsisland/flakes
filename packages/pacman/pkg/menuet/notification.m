@@ -214,7 +214,10 @@ void show_notification(Notification* notification) {
 
 }
 
-- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response withCompletionHandler:(void (^)(void))completionHandler {
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+	didReceiveNotificationResponse:(UNNotificationResponse *)response
+	withCompletionHandler:(void (^)(void))completionHandler
+{
 	NotificationResponse *resp = make_notification_response();
 	*resp = (NotificationResponse){
 		.notificationIdentifier = strdup([response.notification.request.identifier UTF8String]),
@@ -226,6 +229,19 @@ void show_notification(Notification* notification) {
 	}
 	go_notification_response_received(resp);
 	completionHandler();
+}
+
+// The method will be called on the delegate only if the application is in the foreground. If the method is not implemented or the handler is not called in a timely manner then the notification will not be presented. The application can choose to have the notification presented as a sound, badge, alert and/or in the notification list. This decision should be based on whether the information in the notification is otherwise visible to the user.
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+	willPresentNotification:(UNNotification *)notification
+	withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
+{
+	completionHandler(
+		UNNotificationPresentationOptionBadge |
+		UNNotificationPresentationOptionSound |
+		UNNotificationPresentationOptionList |
+		UNNotificationPresentationOptionBanner
+	);
 }
 
 @end
