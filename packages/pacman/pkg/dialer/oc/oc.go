@@ -72,28 +72,28 @@ func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 }
 
 func (cb *callbacks) ExternalBrowser(uri string) error {
-	ch, cleanup := cb.notify(notify.Notification{
+	resp, err := notify.NotifyCtx(cb.ctx, notify.Notification{
 		CategoryIdentifier: "external-browser-auth",
+		Title:              cb.label(),
 		Subtitle:           "Authentication Required",
 		Body:               "Click to complete authentication in browser",
 	})
-	select {
-	case resp := <-ch:
-		if resp.ActionIdentifier == menuet.DismissActionIdentifier {
-			cb.DebugLog("ExternalBrowser user cancelled")
-			return errors.New("ExternalBrowser user cancelled")
-		}
-		return xdg.Run(uri)
-	case <-cb.ctx.Done():
-		defer cleanup()
-		cb.DebugLog("ExternalBrowser ctx cancelled")
-		return cb.ctx.Err()
+	if err != nil {
+		cb.DebugLog("ExternalBrowser ctx cancelled", slog.Any("error", err))
+		return err
 	}
+	if resp.ActionIdentifier == menuet.DismissActionIdentifier {
+		err = errors.New("ExternalBrowser user cancelled")
+		cb.DebugLog("ExternalBrowser user cancelled", slog.Any("error", err))
+		return err
+	}
+	return xdg.Run(uri)
 }
 
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
 	if form.Error != "" {
-		cb.notify(notify.Notification{
+		notify.Notify(notify.Notification{
+			Title:    cb.label(),
 			Subtitle: "Authentication Error",
 			Body:     form.Error,
 		})
@@ -104,28 +104,41 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	cb.cp.Password, _ = cb.url.User.Password()
 
 	if cb.url.Query().Get("token") == "otp" {
-		ch, cleanup := cb.notify(notify.Notification{
+		resp, err := notify.NotifyCtx(cb.ctx, notify.Notification{
 			CategoryIdentifier: "yubi-auth",
+			Title:              cb.label(),
 			Subtitle:           "Authentication Required",
 			Body:               "Enter YubiKey OTP",
 		})
-		select {
-		case resp := <-ch:
-			switch resp.ActionIdentifier {
-			case menuet.DismissActionIdentifier:
-				cb.DebugLog("Auth form user cancelled")
-				return openconnect.FormResultCancelled
-			case menuet.DefaultActionIdentifier:
-				// TODO: add alert here
-			case "yubi-auth-token":
-				cb.cp.Password += resp.Text
-			}
-			cb.DebugLog("AuthForm YOTP received")
-		case <-cb.ctx.Done():
-			defer cleanup()
-			cb.DebugLog("AuthForm ctx cancelled")
+		if err != nil {
+			cb.DebugLog("AuthForm ctx cancelled", slog.Any("error", err))
 			return openconnect.FormResultCancelled
 		}
+		switch resp.ActionIdentifier {
+		case menuet.DismissActionIdentifier:
+			cb.DebugLog("Auth form user cancelled")
+			return openconnect.FormResultCancelled
+		case menuet.DefaultActionIdentifier:
+			resp, err := menuet.DisplayCtx(cb.ctx, menuet.Alert{
+				MessageText:     "YubiKey OTP Authentication Required",
+				InformativeText: fmt.Sprintf("The proxy %s requires YubiKey OTP", cb.label()),
+				Inputs: []string{
+					"Enter YubiKey OTP",
+				},
+				Buttons: []string{
+					"Submit",
+					"Cancel",
+				},
+			})
+			if err != nil || resp.Button == 1 {
+				cb.DebugLog("AuthForm ctx cancelled", slog.Any("error", err))
+				return openconnect.FormResultCancelled
+			}
+			cb.cp.Password += resp.Inputs[0]
+		case "yubi-auth-token":
+			cb.cp.Password += resp.Text
+		}
+		cb.DebugLog("AuthForm YOTP received")
 	}
 
 	result := cb.cp.ProcessForm(form)
@@ -133,15 +146,12 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	return result
 }
 
-func (cb *callbacks) notify(n notify.Notification) (<-chan menuet.NotificationResponse, func()) {
-	if n.Title == "" {
-		if l, _ := cb.ctx.Value("label").(string); l != "" {
-			n.Title = l
-		} else {
-			n.Title = cb.url.Redacted()
-		}
+func (cb *callbacks) label() string {
+	l, _ := cb.ctx.Value("label").(string)
+	if l == "" {
+		l = cb.url.Redacted()
 	}
-	return notify.WithChannel(n)
+	return l
 }
 
 type Dialer struct {

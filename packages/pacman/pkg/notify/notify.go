@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 
@@ -31,13 +32,24 @@ func Notify(n Notification) {
 	notify(n, nil)
 }
 
-// WithChannel displays a notification and returns a channel that will receive the user's response.
+// NotifyCh displays a notification and returns a channel that will receive the user's response.
 // If Identifier is empty, a unique one is generated automatically.
 // If another notification with the same Identifier exists, it is replaced and its channel closed.
 // A cleanup function is provided to discard the channel
-func WithChannel(n Notification) (<-chan menuet.NotificationResponse, func()) {
+func NotifyCh(n Notification) (<-chan menuet.NotificationResponse, func()) {
 	ch := make(chan menuet.NotificationResponse, 1)
 	return ch, notify(n, ch)
+}
+
+func NotifyCtx(ctx context.Context, n Notification) (menuet.NotificationResponse, error) {
+	ch, cleanup := NotifyCh(n)
+	select {
+	case <-ctx.Done():
+		defer cleanup()
+		return menuet.NotificationResponse{}, ctx.Err()
+	case resp := <-ch:
+		return resp, nil
+	}
 }
 
 func notify(n Notification, ch chan<- menuet.NotificationResponse) func() {
