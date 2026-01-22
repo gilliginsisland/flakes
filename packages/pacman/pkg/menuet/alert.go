@@ -35,8 +35,11 @@ type AlertResponse struct {
 
 // Alert shows an alert, and returns the index of the button pressed, or -1 if none
 func Display(alert Alert) AlertResponse {
+	return <-DisplayCh(alert)
+}
+
+func DisplayCh(alert Alert) <-chan AlertResponse {
 	calert := C.make_alert()
-	defer C.destroy_alert(calert)
 	*calert = C.Alert{
 		messageText:     C.CString(alert.MessageText),
 		informativeText: C.CString(alert.InformativeText),
@@ -46,11 +49,12 @@ func Display(alert Alert) AlertResponse {
 	ch := make(chan AlertResponse, 1)
 	alerts.Store(uintptr(unsafe.Pointer(calert)), ch)
 	C.show_alert(calert)
-	return <-ch
+	return ch
 }
 
 //export go_alert_clicked
 func go_alert_clicked(calert *C.Alert, cresp *C.AlertResponse) {
+	defer C.destroy_alert(calert)
 	defer C.destroy_alert_response(cresp)
 	ch, ok := alerts.LoadAndDelete(uintptr(unsafe.Pointer(calert)))
 	if !ok {

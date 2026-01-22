@@ -41,7 +41,7 @@ in runCommand "pacman-app" {
   nativeBuildInputs = [ librsvg iconutil codesign ];
   buildInputs = [ pacman ];
   meta = pacman.meta // {
-    mainProgram = "Applications/PACman.app/Contents/MacOS/PACman";
+    mainProgram = "pacman";
   };
 } ''
   # Prepare app bundle
@@ -69,4 +69,7 @@ in runCommand "pacman-app" {
   cp ${./Info.plist} "$app/Contents/Info.plist"
 
   codesign -s - --force --deep --timestamp --entitlements ${./entitlements.plist} "$app"
+
+  mkdir -p "$out/bin"
+  ln -s "$app/Contents/MacOS/PACman" "$out/bin/pacman"
 ''

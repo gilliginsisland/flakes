@@ -1,6 +1,6 @@
 #import <Cocoa/Cocoa.h>
 
-void setState(const char *jsonString);
+void setState(const char *cTitle, const char *cImageName);
 void menuChanged();
 
 @interface MenuetMenu : NSMenu <NSMenuDelegate>

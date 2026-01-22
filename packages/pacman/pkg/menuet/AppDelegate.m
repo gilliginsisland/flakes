@@ -25,7 +25,7 @@ void goAppWillTerminate();
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
+    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
     MenuetMenu *menu = [MenuetMenu new];
     menu.root = true;
     _statusItem.menu = menu;
@@ -41,7 +41,7 @@ void goAppWillTerminate();
 void runApplication() {
     @autoreleasepool {
         NSApplication *a = [NSApplication sharedApplication];
-        [a setDelegate:[AppDelegate new]];
+        [a setDelegate:[AppDelegate sharedInstance]];
         [a setActivationPolicy:NSApplicationActivationPolicyAccessory];
         [a run];
     }

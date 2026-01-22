@@ -1,10 +1,10 @@
 {
+  lib,
   stdenv,
   pacman-app,
   openssl,
   libiconv,
   darwin,
-  openconnect_openssl,
   macdylibbundler,
   runCommand,
   cctools,
@@ -43,16 +43,16 @@ let
 in
 
 runCommand "pacman-bundled" {
-  version = pacman.version;
+  version = pacman-app.version;
   nativeBuildInputs = [ macdylibbundler cctools insert-dylib codesign ];
-  buildInputs = [ pacman openssl.out ossl-conf-sidecar ];
+  buildInputs = [ pacman-app openssl.out ossl-conf-sidecar ];
 } ''
   app="$out/Applications/PACman.app"
   mkdir -p "$app/Contents/"{Frameworks,PlugIns,Resources}
   cp -Tr "${openssl.out}/etc/ssl" "$app/Contents/Resources/ssl"
   cp -Tr "${openssl.out}/lib/engines-3" "$app/Contents/PlugIns/engines-3"
   cp -Tr "${openssl.out}/lib/ossl-modules" "$app/Contents/PlugIns/ossl-modules"
-  cp -Tr "${pacman}/Applications/PACman.app" "$app"
+  cp -Tr "${pacman-app}/Applications/PACman.app" "$app"
   chmod -R u+w "$app"
 
   insert_dylib \
@@ -85,5 +85,5 @@ runCommand "pacman-bundled" {
     install_name_tool -change "${darwin.libresolv}/lib/libresolv.9.dylib" "/usr/lib/libresolv.9.dylib" "$file"
   done
 
-  codesign -s - --force --deep --timestamp --options runtime --entitlements ${../pacman/entitlements.plist} "$app"
+  codesign -s - --force --deep --timestamp --entitlements ${../pacman-app/entitlements.plist} "$app"
 ''
