@@ -12,7 +12,7 @@ type Notification = menuet.Notification
 
 var (
 	// Map of notification ID → weak pointer to response channel
-	chans syncutil.Map[string, chan<- string]
+	chans syncutil.Map[string, chan<- menuet.NotificationResponse]
 	// Atomic counter for auto-generated IDs
 	counter atomic.Uint64
 )
@@ -35,12 +35,12 @@ func Notify(n Notification) {
 // If Identifier is empty, a unique one is generated automatically.
 // If another notification with the same Identifier exists, it is replaced and its channel closed.
 // A cleanup function is provided to discard the channel
-func WithChannel(n Notification) (<-chan string, func()) {
-	ch := make(chan string, 1)
+func WithChannel(n Notification) (<-chan menuet.NotificationResponse, func()) {
+	ch := make(chan menuet.NotificationResponse, 1)
 	return ch, notify(n, ch)
 }
 
-func notify(n Notification, ch chan<- string) func() {
+func notify(n Notification, ch chan<- menuet.NotificationResponse) func() {
 	// Ensure a unique or provided identifier
 	if n.Identifier == "" {
 		n.Identifier = fmt.Sprintf("auto-%d", counter.Add(1))
@@ -48,7 +48,7 @@ func notify(n Notification, ch chan<- string) func() {
 
 	// Atomically swap out any previous entry
 	var (
-		prev    chan<- string
+		prev    chan<- menuet.NotificationResponse
 		loaded  bool
 		cleanup func()
 	)
@@ -77,11 +77,11 @@ func ResponseHandler(resp menuet.NotificationResponse) {
 	if !ok {
 		return
 	}
+	defer close(ch)
 
 	select {
-	case ch <- resp.Text:
+	case ch <- resp:
 	default:
+		return
 	}
-
-	close(ch)
 }

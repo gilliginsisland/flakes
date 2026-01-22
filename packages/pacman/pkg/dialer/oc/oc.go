@@ -2,6 +2,7 @@ package oc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -27,6 +28,7 @@ var NotificationCategories = []menuet.NotificationCategory{
 				TextInputPlaceholder: "Enter YubiKey OTP",
 			},
 		},
+		Options: menuet.CategoryOptionCustomDismiss,
 	},
 	{
 		Identifier: "external-browser-auth",
@@ -36,12 +38,14 @@ var NotificationCategories = []menuet.NotificationCategory{
 				Title:      "Open",
 			},
 		},
+		Options: menuet.CategoryOptionCustomDismiss,
 	},
 }
 
 type callbacks struct {
 	url *url.URL
 	ctx context.Context
+	cp  openconnect.CredentialsProcessor
 }
 
 func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
@@ -67,15 +71,38 @@ func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 	slog.LogAttrs(context.Background(), slog.LevelDebug, msg, xtras...)
 }
 
+func (cb *callbacks) ExternalBrowser(uri string) error {
+	ch, cleanup := cb.notify(notify.Notification{
+		CategoryIdentifier: "external-browser-auth",
+		Subtitle:           "Authentication Required",
+		Body:               "Click to complete authentication in browser",
+	})
+	select {
+	case resp := <-ch:
+		if resp.ActionIdentifier == menuet.DismissActionIdentifier {
+			cb.DebugLog("ExternalBrowser user cancelled")
+			return errors.New("ExternalBrowser user cancelled")
+		}
+		return xdg.Run(uri)
+	case <-cb.ctx.Done():
+		defer cleanup()
+		cb.DebugLog("ExternalBrowser ctx cancelled")
+		return cb.ctx.Err()
+	}
+}
+
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
 	if form.Error != "" {
 		cb.notify(notify.Notification{
 			Subtitle: "Authentication Error",
 			Body:     form.Error,
 		})
+		return openconnect.FormResultErr
 	}
 
-	passwd, _ := cb.url.User.Password()
+	cb.cp.Username = cb.url.User.Username()
+	cb.cp.Password, _ = cb.url.User.Password()
+
 	if cb.url.Query().Get("token") == "otp" {
 		ch, cleanup := cb.notify(notify.Notification{
 			CategoryIdentifier: "yubi-auth",
@@ -83,12 +110,16 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 			Body:               "Enter YubiKey OTP",
 		})
 		select {
-		case response := <-ch:
-			if response == "" {
+		case resp := <-ch:
+			switch resp.ActionIdentifier {
+			case menuet.DismissActionIdentifier:
 				cb.DebugLog("Auth form user cancelled")
 				return openconnect.FormResultCancelled
+			case menuet.DefaultActionIdentifier:
+				// TODO: add alert here
+			case "yubi-auth-token":
+				cb.cp.Password += resp.Text
 			}
-			passwd += response
 			cb.DebugLog("AuthForm YOTP received")
 		case <-cb.ctx.Done():
 			defer cleanup()
@@ -97,15 +128,12 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 		}
 	}
 
-	result := (&openconnect.CredentialsProcessor{
-		Username: cb.url.User.Username(),
-		Password: passwd,
-	}).ProcessForm(form)
+	result := cb.cp.ProcessForm(form)
 	cb.DebugLog("CredentialsProcessor", slog.String("result", result.String()))
 	return result
 }
 
-func (cb *callbacks) notify(n notify.Notification) (<-chan string, func()) {
+func (cb *callbacks) notify(n notify.Notification) (<-chan menuet.NotificationResponse, func()) {
 	if n.Title == "" {
 		if l, _ := cb.ctx.Value("label").(string); l != "" {
 			n.Title = l
@@ -155,24 +183,9 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		Callbacks: openconnect.Callbacks{
 			Progress: cb.Progress,
 			ProcessAuthForm: (&openconnect.AggregateProcessor{
-				openconnect.LoggerFunc(cb.DebugLog),
-				&cb,
+				openconnect.LoggerFunc(cb.DebugLog), &cb,
 			}).ProcessForm,
-			ExternalBrowser: func(uri string) error {
-				ch, cleanup := cb.notify(notify.Notification{
-					CategoryIdentifier: "external-browser-auth",
-					Subtitle:           "Authentication Required",
-					Body:               "Click to complete authentication in browser",
-				})
-				select {
-				case <-ch:
-					return xdg.Run(uri)
-				case <-cb.ctx.Done():
-					defer cleanup()
-					cb.DebugLog("ExternalBrowser ctx cancelled")
-					return ctx.Err()
-				}
-			},
+			ExternalBrowser: cb.ExternalBrowser,
 			ValidatePeerCert: func(cert string) bool {
 				return true
 			},
