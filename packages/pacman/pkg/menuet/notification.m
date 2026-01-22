@@ -1,3 +1,4 @@
+#include <Foundation/Foundation.h>
 #import <stdlib.h>
 #import <string.h>
 
@@ -87,45 +88,49 @@ void destroy_notification_response(NotificationResponse* response) {
 	free(response);
 }
 
+NSArray<UNNotificationAction *>* toUNNotificationActions(NotificationAction* actionNode) {
+	NSMutableArray *actions = [NSMutableArray<UNNotificationAction *> array];
+	while(actionNode) {
+		@autoreleasepool {
+			UNNotificationAction *action;
+			NSString *identifier = [NSString stringWithUTF8String:actionNode->identifier];
+			NSString *title = [NSString stringWithUTF8String:actionNode->title];
+			if (actionNode->inputType == NotificationInputTypeText) {
+				NotificationActionText* textNode = (NotificationActionText*)actionNode;
+				NSString *buttonTitle =
+					textNode->buttonTitle ? [NSString stringWithUTF8String:textNode->buttonTitle] : @"Send";
+				NSString *placeholder =
+					textNode->placeholder ? [NSString stringWithUTF8String:textNode->placeholder] : title;
+				action = [UNTextInputNotificationAction
+					actionWithIdentifier:identifier
+					title:title
+					options:UNNotificationActionOptionNone
+					textInputButtonTitle:buttonTitle
+					textInputPlaceholder:placeholder
+				];
+			} else {
+				action = [UNNotificationAction
+					actionWithIdentifier:identifier
+					title:title
+					options:UNNotificationActionOptionForeground
+				];
+			}
+			[actions addObject:action];
+		}
+		actionNode = actionNode->next;
+	}
+	return actions;
+}
+
 void set_notification_categories(NotificationCategory* categoryNode) {
 	@autoreleasepool {
 		NSMutableSet *categories = [NSMutableSet<UNNotificationCategory *> new];
 		while (categoryNode) {
 			@autoreleasepool {
-				NSMutableArray *actions = [NSMutableArray<UNNotificationAction *> array];
-				for (NotificationAction* actionNode = categoryNode->actions; actionNode; actionNode = actionNode->next) {
-					@autoreleasepool {
-						UNNotificationAction *action;
-						NSString *identifier = [NSString stringWithUTF8String:actionNode->identifier];
-						NSString *title = [NSString stringWithUTF8String:actionNode->title];
-						if (actionNode->inputType == NotificationInputTypeText) {
-							NotificationActionText* textNode = (NotificationActionText*)actionNode;
-							NSString *buttonTitle =
-								textNode->buttonTitle ? [NSString stringWithUTF8String:textNode->buttonTitle] : @"Send";
-							NSString *placeholder =
-								textNode->placeholder ? [NSString stringWithUTF8String:textNode->placeholder] : title;
-							action = [UNTextInputNotificationAction
-								actionWithIdentifier:identifier
-								title:title
-								options:UNNotificationActionOptionNone
-								textInputButtonTitle:buttonTitle
-								textInputPlaceholder:placeholder
-							];
-						} else {
-							action = [UNNotificationAction
-								actionWithIdentifier:identifier
-								title:title
-								options:UNNotificationActionOptionForeground
-							];
-						}
-						[actions addObject:action];
-					}
-				}
-
 				NSString *identifier = [NSString stringWithUTF8String:categoryNode->identifier];
 				UNNotificationCategory *notificationCategory = [UNNotificationCategory
 					categoryWithIdentifier:identifier
-					actions:actions
+					actions:toUNNotificationActions(categoryNode->actions)
 					intentIdentifiers:@[]
 					options:categoryNode->options
 				];
@@ -140,7 +145,10 @@ void set_notification_categories(NotificationCategory* categoryNode) {
 void show_notification(Notification* notification) {
 	@autoreleasepool {
 		UNMutableNotificationContent *content = [UNMutableNotificationContent new];
-		NSString *identifier = notification->identifier ? [NSString stringWithUTF8String:notification->identifier] : [[NSUUID UUID] UUIDString];
+		NSString *identifier =
+			notification->identifier ?
+			[NSString stringWithUTF8String:notification->identifier] :
+			[[NSUUID UUID] UUIDString];
 		if (notification->categoryIdentifier) {
 			content.categoryIdentifier = [NSString stringWithUTF8String:notification->categoryIdentifier];
 		}
@@ -181,10 +189,10 @@ void show_notification(Notification* notification) {
 	center.delegate = self;
 
 	// Combine standard alert and sound with the provisional option
-	UNAuthorizationOptions options = UNAuthorizationOptionAlert |
-									 UNAuthorizationOptionSound |
-									 UNAuthorizationOptionBadge |
-									 UNAuthorizationOptionProvisional;
+	UNAuthorizationOptions options =
+		UNAuthorizationOptionAlert |
+		UNAuthorizationOptionSound |
+		UNAuthorizationOptionBadge;
 
 	[center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError * _Nullable error) {
 		if (error) {

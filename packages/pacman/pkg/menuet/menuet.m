@@ -1,6 +1,7 @@
+#include <AppKit/NSImage.h>
 #import <Cocoa/Cocoa.h>
+#include <Foundation/Foundation.h>
 
-#import "NSImage+Resize.h"
 #import "AppDelegate.h"
 #import "menuet.h"
 
@@ -92,7 +93,9 @@ void menuClosed(const char *);
 			item.submenu = nil;
 		}
 		item.enabled = clickable || hasChildren;
-		item.image = [NSImage imageFromName:imageName withHeight:16];
+		NSImage *image = [NSImage imageNamed:imageName];
+		image.size = NSMakeSize(16, 16);
+		item.image = image;
 	}
 	while (self.numberOfItems > items.count) {
 		[self removeItemAtIndex:self.numberOfItems - 1];
@@ -144,18 +147,20 @@ void menuClosed(const char *);
 
 @end
 
-void setState(const char *jsonString) {
-	NSDictionary *state = [NSJSONSerialization JSONObjectWithData:[[NSString stringWithUTF8String:jsonString] dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+void setState(const char *cTitle, const char *cImageName) {
+	NSString *title;
+	NSString *imageName;
+	@autoreleasepool {
+		title = [NSString stringWithUTF8String:cTitle];
+		imageName = [NSString stringWithUTF8String:cImageName];
+	}
 	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *_statusItem = [AppDelegate sharedInstance].statusItem;
-		_statusItem.button.attributedTitle = [[NSAttributedString alloc] initWithString:state[@"Title"] attributes:@{
-			NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:14 weight:NSFontWeightRegular],
-		}];
-		NSString *imageName = state[@"Image"];
-		NSImage *image = [NSImage imageFromName:imageName withHeight:22];
-		_statusItem.button.image = image;
-		_statusItem.button.image.template = true;
-		_statusItem.button.imagePosition = NSImageLeft;
+		NSStatusItem *statusItem = [AppDelegate sharedInstance].statusItem;
+		NSImage *image = [NSImage imageNamed:imageName];
+		image.size = NSMakeSize(20, 20);
+		image.template = true;
+		statusItem.button.image = image;
+		statusItem.button.imagePosition = NSImageLeft;
 	});
 }
 

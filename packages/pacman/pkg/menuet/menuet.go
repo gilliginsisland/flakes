@@ -14,17 +14,16 @@ import "C"
 import (
 	"encoding/json"
 	"log"
-	"reflect"
-	"time"
 	"unsafe"
 )
 
-// SetMenuState changes what is shown in the dropdown
+// SetMenuState changes what is shown in the status bar
 func (a *Application) SetMenuState(state *MenuState) {
-	if reflect.DeepEqual(a.currentState, state) {
-		return
-	}
-	go a.sendState(state)
+	titleStr := C.CString(string(state.Title))
+	imageStr := C.CString(string(state.Image))
+	defer C.free(unsafe.Pointer(titleStr))
+	defer C.free(unsafe.Pointer(imageStr))
+	C.setState(titleStr, imageStr)
 }
 
 // MenuChanged refreshes any open menus
@@ -36,34 +35,6 @@ func (a *Application) MenuChanged() {
 type MenuState struct {
 	Title string
 	Image string // // In Resources dir or URL, should have height 22
-}
-
-func (a *Application) sendState(state *MenuState) {
-	a.debounceMutex.Lock()
-	a.nextState = state
-	if a.pendingStateChange {
-		a.debounceMutex.Unlock()
-		return
-	}
-	a.pendingStateChange = true
-	a.debounceMutex.Unlock()
-	time.Sleep(100 * time.Millisecond)
-	a.debounceMutex.Lock()
-	a.pendingStateChange = false
-	if reflect.DeepEqual(a.currentState, a.nextState) {
-		a.debounceMutex.Unlock()
-		return
-	}
-	a.currentState = a.nextState
-	a.debounceMutex.Unlock()
-	b, err := json.Marshal(a.currentState)
-	if err != nil {
-		log.Printf("Marshal: %v (%+v)", err, a.currentState)
-		return
-	}
-	cstr := C.CString(string(b))
-	C.setState(cstr)
-	C.free(unsafe.Pointer(cstr))
 }
 
 func (a *Application) clicked(unique string) {

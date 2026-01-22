@@ -29,10 +29,6 @@ type Application struct {
 
 	NotificationResponder func(NotificationResponse)
 
-	currentState          *MenuState
-	nextState             *MenuState
-	pendingStateChange    bool
-	debounceMutex         sync.Mutex
 	visibleMenuItemsMutex sync.RWMutex
 	visibleMenuItems      map[string]internalItem
 
