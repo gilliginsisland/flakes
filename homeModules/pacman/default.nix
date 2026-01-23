@@ -3,7 +3,7 @@
 with lib;
 
 let
-  inherit(import ../.. { inherit pkgs; }) pacman;
+  inherit(import ../.. { inherit pkgs; }) pacman-app;
 
   cfg = config.programs.pacman;
 
@@ -96,8 +96,6 @@ let
     appsDir =
       if config.targets.darwin.copyApps.enable
       then "${config.home.homeDirectory}/${config.targets.darwin.copyApps.directory}"
-      else if config.targets.darwin.linkApps.enable
-      then "${config.home.homeDirectory}/${config.targets.darwin.linkApps.directory}"
       else "${cfg.package}/Applications";
     in "${appsDir}/PACman.app/Contents/MacOS/PACman";
 in {
@@ -156,7 +154,7 @@ in {
         You can pass a custom derivation here directly.
       '';
       type = types.package;
-      default = pacman;
+      default = pacman-app;
     };
   };
 
@@ -182,11 +180,14 @@ in {
       config = {
         Label = "io.github.gilliginsisland.pacman";
         KeepAlive = true;
+        RunAtLoad = true;
         ProcessType = "Interactive";
         ProgramArguments = [
-          "${app}" "proxy" "--launchd"
+          "${app}"
         ] ++ optionals (loglevel != null) [
           "--verbosity" loglevel
+        ] ++ [
+          "proxy" "--launchd"
         ];
         Sockets = {
           Socket = {
