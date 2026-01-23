@@ -43,9 +43,10 @@ var NotificationCategories = []menuet.NotificationCategory{
 }
 
 type callbacks struct {
-	url *url.URL
-	ctx context.Context
-	cp  openconnect.CredentialsProcessor
+	url   *url.URL
+	ctx   context.Context
+	cp    openconnect.CredentialsProcessor
+	label string
 }
 
 func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
@@ -62,19 +63,19 @@ func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
 	}
 	slog.Log(
 		context.Background(), l, message,
-		slog.String("proxy", cb.url.Redacted()),
+		slog.String("proxy", cb.label),
 	)
 }
 
 func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
-	xtras = append(xtras, slog.String("proxy", cb.url.Redacted()))
+	xtras = append(xtras, slog.String("proxy", cb.label))
 	slog.LogAttrs(context.Background(), slog.LevelDebug, msg, xtras...)
 }
 
 func (cb *callbacks) ExternalBrowser(uri string) error {
 	resp, err := notify.NotifyCtx(cb.ctx, notify.Notification{
 		CategoryIdentifier: "external-browser-auth",
-		Title:              cb.label(),
+		Title:              cb.label,
 		Subtitle:           "Authentication Required",
 		Body:               "Click to complete authentication in browser",
 	})
@@ -93,7 +94,7 @@ func (cb *callbacks) ExternalBrowser(uri string) error {
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormResult {
 	if form.Error != "" {
 		notify.Notify(notify.Notification{
-			Title:    cb.label(),
+			Title:    cb.label,
 			Subtitle: "Authentication Error",
 			Body:     form.Error,
 		})
@@ -106,7 +107,7 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	if cb.url.Query().Get("token") == "otp" {
 		resp, err := notify.NotifyCtx(cb.ctx, notify.Notification{
 			CategoryIdentifier: "yubi-auth",
-			Title:              cb.label(),
+			Title:              cb.label,
 			Subtitle:           "Authentication Required",
 			Body:               "Enter YubiKey OTP",
 		})
@@ -121,7 +122,7 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 		case menuet.DefaultActionIdentifier:
 			resp, err := menuet.DisplayCtx(cb.ctx, menuet.Alert{
 				MessageText:     "YubiKey OTP Authentication Required",
-				InformativeText: fmt.Sprintf("The proxy %s requires YubiKey OTP", cb.label()),
+				InformativeText: fmt.Sprintf("The proxy %s requires YubiKey OTP", cb.label),
 				Inputs: []string{
 					"Enter YubiKey OTP",
 				},
@@ -146,14 +147,6 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	return result
 }
 
-func (cb *callbacks) label() string {
-	l, _ := cb.ctx.Value("label").(string)
-	if l == "" {
-		l = cb.url.Redacted()
-	}
-	return l
-}
-
 type Dialer struct {
 	*stackutil.Dialer
 	*openconnect.Conn
@@ -163,6 +156,11 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 	cb := callbacks{
 		url: u,
 		ctx: ctx,
+	}
+	if l, _ := cb.ctx.Value("label").(string); l != "" {
+		cb.label = l
+	} else {
+		cb.label = cb.url.Redacted()
 	}
 
 	var csd string
