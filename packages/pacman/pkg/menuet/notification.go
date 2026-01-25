@@ -21,18 +21,13 @@ var (
 type NotificationCategoryOptions int
 
 const (
-	CategoryOptionNone               NotificationCategoryOptions = 0
-	CategoryOptionCustomDismiss      NotificationCategoryOptions = 1 << 0
-	CategoryOptionAllowInCarPlay     NotificationCategoryOptions = 1 << 1
-	CategoryOptionHiddenPreviewsBody NotificationCategoryOptions = 1 << 2
+	CategoryOptionNone          NotificationCategoryOptions = C.UNNotificationCategoryOptionNone
+	CategoryOptionCustomDismiss                             = C.UNNotificationCategoryOptionCustomDismissAction
 )
 
-// NotificationInputType represents the type of input for a notification action
-type NotificationInputType int
-
 const (
-	NotificationInputTypeNone NotificationInputType = 0
-	NotificationInputTypeText NotificationInputType = 1
+	notificationInputTypeNone = C.NotificationInputTypeNone
+	notificationInputTypeText = C.NotificationInputTypeText
 )
 
 // NotificationAction represents a base UNNotificationAction
@@ -49,7 +44,7 @@ func (n NotificationAction) action() *C.NotificationAction {
 
 func (n NotificationAction) apply(action *C.NotificationAction) {
 	*action = C.NotificationAction{
-		inputType:  C.int(NotificationInputTypeNone),
+		inputType:  notificationInputTypeNone,
 		identifier: C.CString(n.Identifier),
 		title:      C.CString(n.Title),
 	}
@@ -74,7 +69,7 @@ func (n NotificationActionText) apply(action *C.NotificationActionText) {
 		placeholder: C.CString(n.TextInputPlaceholder),
 	}
 	n.NotificationAction.apply(&action.action)
-	action.action.inputType = C.int(NotificationInputTypeText)
+	action.action.inputType = notificationInputTypeText
 }
 
 // NotificationCategory represents a UNNotificationCategory
