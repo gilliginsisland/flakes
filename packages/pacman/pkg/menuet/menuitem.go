@@ -25,14 +25,16 @@ const (
 type MenuItem struct {
 	Type ItemType
 
-	Text       string
-	Image      string // In Resources dir or URL, should have height 16
-	FontSize   int    // Default: 14
-	FontWeight FontWeight
-	State      bool // shows checkmark when set
+	Image string // In Resources dir or URL, should have height 16
 
-	Clicked  func()            `json:"-"`
-	Children func() []MenuItem `json:"-"`
+	Text       string
+	FontSize   int // Default: 14
+	FontWeight FontWeight
+
+	State bool // shows checkmark when set
+
+	Clicked  func()
+	Children func() []MenuItem
 }
 
 type internalItem struct {
@@ -70,12 +72,8 @@ func (a *Application) children(unique string) []internalItem {
 			Unique:       newUnique,
 			ParentUnique: unique,
 			MenuItem:     item,
-		}
-		if internal.Children != nil {
-			internal.HasChildren = true
-		}
-		if internal.Clicked != nil {
-			internal.Clickable = true
+			HasChildren:  item.Children != nil,
+			Clickable:    item.Clicked != nil,
 		}
 		a.visibleMenuItems[newUnique] = internal
 		internalItems[ind] = internal
