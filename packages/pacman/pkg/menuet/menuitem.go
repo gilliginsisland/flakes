@@ -4,8 +4,6 @@ import (
 	"log"
 	"strings"
 	"time"
-
-	"github.com/caseymrm/askm"
 )
 
 // ItemType represents what type of menu item this is
@@ -67,7 +65,7 @@ func (a *Application) children(unique string) []internalItem {
 	internalItems := make([]internalItem, len(items))
 	for ind, item := range items {
 		a.visibleMenuItemsMutex.Lock()
-		newUnique := askm.ArbitraryKeyNotInMap(a.visibleMenuItems)
+		newUnique := randomKeyNotInMap(a.visibleMenuItems)
 		internal := internalItem{
 			Unique:       newUnique,
 			ParentUnique: unique,
