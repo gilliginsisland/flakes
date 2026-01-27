@@ -9,12 +9,10 @@ require (
 	golang.org/x/net v0.49.0
 	golang.org/x/sys v0.40.0
 	golang.org/x/tools v0.41.0
-	gvisor.dev/gvisor v0.0.0-20260117034648-554030c7ed7e
+	gvisor.dev/gvisor v0.0.0-20260126192737-2b6c3a9b9100
 	sigs.k8s.io/yaml v1.6.0
 	tailscale.com v1.94.0
 )
-
-require github.com/caseymrm/askm v1.0.0
 
 require (
 	go.yaml.in/yaml/v2 v2.4.2 // indirect

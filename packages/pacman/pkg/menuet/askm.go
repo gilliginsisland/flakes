@@ -1,9 +1,7 @@
-package askm
+package menuet
 
 import (
-	"log"
 	"math/rand"
-	"reflect"
 	"time"
 )
 
@@ -17,7 +15,7 @@ const (
 var randomSource = rand.NewSource(time.Now().UnixNano())
 
 // RandomString returns a random string of the given length
-func RandomString(length int) string {
+func randomString(length int) string {
 	b := make([]byte, length)
 	for i, cache, remain := length-1, randomSource.Int63(), letterIndexMax; i >= 0; {
 		if remain == 0 {
@@ -34,26 +32,16 @@ func RandomString(length int) string {
 }
 
 // ArbitraryKeyNotInMap returns an arbitrary string key that is not yet used in the map
-func ArbitraryKeyNotInMap(mapWithStringKeys interface{}) string {
-	v := reflect.ValueOf(mapWithStringKeys)
-	if v.Kind() != reflect.Map {
-		log.Printf("Warning, %T is not a map with string keys (%v)", mapWithStringKeys, mapWithStringKeys)
-		return RandomString(10)
-	}
-	length := 3 + v.Len()/len(letterBytes)
-	key := RandomString(length)
-	count := 0
-	for {
-		keyVal := v.MapIndex(reflect.ValueOf(key))
-		if keyVal.Kind() == reflect.Invalid {
-			break
+func randomKeyNotInMap[V any](m map[string]V) string {
+	length := 3 + len(m)/len(letterBytes)
+	for count := 0; ; count++ {
+		key := randomString(length)
+		if _, exists := m[key]; !exists {
+			return key
 		}
-		key = RandomString(length)
-		count++
 		if count > length*len(letterBytes) {
 			// This map must be quite full
 			length++
 		}
 	}
-	return key
 }
