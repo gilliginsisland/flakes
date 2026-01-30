@@ -11,12 +11,7 @@ func (m *Map[K, V]) Store(key K, value V) {
 }
 
 func (m *Map[K, V]) Load(key K) (V, bool) {
-	val, ok := m.Map.Load(key)
-	if !ok {
-		var zero V
-		return zero, false
-	}
-	return val.(V), true
+	return m.zero(m.Map.Load(key))
 }
 
 func (m *Map[K, V]) Delete(key K) {
@@ -24,26 +19,15 @@ func (m *Map[K, V]) Delete(key K) {
 }
 
 func (m *Map[K, V]) LoadOrStore(key K, value V) (V, bool) {
-	actual, loaded := m.Map.LoadOrStore(key, value)
-	return actual.(V), loaded
+	return m.zero(m.Map.LoadOrStore(key, value))
 }
 
 func (m *Map[K, V]) LoadAndDelete(key K) (V, bool) {
-	val, loaded := m.Map.LoadAndDelete(key)
-	if !loaded {
-		var zero V
-		return zero, false
-	}
-	return val.(V), true
+	return m.zero(m.Map.LoadAndDelete(key))
 }
 
 func (m *Map[K, V]) Swap(key K, value V) (V, bool) {
-	prev, loaded := m.Map.Swap(key, value)
-	if !loaded {
-		var zero V
-		return zero, false
-	}
-	return prev.(V), true
+	return m.zero(m.Map.Swap(key, value))
 }
 
 func (m *Map[K, V]) CompareAndDelete(key K, old V) bool {
@@ -52,4 +36,17 @@ func (m *Map[K, V]) CompareAndDelete(key K, old V) bool {
 
 func (m *Map[K, V]) CompareAndSwap(key K, old, new V) bool {
 	return m.Map.CompareAndSwap(key, old, new)
+}
+
+func (m *Map[K, V]) zero(val any, loaded bool) (V, bool) {
+	if val != nil {
+		return val.(V), loaded
+	}
+	if loaded {
+		// this logically this cannot happen. any value stored in the map would be non nil.
+		// even a nil would be typed and not nil.
+		panic("loaded value cannot be nil")
+	}
+	var zero V
+	return zero, false
 }

@@ -1,28 +1,26 @@
 package menuet
 
+/*
+#cgo CFLAGS: -x objective-c -fobjc-arc
+#cgo LDFLAGS: -framework Cocoa
+
+#import "menuet.h"
+
+*/
+import "C"
+
 import (
-	"log"
-	"strings"
-	"time"
+	"crypto/rand"
+	"sync/atomic"
+	"unsafe"
+
+	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
-// ItemType represents what type of menu item this is
-type ItemType string
-
-const (
-	// Regular is a normal item with text and optional callback
-	Regular ItemType = ""
-	// Separator is a horizontal line
-	Separator = "separator"
-	// Root is the top level menu directly off the menubar
-	Root = "root"
-	// TODO: StartAtLogin, Quit, Image, Spinner, etc
-)
+var menuitems syncutil.WeakMap[string, MenuItem]
 
 // MenuItem represents one item in the dropdown
 type MenuItem struct {
-	Type ItemType
-
 	Image string // In Resources dir or URL, should have height 16
 
 	Text       string
@@ -32,64 +30,70 @@ type MenuItem struct {
 	State bool // shows checkmark when set
 
 	Clicked  func()
-	Children func() []MenuItem
+	Children func() []Itemer
+
+	unique atomic.Pointer[string]
 }
 
-type internalItem struct {
-	Unique       string
-	ParentUnique string
-	HasChildren  bool
-	Clickable    bool
-
-	MenuItem
-}
-
-func (a *Application) children(unique string) []internalItem {
-	a.visibleMenuItemsMutex.RLock()
-	item, ok := a.visibleMenuItems[unique]
-	a.visibleMenuItemsMutex.RUnlock()
-	if strings.HasSuffix(unique, ":root") {
-		// Create synthetic item
-		item.Unique = unique
-		item.Type = Root
-		item.Children = a.Children
-		ok = true
-	}
-	if !ok {
-		log.Printf("Item not found for children: %s", unique)
-	}
-	var items []MenuItem
-	if item.Children != nil {
-		items = item.Children()
-	}
-	internalItems := make([]internalItem, len(items))
-	for ind, item := range items {
-		a.visibleMenuItemsMutex.Lock()
-		newUnique := randomKeyNotInMap(a.visibleMenuItems)
-		internal := internalItem{
-			Unique:       newUnique,
-			ParentUnique: unique,
-			MenuItem:     item,
-			HasChildren:  item.Children != nil,
-			Clickable:    item.Clicked != nil,
+func (i *MenuItem) item() *C.MenuItem {
+	var unique string
+	if ptr := i.unique.Load(); ptr != nil {
+		unique = *ptr
+	} else {
+		key := menuitems.StoreRandom(i, rand.Text)
+		if i.unique.CompareAndSwap(nil, &key) {
+			unique = key
+		} else {
+			menuitems.Delete(key)
+			unique = *i.unique.Load()
 		}
-		a.visibleMenuItems[newUnique] = internal
-		internalItems[ind] = internal
-		a.visibleMenuItemsMutex.Unlock()
 	}
-	return internalItems
+	item := (*C.MenuItemRegular)(unsafe.Pointer(C.make_menu_item(C.MenuItemTypeRegular)))
+	item.item.unique = C.CString(unique)
+	*item = C.MenuItemRegular{
+		item:       item.item,
+		imageName:  C.CString(i.Image),
+		text:       C.CString(i.Text),
+		fontSize:   C.int(i.FontSize),
+		fontWeight: C.float(i.FontWeight),
+		state:      C.bool(i.State),
+		clickable:  C.bool(i.Clicked != nil),
+	}
+	if i.Children != nil {
+		item.submenu = toMenuItems(i.Children())
+	}
+	return &item.item
 }
 
-func (a *Application) menuClosed(unique string) {
-	go func() {
-		// We receive menuClosed before clicked, so wait a second before discarding the data just in case
-		time.Sleep(100 * time.Millisecond)
-		a.visibleMenuItemsMutex.Lock()
-		for itemUnique, item := range a.visibleMenuItems {
-			if item.ParentUnique == unique {
-				delete(a.visibleMenuItems, itemUnique)
-			}
-		}
-		a.visibleMenuItemsMutex.Unlock()
-	}()
+type MenuItemSeparator struct{}
+
+func (i *MenuItemSeparator) item() *C.MenuItem {
+	return C.make_menu_item(C.MenuItemTypeSeparator)
+}
+
+type MenuItemSectionHeader struct {
+	Text string
+}
+
+func (i *MenuItemSectionHeader) item() *C.MenuItem {
+	item := (*C.MenuItemSectionHeader)(unsafe.Pointer(C.make_menu_item(C.MenuItemTypeSectionHeader)))
+	*item = C.MenuItemSectionHeader{
+		item: item.item,
+		text: C.CString(i.Text),
+	}
+	return &item.item
+}
+
+type Itemer interface {
+	item() *C.MenuItem
+}
+
+func toMenuItems(items []Itemer) *C.MenuItem {
+	var node *C.MenuItem
+	curr := &node
+	for _, item := range items {
+		*curr = item.item()
+		curr = &(*curr).next
+	}
+	return node
 }

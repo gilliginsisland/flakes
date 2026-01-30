@@ -4,19 +4,17 @@ struct AlertNode {
 };
 typedef struct AlertNode AlertNode;
 
-struct Alert {
+typedef struct Alert {
 	char* messageText;
 	char* informativeText;
 	AlertNode* buttons;
 	AlertNode* inputs;
-};
-typedef struct Alert Alert;
+} Alert;
 
-struct AlertResponse {
+typedef struct AlertResponse {
 	int button;
 	AlertNode* inputs;
-};
-typedef struct AlertResponse AlertResponse;
+} AlertResponse;
 
 Alert* make_alert();
 void destroy_alert(Alert* alert);

@@ -1,46 +1,44 @@
-#import <UserNotifications/UserNotifications.h>
+#import <Foundation/Foundation.h>
+#import <UserNotifications/UNUserNotificationCenter.h>
 
-#define NotificationInputTypeNone 0
-#define NotificationInputTypeText 1
+typedef enum NotificationInputType {
+	NotificationInputTypeNone,
+	NotificationInputTypeText,
+} NotificationInputType;
 
-struct NotificationAction {
+typedef struct NotificationAction {
 	struct NotificationAction* next;
-	int inputType;
+	NotificationInputType inputType;
 	char* identifier;
 	char* title;
-};
-typedef struct NotificationAction NotificationAction;
+} NotificationAction;
 
-struct NotificationActionText {
+typedef struct NotificationActionText {
 	NotificationAction action;
 	char* buttonTitle;
 	char* placeholder;
-};
-typedef struct NotificationActionText NotificationActionText;
+} NotificationActionText;
 
-struct NotificationCategory {
+typedef struct NotificationCategory {
 	struct NotificationCategory* next;
 	char* identifier;
 	NotificationAction* actions;
 	int options;
-};
-typedef struct NotificationCategory NotificationCategory;
+} NotificationCategory;
 
-struct Notification {
+typedef struct Notification {
 	char* categoryIdentifier;
 	char* identifier;
 	char* title;
 	char* subtitle;
 	char* body;
-};
-typedef struct Notification Notification;
+} Notification;
 
-struct NotificationResponse {
+typedef struct NotificationResponse {
 	char* notificationIdentifier;
 	char* actionIdentifier;
 	char* text;
-};
-typedef struct NotificationResponse NotificationResponse;
+} NotificationResponse;
 
 Notification* make_notification();
 void destroy_notification(Notification* notification);

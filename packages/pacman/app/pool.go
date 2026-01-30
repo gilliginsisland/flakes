@@ -10,11 +10,22 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
+	"github.com/gilliginsisland/pacman/pkg/iterutil"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 )
 
 type DialerPool map[string]*PooledDialer
+
+func (dp DialerPool) MenuItems() []menuet.Itemer {
+	items := make([]menuet.Itemer, len(dp))
+	var idx int
+	for _, pd := range iterutil.SortedMapIter(dp) {
+		items[idx] = pd.MenuItem()
+		idx++
+	}
+	return items
+}
 
 type PooledDialer struct {
 	Label  string
@@ -49,7 +60,7 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 	go func() {
 		for state, err := range pd.dialer.Subscribe {
 			if pd.state.Swap(int32(state)) != int32(state) {
-				menuet.App().MenuChanged()
+				go menuet.App().MenuChanged()
 				pd.notification(state, err)
 			}
 			if pd.ctx.Err() != nil {
@@ -60,15 +71,15 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 	return &pd
 }
 
-func (pd *PooledDialer) MenuItem() menuet.MenuItem {
+func (pd *PooledDialer) MenuItem() *menuet.MenuItem {
 	state := dialer.ConnectionState(pd.state.Load())
 
-	return menuet.MenuItem{
+	return &menuet.MenuItem{
 		Text: pd.icon(state) + " " + pd.Label,
-		Children: func() []menuet.MenuItem {
+		Children: func() []menuet.Itemer {
 			var child menuet.MenuItem
 			child.Text, child.Clicked = pd.action(state)
-			return []menuet.MenuItem{child}
+			return []menuet.Itemer{&child}
 		},
 	}
 }

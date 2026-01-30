@@ -32,7 +32,7 @@ func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 				return nil
 			}
 			keyPath := filepath.Join(homeDir, ".local", "state", "pacman", "ssh_host_key")
-			if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+			if err = os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
 				// fmt.Errorf("failed to create SSH key directory: %w", err)
 				return nil
 			}
