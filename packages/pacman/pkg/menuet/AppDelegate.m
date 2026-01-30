@@ -26,9 +26,7 @@ void goAppWillTerminate();
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
-    MenuetMenu *menu = [MenuetMenu new];
-    menu.root = true;
-    _statusItem.menu = menu;
+    _statusItem.menu = [MenuetMenu new];
     goAppDidFinishLaunching();
 }
 

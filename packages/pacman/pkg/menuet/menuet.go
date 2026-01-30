@@ -12,7 +12,6 @@ package menuet
 import "C"
 
 import (
-	"encoding/json"
 	"log"
 	"unsafe"
 )
@@ -23,12 +22,17 @@ func (a *Application) SetMenuState(state *MenuState) {
 	imageStr := C.CString(string(state.Image))
 	defer C.free(unsafe.Pointer(titleStr))
 	defer C.free(unsafe.Pointer(imageStr))
-	C.setState(titleStr, imageStr)
+	C.set_state(titleStr, imageStr)
 }
 
 // MenuChanged refreshes any open menus
 func (a *Application) MenuChanged() {
-	C.menuChanged()
+	if a.Children == nil {
+		return
+	}
+	a.menuItemsMu.Lock()
+	defer a.menuItemsMu.Unlock()
+	C.menu_changed(toMenuItems(a.Children()))
 }
 
 // MenuState represents the title and drop down,
@@ -38,40 +42,17 @@ type MenuState struct {
 }
 
 func (a *Application) clicked(unique string) {
-	a.visibleMenuItemsMutex.RLock()
-	item, ok := a.visibleMenuItems[unique]
-	a.visibleMenuItemsMutex.RUnlock()
-	if !ok {
+	a.menuItemsMu.RLock()
+	item := menuitems.Load(unique)
+	a.menuItemsMu.RUnlock()
+	if item == nil {
 		log.Printf("Item not found for click: %s", unique)
-	}
-	if item.Clicked != nil {
+	} else if item.Clicked != nil {
 		go item.Clicked()
 	}
 }
 
-//export itemClicked
-func itemClicked(uniqueCString *C.char) {
-	unique := C.GoString(uniqueCString)
-	App().clicked(unique)
-}
-
-//export children
-func children(uniqueCString *C.char) *C.char {
-	unique := C.GoString(uniqueCString)
-	items := App().children(unique)
-	if items == nil {
-		return nil
-	}
-	b, err := json.Marshal(items)
-	if err != nil {
-		log.Printf("Marshal: %v", err)
-		return nil
-	}
-	return C.CString(string(b))
-}
-
-//export menuClosed
-func menuClosed(uniqueCString *C.char) {
-	unique := C.GoString(uniqueCString)
-	App().menuClosed(unique)
+//export goItemClicked
+func goItemClicked(unique *C.char) {
+	App().clicked(C.GoString(unique))
 }

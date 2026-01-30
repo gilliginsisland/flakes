@@ -15,7 +15,7 @@ import "sync"
 var App = sync.OnceValue(func() *Application {
 	return &Application{
 		didFinishLaunching: make(chan struct{}),
-		visibleMenuItems:   make(map[string]internalItem),
+		menuItems:          make(map[string]*MenuItem),
 	}
 })
 
@@ -25,12 +25,12 @@ type Application struct {
 	Label string
 
 	// Children returns the top level children
-	Children func() []MenuItem
+	Children func() []Itemer
 
 	NotificationResponder func(NotificationResponse)
 
-	visibleMenuItemsMutex sync.RWMutex
-	visibleMenuItems      map[string]internalItem
+	menuItemsMu sync.RWMutex
+	menuItems   map[string]*MenuItem
 
 	didFinishLaunching chan struct{}
 }

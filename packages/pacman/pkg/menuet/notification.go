@@ -4,7 +4,6 @@ package menuet
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa -framework UserNotifications
 
-#import <Cocoa/Cocoa.h>
 #import <UserNotifications/UserNotifications.h>
 
 #import "notification.h"
@@ -25,11 +24,6 @@ const (
 	CategoryOptionCustomDismiss                             = C.UNNotificationCategoryOptionCustomDismissAction
 )
 
-const (
-	notificationInputTypeNone = C.NotificationInputTypeNone
-	notificationInputTypeText = C.NotificationInputTypeText
-)
-
 // NotificationAction represents a base UNNotificationAction
 type NotificationAction struct {
 	Identifier string
@@ -44,7 +38,7 @@ func (n NotificationAction) action() *C.NotificationAction {
 
 func (n NotificationAction) apply(action *C.NotificationAction) {
 	*action = C.NotificationAction{
-		inputType:  notificationInputTypeNone,
+		inputType:  C.NotificationInputTypeNone,
 		identifier: C.CString(n.Identifier),
 		title:      C.CString(n.Title),
 	}
@@ -69,7 +63,7 @@ func (n NotificationActionText) apply(action *C.NotificationActionText) {
 		placeholder: C.CString(n.TextInputPlaceholder),
 	}
 	n.NotificationAction.apply(&action.action)
-	action.action.inputType = notificationInputTypeText
+	action.action.inputType = C.NotificationInputTypeText
 }
 
 // NotificationCategory represents a UNNotificationCategory
