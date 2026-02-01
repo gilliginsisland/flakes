@@ -17,6 +17,12 @@ import (
 
 func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 	s := netutil.NewMuxServer()
+	s.HandleServer(netutil.SOCKS5Match, &socks5.Server{
+		Dialer: pd.DialContext,
+		Logf: func(format string, v ...any) {
+			slog.Debug(fmt.Sprintf(format, v...))
+		},
+	})
 	s.HandleServer(netutil.SSHMatch, &sshproxy.Server{
 		Dialer: pd.DialContext,
 		HostKey: func() ssh.Signer {
@@ -38,12 +44,6 @@ func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 
 			return s
 		}(),
-	})
-	s.HandleServer(netutil.SOCKS5Match, &socks5.Server{
-		Dialer: pd.DialContext,
-		Logf: func(format string, v ...any) {
-			slog.Debug(fmt.Sprintf(format, v...))
-		},
 	})
 	s.HandleServer(netutil.DefaultMatch, &httpproxy.Server{
 		Dialer: pd.DialContext,
