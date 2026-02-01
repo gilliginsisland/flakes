@@ -33,7 +33,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	slog.DebugContext(ctx,
-		"Serving request",
+		"Serving http request",
 		slog.String("method", r.Method),
 		slog.String("uri", r.RequestURI),
 	)
