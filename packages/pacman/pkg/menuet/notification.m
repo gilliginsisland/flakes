@@ -194,22 +194,19 @@ void show_notification(Notification* notification) {
 
 	[center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError * _Nullable error) {
 		if (error) {
-			NSLog(@"Error requesting authorization: %@", error);
+			NSLog(@"Error requesting notification authorization: %@", error);
 			[center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
-				NSLog(@"Current Authorization Status: %ld", (long)settings.authorizationStatus);
+				NSLog(@"Current Notification Authorization Status: %ld", (long)settings.authorizationStatus);
 				// 1 = Denied, 2 = Authorized, 3 = Provisional
 			}];
 			return;
 		}
-		if (granted) {
-			NSLog(@"Authorization granted (may be provisional).");
-		} else {
-			NSLog(@"Authorization denied.");
+		if (!granted) {
+			NSLog(@"Notification Authorization denied.");
 		}
 	}];
 
 	[center setNotificationCategories:self.categories];
-
 }
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
