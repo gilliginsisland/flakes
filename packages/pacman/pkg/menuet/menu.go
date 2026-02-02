@@ -1,80 +1,64 @@
 package menuet
 
-type Menuer interface {
-	MenuItems() []Itemer
-}
+/*
+#cgo CFLAGS: -x objective-c -fobjc-arc
+#cgo LDFLAGS: -framework Cocoa
+
+#import <Cocoa/Cocoa.h>
+
+#import "menuet.h"
+
+*/
+import "C"
 
 type Section struct {
 	Title   string
-	Content Menuer
+	Content Itemer
 }
 
-func (s *Section) MenuItems() []Itemer {
+func (s *Section) item() *C.MenuItem {
+	return toMenuItems([]Itemer{
+		&MenuItemSectionHeader{
+			Text: s.Title,
+		},
+		s.Content,
+	})
+}
+
+type Sections []Itemer
+
+func (ss Sections) item() *C.MenuItem {
 	var children []Itemer
-	if s.Content != nil {
-		children = s.Content.MenuItems()
-	}
-	items := make([]Itemer, 1+len(children))
-	items[0] = &MenuItemSectionHeader{
-		Text: s.Title,
-	}
-	copy(items[1:], children)
-	return items
-}
-
-type Sections []Menuer
-
-func (ss Sections) MenuItems() []Itemer {
-	var children [][]Itemer
-	if n := len(ss); n == 0 {
+	n := len(ss)
+	if n == 0 {
 		return nil
-	} else {
-		children = make([][]Itemer, n)
 	}
+	children = make([]Itemer, n*2)
 
-	var total int
 	for i, m := range ss {
-		items := m.MenuItems()
-		children[i] = items
-		total += len(items) + 1 // +1 for separator
+		children[i*2] = m
+		children[i*2+1] = &MenuItemSeparator{}
 	}
 
-	out := make([]Itemer, total)
-	idx := 0
-	for _, items := range children {
-		copy(out[idx:], items)
-		idx += len(items)
-		out[idx] = &MenuItemSeparator{}
-		idx++
-	}
-	// remove last separator
-	out = out[:total-1]
-
-	return out
+	return toMenuItems(children[0 : n*2-1])
 }
 
-type StaticItem MenuItem
-
-func (item *StaticItem) MenuItems() []Itemer {
-	return []Itemer{
-		(*MenuItem)(item),
-	}
-}
+type StaticItem = MenuItem
 
 type StaticItems []Itemer
 
-func (s StaticItems) MenuItems() []Itemer {
-	return s
+func (s StaticItems) item() *C.MenuItem {
+	return toMenuItems(s)
 }
 
 type DynamicItem func() Itemer
 
-func (f DynamicItem) MenuItems() []Itemer {
-	return []Itemer{f()}
+func (f DynamicItem) item() *C.MenuItem {
+	return f().item()
 }
 
 type DynamicItems func() []Itemer
 
-func (f DynamicItems) MenuItems() []Itemer {
-	return f()
+func (f DynamicItems) item() *C.MenuItem {
+	return toMenuItems(f())
 }

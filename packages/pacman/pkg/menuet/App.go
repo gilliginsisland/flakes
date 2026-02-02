@@ -24,8 +24,7 @@ type Application struct {
 	Name  string
 	Label string
 
-	// Children returns the top level children
-	Children func() []Itemer
+	Menu Itemer
 
 	NotificationResponder func(NotificationResponse)
 
