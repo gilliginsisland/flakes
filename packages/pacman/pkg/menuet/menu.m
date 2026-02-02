@@ -82,7 +82,7 @@ void destroy_menu_items(MenuItem* item) {
 			NSString* title = headerNode->text ? [NSString stringWithUTF8String:headerNode->text] : @"";
 			if (!item.sectionHeader) {
 				[self insertItem:[NSMenuItem sectionHeaderWithTitle:title] atIndex:i];
-			} else if (![item.representedObject isEqual:title]) {
+			} else if (![item.title isEqual:title]) {
 				item.title = title;
 			}
 			continue;
