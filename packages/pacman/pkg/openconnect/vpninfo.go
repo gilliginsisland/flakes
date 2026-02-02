@@ -22,6 +22,8 @@ package openconnect
 #cgo noescape openconnect_obtain_cookie
 #cgo noescape openconnect_setup_cmd_pipe
 #cgo noescape openconnect_make_cstp_connection
+#cgo noescape openconnect_get_cookie
+#cgo noescape openconnect_set_cookie
 
 #cgo nocallback go_mainloop
 
@@ -255,6 +257,18 @@ func (v *VpnInfo) SetDPD(min_seconds int) {
 
 func (v *VpnInfo) ObtainCookie() error {
 	return ocErrno("obtain cookie", C.openconnect_obtain_cookie(v.vpninfo))
+}
+
+// GetCookie retrieves the authentication cookie from the VPN session.
+func (v *VpnInfo) GetCookie() string {
+	return C.GoString(C.openconnect_get_cookie(v.vpninfo))
+}
+
+// SetCookie sets the authentication cookie for the VPN session.
+func (v *VpnInfo) SetCookie(cookie string) error {
+	cstr := C.CString(cookie)
+	defer C.free(unsafe.Pointer(cstr))
+	return ocErrno("set cookie", C.openconnect_set_cookie(v.vpninfo, cstr))
 }
 
 func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {
