@@ -80,17 +80,11 @@ void destroy_menu_items(MenuItem* item) {
 		} else if (head->type == MenuItemTypeSectionHeader) {
 			MenuItemSectionHeader* headerNode = (MenuItemSectionHeader*)head;
 			NSString* title = headerNode->text ? [NSString stringWithUTF8String:headerNode->text] : @"";
-			NSLog(@"Doing Section header with title: %@", title);
 			if (!item.sectionHeader) {
-				item = [NSMenuItem sectionHeaderWithTitle:title];
-				NSLog(@"Made Section header item with title: %@", item.title);
-				// item.representedObject = title;
-				[self insertItem:item atIndex:i];
+				[self insertItem:[NSMenuItem sectionHeaderWithTitle:title] atIndex:i];
 			} else if (![item.representedObject isEqual:title]) {
-				NSLog(@"Section header title does not match");
 				item.title = title;
 			}
-			NSLog(@"Did Section header with title: %@", title);
 			continue;
 		}
 
