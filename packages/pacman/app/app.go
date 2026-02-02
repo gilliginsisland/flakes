@@ -24,7 +24,7 @@ type PACMan struct {
 	dialer   dialer.ByHost
 	listener net.Listener
 	server   netutil.Server
-	menu     menuet.Menuer
+	menu     menuet.Itemer
 	mu       sync.Mutex
 }
 
@@ -90,11 +90,11 @@ func run(config Path, l net.Listener) error {
 		},
 		&menuet.Section{
 			Title:   "Proxies",
-			Content: pacman.pool,
+			Content: menuet.DynamicItems(pacman.pool.MenuItems),
 		},
-		&menuet.StaticItem{
+		&menuet.MenuItem{
 			Text: "Settings",
-			Children: (menuet.StaticItems{
+			Submenu: (menuet.StaticItems{
 				&menuet.MenuItem{
 					Text:    "Edit",
 					Clicked: pacman.OpenConfig,
@@ -103,7 +103,7 @@ func run(config Path, l net.Listener) error {
 					Text:    "Reload",
 					Clicked: pacman.ReloadConfig,
 				},
-			}).MenuItems,
+			}),
 		},
 		&menuet.StaticItem{
 			Text:    "Quit",
@@ -115,7 +115,7 @@ func run(config Path, l net.Listener) error {
 		return err
 	}
 
-	app.Children = pacman.menu.MenuItems
+	app.Menu = pacman.menu
 	go app.MenuChanged()
 	slog.Info("PACman server listening", slog.String("address", l.Addr().String()))
 	err = pacman.server.Serve(l)

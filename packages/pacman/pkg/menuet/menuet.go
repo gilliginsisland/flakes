@@ -27,12 +27,12 @@ func (a *Application) SetMenuState(state *MenuState) {
 
 // MenuChanged refreshes any open menus
 func (a *Application) MenuChanged() {
-	if a.Children == nil {
+	if a.Menu == nil {
 		return
 	}
 	a.menuItemsMu.Lock()
 	defer a.menuItemsMu.Unlock()
-	C.menu_changed(toMenuItems(a.Children()))
+	C.menu_changed(a.Menu.item())
 }
 
 // MenuState represents the title and drop down,

@@ -74,13 +74,12 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 func (pd *PooledDialer) MenuItem() *menuet.MenuItem {
 	state := dialer.ConnectionState(pd.state.Load())
 
+	var child menuet.MenuItem
+	child.Text, child.Clicked = pd.action(state)
+
 	return &menuet.MenuItem{
-		Text: pd.icon(state) + " " + pd.Label,
-		Children: func() []menuet.Itemer {
-			var child menuet.MenuItem
-			child.Text, child.Clicked = pd.action(state)
-			return []menuet.Itemer{&child}
-		},
+		Text:    pd.icon(state) + " " + pd.Label,
+		Submenu: &child,
 	}
 }
 

@@ -29,8 +29,8 @@ type MenuItem struct {
 
 	State bool // shows checkmark when set
 
-	Clicked  func()
-	Children func() []Itemer
+	Clicked func()
+	Submenu Itemer
 
 	unique atomic.Pointer[string]
 }
@@ -59,8 +59,8 @@ func (i *MenuItem) item() *C.MenuItem {
 		state:      C.bool(i.State),
 		clickable:  C.bool(i.Clicked != nil),
 	}
-	if i.Children != nil {
-		item.submenu = toMenuItems(i.Children())
+	if i.Submenu != nil {
+		item.submenu = i.Submenu.item()
 	}
 	return &item.item
 }
@@ -89,11 +89,13 @@ type Itemer interface {
 }
 
 func toMenuItems(items []Itemer) *C.MenuItem {
-	var node *C.MenuItem
-	curr := &node
+	var head *C.MenuItem
+	tail := &head
 	for _, item := range items {
-		*curr = item.item()
-		curr = &(*curr).next
+		*tail = item.item()
+		for (*tail) != nil {
+			tail = &(*tail).next
+		}
 	}
-	return node
+	return head
 }
