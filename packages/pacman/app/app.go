@@ -201,7 +201,7 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 		delete(pacman.pool, k)
 		defer pd.Close()
 	}
-	go menuet.App().MenuChanged()
+	menuet.App().MenuChanged()
 
 	return nil
 }

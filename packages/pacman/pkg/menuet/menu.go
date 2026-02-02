@@ -11,7 +11,7 @@ import "C"
 
 import (
 	"crypto/rand"
-	"log"
+	"log/slog"
 	"sync/atomic"
 	"unsafe"
 
@@ -161,14 +161,16 @@ type MenuState struct {
 }
 
 func (a *Application) clicked(unique string) {
-	a.menuItemsMu.RLock()
 	item := menuitems.Load(unique)
-	a.menuItemsMu.RUnlock()
 	if item == nil {
-		log.Printf("Item not found for click: %s", unique)
-	} else if item.Clicked != nil {
-		go item.Clicked()
+		slog.Debug("Item not found for click", slog.String("unique", unique))
+		return
 	}
+	if item.Clicked == nil {
+		slog.Debug("Item has no click handler", slog.String("unique", unique))
+		return
+	}
+	go item.Clicked()
 }
 
 //export goItemClicked
