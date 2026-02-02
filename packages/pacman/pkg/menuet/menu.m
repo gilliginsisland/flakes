@@ -5,7 +5,7 @@
 #import <Cocoa/Cocoa.h>
 
 #import "AppDelegate.h"
-#import "menuet.h"
+#import "menu.h"
 
 void goItemClicked(const char *);
 

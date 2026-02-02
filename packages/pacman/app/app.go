@@ -94,7 +94,7 @@ func run(config Path, l net.Listener) error {
 		},
 		&menuet.MenuItem{
 			Text: "Settings",
-			Submenu: (menuet.StaticItems{
+			Submenu: (menuet.MenuItems{
 				&menuet.MenuItem{
 					Text:    "Edit",
 					Clicked: pacman.OpenConfig,
@@ -105,7 +105,7 @@ func run(config Path, l net.Listener) error {
 				},
 			}),
 		},
-		&menuet.StaticItem{
+		&menuet.MenuItem{
 			Text:    "Quit",
 			Clicked: app.Terminate,
 		},
