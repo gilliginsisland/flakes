@@ -141,12 +141,16 @@ func (pacman *PACMan) ReloadConfig() {
 	if err == nil {
 		err = pacman.LoadConfig(cfg)
 	}
-	if err == nil {
+	if err != nil {
+		notify.Notify(notify.Notification{
+			Title: "Config Reload Error",
+			Body:  err.Error(),
+		})
 		return
 	}
 	notify.Notify(notify.Notification{
-		Title: "Config Reload Error",
-		Body:  err.Error(),
+		Subtitle: "Config Reloaded",
+		Body:     "The configuration was successfully reloaded.",
 	})
 }
 
