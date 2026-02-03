@@ -172,7 +172,7 @@ void update_status_item(StatusItem* item) {
 		NSString *uniqueStr = item->unique ? [NSString stringWithUTF8String:item->unique] : nil;
 		NSString *imageName = item->imageName ? [NSString stringWithUTF8String:item->imageName] : nil;
 		NSString *title = item->title ? [NSString stringWithUTF8String:item->title] : nil;
-		dispatch_async(dispatch_get_main_queue(), ^{
+		[[NSRunLoop mainRunLoop] performInModes:@[NSRunLoopCommonModes] block: ^{
 			if (_statusItems == nil) {
 				_statusItems = [NSMutableDictionary new];
 			}
@@ -201,7 +201,7 @@ void update_status_item(StatusItem* item) {
 			}
 			// Destroy the entire struct after use in the main thread
 			destroy_status_item(item);
-		});
+		}];
 	}
 }
 
@@ -209,7 +209,7 @@ void update_status_item(StatusItem* item) {
 void remove_status_item(const char *unique) {
 	@autoreleasepool {
 		NSString *uniqueStr = [NSString stringWithUTF8String:unique];
-		dispatch_async(dispatch_get_main_queue(), ^{
+		[[NSRunLoop mainRunLoop] performInModes:@[NSRunLoopCommonModes] block: ^{
 			if (_statusItems == nil) {
 				return;
 			}
@@ -219,6 +219,6 @@ void remove_status_item(const char *unique) {
 			}
 			[[NSStatusBar systemStatusBar] removeStatusItem:statusItem];
 			[_statusItems removeObjectForKey:uniqueStr];
-		});
+		}];
 	}
 }
