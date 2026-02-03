@@ -55,7 +55,7 @@ type AuthForm struct {
 	Options   []FormOption
 }
 
-//go:generate go run ./vendor/golang.org/x/tools/cmd/stringer -type=FormResult -trimprefix=FormResult
+//go:generate go tool stringer -type=FormResult -trimprefix=FormResult
 type FormResult int
 
 const (

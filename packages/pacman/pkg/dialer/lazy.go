@@ -25,6 +25,7 @@ type waiter interface {
 	Wait() error
 }
 
+//go:generate go tool stringer -type=ConnectionState
 type ConnectionState int
 
 const (

@@ -1,3 +1,4 @@
+#include <AppKit/AppKit.h>
 #include <Foundation/Foundation.h>
 #include <Foundation/NSObjCRuntime.h>
 #include <stdlib.h>
@@ -40,6 +41,7 @@ void destroy_menu_items(MenuItem* item) {
 				MenuItemRegular* regular = (MenuItemRegular*)item;
 				free(regular->text);
 				free(regular->subtitle);
+				free(regular->badge);
 				free(regular->imageName);
 				destroy_menu_items(regular->submenu);
 				break;
@@ -110,6 +112,7 @@ void destroy_menu_items(MenuItem* item) {
 			}];
 		}
 		item.subtitle = regular->subtitle ? [NSString stringWithUTF8String:regular->subtitle] : nil;
+		item.badge = regular->badge ? [[NSMenuItemBadge alloc] initWithString:[NSString stringWithUTF8String:regular->badge]] : nil;
 		item.target = self;
 		if (clickable) {
 			item.action = @selector(press:);
