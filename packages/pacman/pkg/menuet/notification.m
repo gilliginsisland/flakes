@@ -73,7 +73,7 @@ void destroy_notification_category_nodes(NotificationCategory* category) {
 }
 
 NotificationResponse* make_notification_response() {
-	return (NotificationResponse*)malloc(sizeof(NotificationResponse));
+	return malloc(sizeof(NotificationResponse));
 }
 
 void destroy_notification_response(NotificationResponse* response) {

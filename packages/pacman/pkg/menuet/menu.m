@@ -9,6 +9,8 @@
 
 void goItemClicked(const char *);
 
+static NSMutableDictionary<NSString *, NSStatusItem *> *_statusItems;
+
 MenuItem* make_menu_item(MenuItemType type) {
 	MenuItem* item;
 	switch (type) {
@@ -57,8 +59,7 @@ void destroy_menu_items(MenuItem* item) {
 @implementation MenuetMenu
 
 - (id)init {
-	self = [super init];
-	if (self) {
+	if (self = [super init]) {
 		self.delegate = self;
 		self.autoenablesItems = false;
 	}
@@ -146,28 +147,76 @@ void destroy_menu_items(MenuItem* item) {
 
 @end
 
-void set_state(const char *cTitle, const char *cImageName) {
-	NSString *title;
-	NSString *imageName;
-	@autoreleasepool {
-		title = [NSString stringWithUTF8String:cTitle];
-		imageName = [NSString stringWithUTF8String:cImageName];
-	}
-	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *statusItem = [AppDelegate sharedInstance].statusItem;
-		NSImage *image = [NSImage imageNamed:imageName];
-		image.size = NSMakeSize(20, 20);
-		image.template = true;
-		statusItem.button.image = image;
-		statusItem.button.imagePosition = NSImageLeft;
-	});
+// Function to create a StatusItem struct
+StatusItem* make_status_item() {
+	return malloc(sizeof(StatusItem));
 }
 
-void menu_changed(MenuItem* head) {
-	dispatch_async(dispatch_get_main_queue(), ^{
-		NSStatusItem *_statusItem = [AppDelegate sharedInstance].statusItem;
-		MenuetMenu *menu = (MenuetMenu *)_statusItem.menu;
-		[menu populate:head];
-		destroy_menu_items(head);
-	});
+// Function to destroy a StatusItem struct and its contents
+void destroy_status_item(StatusItem* item) {
+	if (!item) {
+		return;
+	}
+	free(item->unique);
+	free(item->title);
+	free(item->imageName);
+	destroy_menu_items(item->submenu);
+	free(item);
+}
+
+// Function to update or create a status item
+void update_status_item(StatusItem* item) {
+	@autoreleasepool {
+		NSString *uniqueStr = item->unique ? [NSString stringWithUTF8String:item->unique] : nil;
+		NSString *imageName = item->imageName ? [NSString stringWithUTF8String:item->imageName] : nil;
+		NSString *title = item->title ? [NSString stringWithUTF8String:item->title] : nil;
+		dispatch_async(dispatch_get_main_queue(), ^{
+			if (_statusItems == nil) {
+				_statusItems = [NSMutableDictionary new];
+			}
+			NSStatusItem *statusItem = _statusItems[uniqueStr];
+			if (!statusItem) {
+				statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
+				_statusItems[uniqueStr] = statusItem;
+			}
+			if (imageName) {
+				NSImage *image = [NSImage imageNamed:imageName];
+				image.size = NSMakeSize(20, 20);
+				image.template = YES;
+				statusItem.button.image = image;
+				statusItem.button.imagePosition = NSImageLeft;
+			}
+			if (title) {
+				statusItem.button.title = title;
+			}
+			if (item->submenu) {
+				MenuetMenu *menu = (MenuetMenu *)statusItem.menu;
+				if (!menu) {
+					menu = [MenuetMenu new];
+					statusItem.menu = menu;
+				}
+				[menu populate:item->submenu];
+			}
+			// Destroy the entire struct after use in the main thread
+			destroy_status_item(item);
+		});
+	}
+}
+
+// Function to remove a status item
+void remove_status_item(const char *unique) {
+	@autoreleasepool {
+		NSString *uniqueStr = [NSString stringWithUTF8String:unique];
+		dispatch_async(dispatch_get_main_queue(), ^{
+			if (_statusItems == nil) {
+				return;
+			}
+			NSStatusItem *statusItem = _statusItems[uniqueStr];
+			if (!statusItem) {
+				return;
+			}
+			[[NSStatusBar systemStatusBar] removeStatusItem:statusItem];
+			[_statusItems removeObjectForKey:uniqueStr];
+		});
+	}
 }
