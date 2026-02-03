@@ -103,20 +103,17 @@ func (d *Lazy) DialContext(ctx context.Context, network, addr string) (net.Conn,
 	}
 }
 
-func (d *Lazy) State() ConnectionState {
+func (d *Lazy) Subscribe(yield func(ConnectionState, error) bool) {
+	var state ConnectionState
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.state
-}
-
-func (d *Lazy) Subscribe(yield func(ConnectionState, error) bool) {
 	for {
-		d.mu.RLock()
 		d.cond.Wait()
-		state, err := d.state, d.err
-		d.mu.RUnlock()
-		if !yield(state, err) {
-			return
+		if d.state != state {
+			state = d.state
+			if !yield(d.state, d.err) {
+				return
+			}
 		}
 	}
 }

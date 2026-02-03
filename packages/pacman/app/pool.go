@@ -79,10 +79,9 @@ func (pd *PooledDialer) Close() {
 
 func (pd *PooledDialer) Track(cb func()) {
 	for state, err := range pd.dialer.Subscribe {
-		if pd.state.Swap(int32(state)) != int32(state) {
-			cb()
-			pd.notification(state, err)
-		}
+		pd.state.Store(int32(state))
+		cb()
+		pd.notification(state, err)
 		if pd.ctx.Err() != nil {
 			break
 		}
