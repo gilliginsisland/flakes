@@ -5,7 +5,10 @@ import (
 	"log/slog"
 	"net"
 	"net/url"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -116,7 +119,15 @@ func run(config Path, l net.Listener) error {
 		return err
 	}
 
-	pacman.UpdateMenu()
+	signalCh := make(chan os.Signal, 1)
+	defer close(signalCh)
+	signal.Notify(signalCh, syscall.SIGHUP)
+	defer signal.Stop(signalCh)
+	go func() {
+		for range signalCh {
+			pacman.ReloadConfig()
+		}
+	}()
 
 	slog.Info("PACman server listening", slog.String("address", l.Addr().String()))
 	err = pacman.server.Serve(l)
