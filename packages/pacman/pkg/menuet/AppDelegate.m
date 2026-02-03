@@ -12,40 +12,40 @@ void goAppWillTerminate();
 @implementation AppDelegate
 
 + (AppDelegate *)sharedInstance {
-    static AppDelegate *_sharedInstance = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        _sharedInstance = [AppDelegate new];
-    });
-    return _sharedInstance;
+	static AppDelegate *_sharedInstance = nil;
+	static dispatch_once_t onceToken;
+	dispatch_once(&onceToken, ^{
+		_sharedInstance = [AppDelegate new];
+	});
+	return _sharedInstance;
 }
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    [[NotificationDelegate sharedInstance] register];
-    goAppWillFinishLaunching();
+	[[NotificationDelegate sharedInstance] register];
+	goAppWillFinishLaunching();
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    goAppDidFinishLaunching();
+	goAppDidFinishLaunching();
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
-    goAppWillTerminate();
+	goAppWillTerminate();
 }
 
 @end
 
 void runApplication() {
-    @autoreleasepool {
-        NSApplication *a = [NSApplication sharedApplication];
-        [a setDelegate:[AppDelegate sharedInstance]];
-        [a setActivationPolicy:NSApplicationActivationPolicyAccessory];
-        [a run];
-    }
+	@autoreleasepool {
+		NSApplication *a = [NSApplication sharedApplication];
+		[a setDelegate:[AppDelegate sharedInstance]];
+		[a setActivationPolicy:NSApplicationActivationPolicyAccessory];
+		[a run];
+	}
 }
 
 void terminateApplication() {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [[NSApplication sharedApplication] terminate:nil];
-    });
+	dispatch_async(dispatch_get_main_queue(), ^{
+		[[NSApplication sharedApplication] terminate:nil];
+	});
 }

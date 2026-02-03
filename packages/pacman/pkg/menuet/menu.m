@@ -39,6 +39,7 @@ void destroy_menu_items(MenuItem* item) {
 			case MenuItemTypeRegular: {
 				MenuItemRegular* regular = (MenuItemRegular*)item;
 				free(regular->text);
+				free(regular->subtitle);
 				free(regular->imageName);
 				destroy_menu_items(regular->submenu);
 				break;
@@ -108,6 +109,7 @@ void destroy_menu_items(MenuItem* item) {
 				NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:fontSize weight:fontWeight],
 			}];
 		}
+		item.subtitle = regular->subtitle ? [NSString stringWithUTF8String:regular->subtitle] : nil;
 		item.target = self;
 		if (clickable) {
 			item.action = @selector(press:);
