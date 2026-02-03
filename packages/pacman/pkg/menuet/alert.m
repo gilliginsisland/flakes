@@ -61,7 +61,7 @@ void destroy_alert_response(AlertResponse* resp) {
 }
 
 void show_alert(Alert* alert) {
-	dispatch_async(dispatch_get_main_queue(), ^{
+	[[NSRunLoop mainRunLoop] performInModes:@[NSRunLoopCommonModes] block: ^{
 		@autoreleasepool {
 			NSAlert *nsalert = [NSAlert new];
 			if (alert->messageText) {
@@ -109,5 +109,5 @@ void show_alert(Alert* alert) {
 
 			go_alert_clicked(alert, resp);
 		}
-	});
+	}];
 }
