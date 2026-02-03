@@ -3,6 +3,8 @@
   buildGoModule,
   pkg-config,
   openconnect_openssl,
+  apple-sdk_15,
+  darwinMinVersionHook,
 }:
 
 let
@@ -40,7 +42,7 @@ in buildGoModule {
   };
 
   nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ openconnect ];
+  buildInputs = [ openconnect apple-sdk_15 (darwinMinVersionHook "14.4") ];
 
   env = {
     CGO_ENABLED = "1";

@@ -20,6 +20,7 @@ typedef struct {
 typedef struct {
 	MenuItem item;
 	char* text;
+	char* subtitle;
 	char* imageName;
 	int fontSize;
 	float fontWeight;
@@ -36,10 +37,10 @@ void menu_changed(MenuItem* head);
 
 // Add struct definitions for StatusItem to support multiple status items
 typedef struct StatusItem {
-    char* unique;
-    char* title;
-    char* imageName;
-    MenuItem* submenu;
+	char* unique;
+	char* title;
+	char* imageName;
+	MenuItem* submenu;
 } StatusItem;
 
 // Add functions for creating, updating, removing, and destroying StatusItem structs
