@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/url"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -33,7 +32,6 @@ type PooledDialer struct {
 	ctx    context.Context
 	cancel func()
 	dialer *dialer.Lazy
-	state  atomic.Int32
 	menu   menuet.MenuItem
 	child  menuet.MenuItem
 }
@@ -59,12 +57,14 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 		}, timeout),
 	}
 	pd.ctx, pd.cancel = context.WithCancel(context.Background())
-	pd.menu.Submenu = &pd.menu
+	pd.menu.Submenu = &pd.child
+	pd.updateMenu(dialer.Offline)
 	return &pd
 }
 
 func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
 	pd.menu.Text = pd.icon(state) + " " + pd.Label
+	pd.menu.Badge = state.String()
 	pd.child.Text, pd.child.Clicked = pd.action(state)
 }
 

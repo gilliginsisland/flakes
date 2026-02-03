@@ -81,10 +81,12 @@ type MenuItem struct {
 	FontSize   int // Default: 14
 	FontWeight FontWeight
 
-	State bool // shows checkmark when set
+	State    bool // shows checkmark when set
+	Subtitle string
 
 	Clicked func()
 	Submenu Itemer
+	Badge   string
 
 	unique atomic.Pointer[string]
 }
@@ -112,6 +114,8 @@ func (i *MenuItem) item() *C.MenuItem {
 		fontWeight: C.float(i.FontWeight),
 		state:      C.bool(i.State),
 		clickable:  C.bool(i.Clicked != nil),
+		subtitle:   C.CString(i.Subtitle),
+		badge:      C.CString(i.Badge),
 	}
 	if i.Submenu != nil {
 		item.submenu = i.Submenu.item()

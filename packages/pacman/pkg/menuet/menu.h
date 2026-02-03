@@ -21,6 +21,7 @@ typedef struct {
 	MenuItem item;
 	char* text;
 	char* subtitle;
+	char* badge;
 	char* imageName;
 	int fontSize;
 	float fontWeight;
