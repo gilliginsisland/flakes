@@ -21,7 +21,7 @@ func (dp DialerPool) MenuItems() []menuet.Itemer {
 	items := make([]menuet.Itemer, len(dp))
 	var idx int
 	for _, pd := range iterutil.SortedMapIter(dp) {
-		items[idx] = pd.MenuItem()
+		items[idx] = &pd.menu
 		idx++
 	}
 	return items
@@ -34,6 +34,8 @@ type PooledDialer struct {
 	cancel func()
 	dialer *dialer.Lazy
 	state  atomic.Int32
+	menu   menuet.MenuItem
+	child  menuet.MenuItem
 }
 
 func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
@@ -57,19 +59,13 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 		}, timeout),
 	}
 	pd.ctx, pd.cancel = context.WithCancel(context.Background())
+	pd.menu.Submenu = &pd.menu
 	return &pd
 }
 
-func (pd *PooledDialer) MenuItem() *menuet.MenuItem {
-	state := dialer.ConnectionState(pd.state.Load())
-
-	var child menuet.MenuItem
-	child.Text, child.Clicked = pd.action(state)
-
-	return &menuet.MenuItem{
-		Text:    pd.icon(state) + " " + pd.Label,
-		Submenu: &child,
-	}
+func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
+	pd.menu.Text = pd.icon(state) + " " + pd.Label
+	pd.child.Text, pd.child.Clicked = pd.action(state)
 }
 
 func (pd *PooledDialer) Close() {
@@ -79,7 +75,7 @@ func (pd *PooledDialer) Close() {
 
 func (pd *PooledDialer) Track(cb func()) {
 	for state, err := range pd.dialer.Subscribe {
-		pd.state.Store(int32(state))
+		pd.updateMenu(state)
 		cb()
 		pd.notification(state, err)
 		if pd.ctx.Err() != nil {
