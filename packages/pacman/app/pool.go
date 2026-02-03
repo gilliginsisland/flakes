@@ -57,17 +57,6 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 		}, timeout),
 	}
 	pd.ctx, pd.cancel = context.WithCancel(context.Background())
-	go func() {
-		for state, err := range pd.dialer.Subscribe {
-			if pd.state.Swap(int32(state)) != int32(state) {
-				go menuet.App().MenuChanged()
-				pd.notification(state, err)
-			}
-			if pd.ctx.Err() != nil {
-				break
-			}
-		}
-	}()
 	return &pd
 }
 
@@ -86,6 +75,18 @@ func (pd *PooledDialer) MenuItem() *menuet.MenuItem {
 func (pd *PooledDialer) Close() {
 	pd.cancel()
 	pd.dialer.Close()
+}
+
+func (pd *PooledDialer) Track(cb func()) {
+	for state, err := range pd.dialer.Subscribe {
+		if pd.state.Swap(int32(state)) != int32(state) {
+			cb()
+			pd.notification(state, err)
+		}
+		if pd.ctx.Err() != nil {
+			break
+		}
+	}
 }
 
 func (pd *PooledDialer) icon(state dialer.ConnectionState) string {

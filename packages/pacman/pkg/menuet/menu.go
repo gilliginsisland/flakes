@@ -18,7 +18,60 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
-var menuitems syncutil.WeakMap[string, MenuItem]
+var (
+	menuitems   syncutil.WeakMap[string, MenuItem]
+	statusItems syncutil.WeakMap[string, StatusItem]
+)
+
+// StatusItem represents a status bar item with a title, image, and submenu
+type StatusItem struct {
+	Title   string
+	Image   string // In Resources dir or URL, should have height 22
+	Submenu Itemer
+	unique  atomic.Pointer[string]
+}
+
+func (i *StatusItem) item() *C.StatusItem {
+	var unique string
+	if ptr := i.unique.Load(); ptr != nil {
+		unique = *ptr
+	} else {
+		key := statusItems.StoreRandom(i, rand.Text)
+		if i.unique.CompareAndSwap(nil, &key) {
+			unique = key
+		} else {
+			statusItems.Delete(key)
+			unique = *i.unique.Load()
+		}
+	}
+	item := (*C.StatusItem)(unsafe.Pointer(C.make_status_item()))
+	*item = C.StatusItem{
+		unique:    C.CString(unique),
+		title:     C.CString(i.Title),
+		imageName: C.CString(i.Image),
+	}
+	if i.Submenu != nil {
+		item.submenu = i.Submenu.item()
+	}
+	return item
+}
+
+// UpdateStatusItem adds or updates a status item in the status bar
+func (a *Application) UpdateStatusItem(item *StatusItem) {
+	C.update_status_item(item.item())
+}
+
+// RemoveStatusItem removes a status item from the status bar
+func (a *Application) RemoveStatusItem(item *StatusItem) {
+	unique := item.unique.Load()
+	if unique == nil {
+		return
+	}
+	cstr := C.CString(*unique)
+	defer C.free(unsafe.Pointer(cstr))
+	defer statusItems.Delete(*unique)
+	C.remove_status_item(cstr)
+}
 
 // MenuItem represents one item in the dropdown
 type MenuItem struct {
@@ -133,31 +186,6 @@ type DynamicItems func() []Itemer
 
 func (f DynamicItems) item() *C.MenuItem {
 	return toMenuItems(f())
-}
-
-// SetMenuState changes what is shown in the status bar
-func (a *Application) SetMenuState(state *MenuState) {
-	titleStr := C.CString(string(state.Title))
-	imageStr := C.CString(string(state.Image))
-	defer C.free(unsafe.Pointer(titleStr))
-	defer C.free(unsafe.Pointer(imageStr))
-	C.set_state(titleStr, imageStr)
-}
-
-// MenuChanged refreshes any open menus
-func (a *Application) MenuChanged() {
-	if a.Menu == nil {
-		return
-	}
-	a.menuItemsMu.Lock()
-	defer a.menuItemsMu.Unlock()
-	C.menu_changed(a.Menu.item())
-}
-
-// MenuState represents the title and drop down,
-type MenuState struct {
-	Title string
-	Image string // // In Resources dir or URL, should have height 22
 }
 
 func (a *Application) clicked(unique string) {

@@ -24,7 +24,7 @@ type PACMan struct {
 	dialer   dialer.ByHost
 	listener net.Listener
 	server   netutil.Server
-	menu     menuet.Itemer
+	menu     menuet.StatusItem
 	mu       sync.Mutex
 }
 
@@ -50,9 +50,6 @@ func Run(config Path, l net.Listener) error {
 
 func run(config Path, l net.Listener) error {
 	app := menuet.App()
-	app.SetMenuState(&menuet.MenuState{
-		Image: "menuicon.pdf",
-	})
 
 	cfg, err := ParseConfigFile(config)
 	if err != nil {
@@ -79,35 +76,39 @@ func run(config Path, l net.Listener) error {
 		},
 		pool: make(DialerPool),
 	}
-	pacman.menu = menuet.Sections{
-		&menuet.Section{
-			Title: "Server Address",
-			Content: menuet.DynamicItem(func() menuet.Itemer {
-				return &menuet.MenuItem{
-					Text: pacman.listener.Addr().String(),
-				}
-			}),
-		},
-		&menuet.Section{
-			Title:   "Proxies",
-			Content: menuet.DynamicItems(pacman.pool.MenuItems),
-		},
-		&menuet.MenuItem{
-			Text: "Settings",
-			Submenu: (menuet.MenuItems{
-				&menuet.MenuItem{
-					Text:    "Edit",
-					Clicked: pacman.OpenConfig,
-				},
-				&menuet.MenuItem{
-					Text:    "Reload",
-					Clicked: pacman.ReloadConfig,
-				},
-			}),
-		},
-		&menuet.MenuItem{
-			Text:    "Quit",
-			Clicked: app.Terminate,
+	pacman.menu = menuet.StatusItem{
+		Title: "PACman",
+		Image: "menuicon.pdf",
+		Submenu: menuet.Sections{
+			&menuet.Section{
+				Title: "Server Address",
+				Content: menuet.DynamicItem(func() menuet.Itemer {
+					return &menuet.MenuItem{
+						Text: pacman.listener.Addr().String(),
+					}
+				}),
+			},
+			&menuet.Section{
+				Title:   "Proxies",
+				Content: menuet.DynamicItems(pacman.pool.MenuItems),
+			},
+			&menuet.MenuItem{
+				Text: "Settings",
+				Submenu: (menuet.MenuItems{
+					&menuet.MenuItem{
+						Text:    "Edit",
+						Clicked: pacman.OpenConfig,
+					},
+					&menuet.MenuItem{
+						Text:    "Reload",
+						Clicked: pacman.ReloadConfig,
+					},
+				}),
+			},
+			&menuet.MenuItem{
+				Text:    "Quit",
+				Clicked: app.Terminate,
+			},
 		},
 	}
 	pacman.server = NewProxyServer(&pacman.dialer)
@@ -115,8 +116,8 @@ func run(config Path, l net.Listener) error {
 		return err
 	}
 
-	app.Menu = pacman.menu
-	go app.MenuChanged()
+	pacman.UpdateMenu()
+
 	slog.Info("PACman server listening", slog.String("address", l.Addr().String()))
 	err = pacman.server.Serve(l)
 	slog.Info("PACman proxy server stopped", slog.Any("error", err))
@@ -168,7 +169,9 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 			// close existing dialer after we update the dialer ruleset
 			defer pd.Close()
 		}
-		pacman.pool[k] = NewPooledDialer(k, &u.URL, &pacman.dialer)
+		pd = NewPooledDialer(k, &u.URL, &pacman.dialer)
+		pacman.pool[k] = pd
+		go pd.Track(pacman.UpdateMenu)
 	}
 
 	var rs dialer.RuleSet
@@ -205,7 +208,13 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 		delete(pacman.pool, k)
 		defer pd.Close()
 	}
-	menuet.App().MenuChanged()
+	go pacman.UpdateMenu()
 
 	return nil
+}
+
+func (pacman *PACMan) UpdateMenu() {
+	pacman.mu.Lock()
+	defer pacman.mu.Unlock()
+	menuet.App().UpdateStatusItem(&pacman.menu)
 }

@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#include <Foundation/Foundation.h>
 
 #import "AppDelegate.h"
 #import "menu.h"
@@ -25,8 +26,6 @@ void goAppWillTerminate();
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    _statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
-    _statusItem.menu = [MenuetMenu new];
     goAppDidFinishLaunching();
 }
 
