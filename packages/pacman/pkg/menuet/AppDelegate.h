@@ -7,6 +7,4 @@ void terminateApplication();
 
 + (AppDelegate *)sharedInstance;
 
-@property (nonatomic, strong, readonly) NSStatusItem *statusItem;
-
 @end

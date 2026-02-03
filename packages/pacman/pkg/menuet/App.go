@@ -15,23 +15,13 @@ import "sync"
 var App = sync.OnceValue(func() *Application {
 	return &Application{
 		didFinishLaunching: make(chan struct{}),
-		menuItems:          make(map[string]*MenuItem),
 	}
 })
 
 // Application represents the singleton application instance
 type Application struct {
-	Name  string
-	Label string
-
-	Menu Itemer
-
 	NotificationResponder func(NotificationResponse)
-
-	menuItemsMu sync.RWMutex
-	menuItems   map[string]*MenuItem
-
-	didFinishLaunching chan struct{}
+	didFinishLaunching    chan struct{}
 }
 
 func (app *Application) Run(f func()) {
