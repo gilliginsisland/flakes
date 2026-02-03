@@ -188,22 +188,21 @@ func (f DynamicItems) item() *C.MenuItem {
 	return toMenuItems(f())
 }
 
-func (a *Application) clicked(unique string) {
-	item := menuitems.Load(unique)
-	if item == nil {
-		slog.Debug("Item not found for click", slog.String("unique", unique))
-		return
-	}
-	if item.Clicked == nil {
-		slog.Debug("Item has no click handler", slog.String("unique", unique))
-		return
-	}
-	go item.Clicked()
-}
-
 //export goItemClicked
-func goItemClicked(unique *C.char) {
-	App().clicked(C.GoString(unique))
+func goItemClicked(cUnique *C.char) {
+	unique := C.GoString(cUnique)
+	go func() {
+		item := menuitems.Load(unique)
+		if item == nil {
+			slog.Debug("Item not found for click", slog.String("unique", unique))
+			return
+		}
+		if item.Clicked == nil {
+			slog.Debug("Item has no click handler", slog.String("unique", unique))
+			return
+		}
+		item.Clicked()
+	}()
 }
 
 type Itemer interface {

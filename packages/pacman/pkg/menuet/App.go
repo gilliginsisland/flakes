@@ -41,7 +41,7 @@ func goAppWillFinishLaunching() {}
 
 //export goAppDidFinishLaunching
 func goAppDidFinishLaunching() {
-	close(App().didFinishLaunching)
+	go close(App().didFinishLaunching)
 }
 
 //export goAppWillTerminate

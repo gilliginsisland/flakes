@@ -65,16 +65,18 @@ func DisplayCh(alert Alert) <-chan AlertResponse {
 
 //export go_alert_clicked
 func go_alert_clicked(calert *C.Alert, cresp *C.AlertResponse) {
-	defer C.destroy_alert(calert)
-	defer C.destroy_alert_response(cresp)
-	ch, ok := alerts.LoadAndDelete(uintptr(unsafe.Pointer(calert)))
-	if !ok {
-		return
-	}
-	ch <- AlertResponse{
-		Button: int(cresp.button),
-		Inputs: fromAlertNode(cresp.inputs),
-	}
+	go func() {
+		defer C.destroy_alert(calert)
+		defer C.destroy_alert_response(cresp)
+		ch, ok := alerts.LoadAndDelete(uintptr(unsafe.Pointer(calert)))
+		if !ok {
+			return
+		}
+		ch <- AlertResponse{
+			Button: int(cresp.button),
+			Inputs: fromAlertNode(cresp.inputs),
+		}
+	}()
 }
 
 func toAlertNode(s []string) *C.AlertNode {
