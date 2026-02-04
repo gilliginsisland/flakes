@@ -2,11 +2,13 @@ package app
 
 import (
 	"encoding"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/gilliginsisland/pacman/pkg/netutil"
@@ -35,6 +37,42 @@ var _ encoding.TextUnmarshaler = (*URL)(nil)
 
 func (u *URL) UnmarshalText(text []byte) error {
 	return u.UnmarshalBinary(text)
+}
+
+func (u *URL) UnmarshalJSON(data []byte) error {
+	if err := u.UnmarshalText(data); err == nil {
+		return nil
+	}
+
+	type Parts struct {
+		Username string            `json:"username"`
+		Password string            `json:"password"`
+		Protocol string            `json:"protocol"`
+		Host     string            `json:"host"`
+		Path     string            `json:"path"`
+		Options  map[string]string `json:"options"`
+	}
+
+	var p Parts
+	if err := json.Unmarshal(data, &p); err != nil {
+		return fmt.Errorf("failed to unmarshal URL: %w", err)
+	}
+
+	u.Scheme = p.Protocol
+	u.Host = p.Host
+	u.Path = path.Clean("/" + p.Path)
+	if p.Username != "" || p.Password != "" {
+		u.User = url.UserPassword(p.Username, p.Password)
+	}
+	if len(p.Options) > 0 {
+		q := url.Values{}
+		for k, v := range p.Options {
+			q.Add(k, v)
+		}
+		u.RawQuery = q.Encode()
+	}
+
+	return nil
 }
 
 // File wraps os.File and implements flag.Value.
