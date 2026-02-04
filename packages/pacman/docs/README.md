@@ -151,12 +151,12 @@ PACman serves a Proxy Auto-Config (PAC) file on the same HTTP port at `http://12
 
 PACman can be integrated with SSH to automatically route traffic through the proxy for matching hosts. Add the following configuration to your `~/.ssh/config` file to enable this functionality:
 
-```
+```ssh
 Match exec "'/Applications/PACman.app/Contents/MacOS/pacman' check '%h'"
-    ProxyCommand nc -X 5 -x 127.0.0.1:11078 %h %p
+  ProxyJump 127.0.0.1:11078
 ```
 
-This configuration checks if the target host (`%h`) matches a rule in PACman using the `pacman check` command. If it matches, SSH will use the PACman proxy (on `127.0.0.1:11078` by default, or the custom address if configured) via `nc` with SOCKS5 (`-X 5`) to forward traffic to the target host and port (`%h %p`).
+This configuration checks if the target host (`%h`) matches a rule in PACman using the `pacman check` command. If it matches, SSH will use the PACman proxy (on `127.0.0.1:11078` by default, or the custom address if configured) via an integrated ssh jump server to forward traffic to the target host.
 
 ### Terminal and Other HTTP-Based Applications
 
