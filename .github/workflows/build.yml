@@ -1,0 +1,32 @@
+name: Build Pacman with Nix Flakes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - macos-15
+          - macos-15-intel
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.9.0
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build with Nix Flakes
+        run: nix build .#pacman --verbose
+      - name: Package build output into tgz
+        run: tar -czvf pacman-${{ matrix.os }}.tgz -C ./result .
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pacman-${{ matrix.os }}
+          path: pacman-${{ matrix.os }}.tgz
