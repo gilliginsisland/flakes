@@ -57,7 +57,6 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 		}, timeout),
 	}
 	pd.ctx, pd.cancel = context.WithCancel(context.Background())
-	pd.menu.Submenu = &pd.child
 	pd.updateMenu(dialer.Offline)
 	return &pd
 }
@@ -65,7 +64,12 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
 	pd.menu.Text = pd.icon(state) + " " + pd.Label
 	pd.menu.Badge = state.String()
-	pd.child.Text, pd.child.Clicked = pd.action(state)
+	if state == dialer.Offline {
+		pd.menu.Submenu = nil
+	} else {
+		pd.menu.Submenu = &pd.child
+		pd.child.Text, pd.child.Clicked = pd.action(state)
+	}
 }
 
 func (pd *PooledDialer) Close() {
