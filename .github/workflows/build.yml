@@ -24,7 +24,7 @@ jobs:
       - name: Setup Magic Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build with Nix Flakes
-        run: nix build .#pacman --verbose
+        run: nix build .#pacman-bundled
       - name: Package build output into tgz
         run: tar -czvf pacman-${{ matrix.os }}.tgz -C ./result .
       - name: Upload build artifact
