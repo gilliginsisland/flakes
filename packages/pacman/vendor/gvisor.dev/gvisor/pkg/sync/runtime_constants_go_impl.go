@@ -14,8 +14,9 @@
 
 package sync
 
-// TraceBlockReason constants, from Go's src/runtime/trace2runtime.go.
+// Values for the reason argument to gopark, from Go's src/runtime/runtime2.go.
 const (
-	TraceBlockSelect TraceBlockReason = 3 // +checkconst runtime traceBlockSelect
-	TraceBlockSync   TraceBlockReason = 5 // +checkconst runtime traceBlockSync
+	WaitReasonSelect      uint8 = 9
+	WaitReasonChanReceive uint8 = 14
+	WaitReasonSemacquire  uint8 = 19
 )

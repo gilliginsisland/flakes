@@ -77,7 +77,7 @@ golang.org/x/tools/internal/stdlib
 golang.org/x/tools/internal/typeparams
 golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/versions
-# gvisor.dev/gvisor v0.0.0-20260126192737-2b6c3a9b9100
+# gvisor.dev/gvisor v0.0.0-20260202191832-0bd9aedd142c
 ## explicit; go 1.25.5
 gvisor.dev/gvisor/pkg/atomicbitops
 gvisor.dev/gvisor/pkg/bits

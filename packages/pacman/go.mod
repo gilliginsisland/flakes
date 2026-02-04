@@ -8,7 +8,7 @@ require (
 	golang.org/x/crypto v0.47.0
 	golang.org/x/net v0.49.0
 	golang.org/x/sys v0.40.0
-	gvisor.dev/gvisor v0.0.0-20260126192737-2b6c3a9b9100
+	gvisor.dev/gvisor v0.0.0-20260202191832-0bd9aedd142c
 	sigs.k8s.io/yaml v1.6.0
 	tailscale.com v1.94.0
 )
