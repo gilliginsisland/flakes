@@ -57,7 +57,9 @@ runCommand "pacman-bundled" {
 
   insert_dylib \
     "${ossl-conf-sidecar}/lib/libossl_conf_sidecar.dylib" \
-    "$app/Contents/MacOS/PACman" --inplace --overwrite
+    "$app/Contents/MacOS/PACman" \
+    --inplace --overwrite \
+    --all-yes --no-strip-codesig
 
   dylibs=(
     "$app/Contents/MacOS/PACman"
