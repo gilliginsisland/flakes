@@ -12,19 +12,22 @@ let
       mapAttrsToList (k: v: "${escapeURL k}=${escapeURL v}") attrs
     );
 
-    toProxyUrl = proxy: with proxy; concatStrings [
-      (type + "://")
-      (optionalString (username != null) (escapeURL username))
-      (optionalString (password != null) (":" + escapeURL password))
-      (optionalString (username != null || password != null) "@")
-      address
-      (optionalString (port != null) (":" + builtins.toString port))
-      (optionalString (options != {}) ("/?" + toQs options))
-    ];
+    toProxyAttrs = proxy: with proxy; {
+      protocol = type;
+      host = address + (optionalString (port != null) (":" + builtins.toString port));
+    } // optionalAttrs (username != null) {
+      inherit username;
+    } // optionalAttrs (password != null) {
+      inherit password;
+    } // optionalAttrs (path != null) {
+      inherit path;
+    } // optionalAttrs (options != {}) {
+      inherit options;
+    };
 
     rulefile = (pkgs.formats.yaml {}).generate "ruleset" {
       listen = "${cfg.address}:${builtins.toString cfg.port}";
-      proxies = mapAttrs (_: toProxyUrl) cfg.proxies;
+      proxies = mapAttrs (_: toProxyAttrs) cfg.proxies;
       rules = cfg.rules;
     };
   in rulefile;
@@ -60,6 +63,14 @@ let
           default = "127.0.0.1";
           description = ''
             The address of the proxy to connect to.
+          '';
+        };
+
+        path = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = ''
+            The path of the proxy to connect to.
           '';
         };
 
