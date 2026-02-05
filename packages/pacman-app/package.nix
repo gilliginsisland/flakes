@@ -67,6 +67,7 @@ in runCommand "pacman-app" {
   cp icon.icns "$app/Contents/Resources/icon.icns"
   cp ${./menuicon.pdf} "$app/Contents/Resources/menuicon.pdf"
   cp ${./Info.plist} "$app/Contents/Info.plist"
+  cp ${../pacman/docs/README.md} "$app/Contents/Resources/README.md"
 
   codesign -s - --force --deep --timestamp --entitlements ${./entitlements.plist} "$app"
 

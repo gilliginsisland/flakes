@@ -16,10 +16,10 @@ PACman respects `/etc/hosts` for DNS resolution, checking it first before delega
 
 PACman uses a **most-specific-match-first** approach for rule matching. The specificity of a rule determines its priority, and the order of rules in the configuration file is only considered when two rules have the same specificity. The specificity hierarchy is as follows:
 - For domain matches:
-  - An **exact match** (e.g., `example.com`) or a **specific subdomain** (e.g., `sub.example.com`) takes precedence over wildcards.
-  - For zone/wildcard matches (e.g., `*.example.com`), a **longer match** (e.g., `*.sub.example.com`) is considered more specific than a shorter one (e.g., `*.example.com`).
+	- An **exact match** (e.g., `example.com`) or a **specific subdomain** (e.g., `sub.example.com`) takes precedence over wildcards.
+	- For zone/wildcard matches (e.g., `*.example.com`), a **longer match** (e.g., `*.sub.example.com`) is considered more specific than a shorter one (e.g., `*.example.com`).
 - For CIDR matches:
-  - A **smaller CIDR range** (e.g., `192.168.1.0/26`) is considered more specific than a larger one (e.g., `192.168.1.0/24`).
+	- A **smaller CIDR range** (e.g., `192.168.1.0/26`) is considered more specific than a larger one (e.g., `192.168.1.0/24`).
 
 ### Proxy Chaining and Circular Reference Caution
 
@@ -34,20 +34,18 @@ PACman uses a YAML (or JSON, depending on your setup) configuration file to defi
 The configuration `~/.config/pacman/config` consists of a root object with three primary keys: `listen`, `proxies`, and `rules`.
 
 - **`listen`**: Specifies the host and port on which PACman will listen for incoming connections. This is in the format `host:port` (e.g., `127.0.0.1:11078`). If not specified, it defaults to `127.0.0.1:11078`.
-
 - **`proxies`**: A map where:
-  - The key is a unique label for the proxy (used in the UI status dropdown and for referencing in rules).
-  - The value is a URI string specifying the proxy endpoint using standard URI format. The URI must include username and password (if required) directly in the scheme, following the format `scheme://username:password@host:port`.
-  
+	- The key is a unique label for the proxy (used in the UI status dropdown and for referencing in rules).
+	- The value is a URI string specifying the proxy endpoint using standard URI format. The URI must include username and password (if required) directly in the scheme, following the format `scheme://username:password@host:port`.
 - **`rules`**: An array of rule objects, where each rule defines:
-  - `hosts`: An array of strings representing host match patterns. These patterns can be:
-    - **Zone/Wildcard Match**: Using a leading asterisk (e.g., `*.example.com`) matches subdomains like `www.example.com` but **not** the base domain `example.com`.
-    - **Exact Match**: A plain domain (e.g., `example.com`) matches only the exact domain `example.com` and **not** subdomains like `www.example.com`.
-    - **Leading Dot Notation**: A leading dot (e.g., `.example.com`) matches **both** the base domain `example.com` and all subdomains like `www.example.com`.
-    - **CIDR Notation**: An IP range (e.g., `192.168.1.0/24`) matches hosts within the specified network range.
-  - `proxies`: An array of proxy labels (referencing keys from the `proxies` map). For a matching host, PACman will attempt to connect through each proxy in the list, in order, until successful.
-    
-    **Note**: An empty `proxies` array means to skip proxying for the matched hosts, allowing you to exclude subsets (e.g., define a broad CIDR to use a proxy, then exclude a smaller CIDR subset by setting an empty `proxies` list for it).
+	- `hosts`: An array of strings representing host match patterns. These patterns can be:
+		- **Zone/Wildcard Match**: Using a leading asterisk (e.g., `*.example.com`) matches subdomains like `www.example.com` but **not** the base domain `example.com`.
+		- **Exact Match**: A plain domain (e.g., `example.com`) matches only the exact domain `example.com` and **not** subdomains like `www.example.com`.
+		- **Leading Dot Notation**: A leading dot (e.g., `.example.com`) matches **both** the base domain `example.com` and all subdomains like `www.example.com`.
+		- **CIDR Notation**: An IP range (e.g., `192.168.1.0/24`) matches hosts within the specified network range.
+	- `proxies`: An array of proxy labels (referencing keys from the `proxies` map). For a matching host, PACman will attempt to connect through each proxy in the list, in order, until successful.
+	  
+	  **Note**: An empty `proxies` array means to skip proxying for the matched hosts, allowing you to exclude subsets (e.g., define a broad CIDR to use a proxy, then exclude a smaller CIDR subset by setting an empty `proxies` list for it).
 
 ### Example Configuration
 
@@ -84,32 +82,32 @@ In this example:
 PACman supports the following proxy types with specific configuration options passed via query parameters or URI paths where applicable:
 
 - **Global Options for All Proxy Types**:
-  - `timeout=<seconds>`: Sets the idle timeout in seconds. Default is 3600 (1 hour). Set to `0` to disable idle disconnecting.
+	- `timeout=<seconds>`: Sets the idle timeout in seconds. Default is 3600 (1 hour). Set to `0` to disable idle disconnecting.
 
 - **Cisco AnyConnect**:
-  - **Scheme**: `anyconnect://`
-  - **Usergroup**: Specify the usergroup in the URI path (e.g., `anyconnect://user:pass@vpn.example.com/usergroup`).
-  - **Additional Options**:
-    - `token=totp`: Prompts an alert box to input a YubiKey TOTP token, which is appended to the password during connection.
+	- **Scheme**: `anyconnect://`
+	- **Usergroup**: Specify the usergroup in the URI path (e.g., `anyconnect://user:pass@vpn.example.com/usergroup`).
+	- **Additional Options**:
+		- `token=totp`: Prompts an alert box to input a YubiKey TOTP token, which is appended to the password during connection.
 
 - **Palo Alto Networks GlobalProtect**:
-  - **Scheme**: `gp://`
-  - **Usergroup**: Specify the usergroup in the URI path (e.g., `gp://admin:secret@gateway.example.com/employee-group`).
-  - **Additional Options**:
-    - `token=totp`: Prompts an alert box to input a YubiKey TOTP token, which is appended to the password during connection.
+	- **Scheme**: `gp://`
+	- **Usergroup**: Specify the usergroup in the URI path (e.g., `gp://admin:secret@gateway.example.com/employee-group`).
+	- **Additional Options**:
+		- `token=totp`: Prompts an alert box to input a YubiKey TOTP token, which is appended to the password during connection.
 
 - **SSH Proxy**:
-  - **Scheme**: `ssh://`
-  - **Additional Options**:
-    - `identity=<path>`: Specifies the path to a private key file for authentication (e.g., `ssh://user:pass@proxy.example.com:22?identity=/path/to/privatekey`). Note: Files with passphrases are not supported, and the local SSH agent is not used for authentication.
+	- **Scheme**: `ssh://`
+	- **Additional Options**:
+		- `identity=<path>`: Specifies the path to a private key file for authentication (e.g., `ssh://user:pass@proxy.example.com:22?identity=/path/to/privatekey`). Note: Files with passphrases are not supported, and the local SSH agent is not used for authentication.
 
 - **SOCKS5 Proxy**:
-  - **Scheme**: `socks5://` or `socks5h://`
-  - **Description**: Supports SOCKS5 proxies with or without hostname resolution (e.g., `socks5://user:pass@proxy.example.com:1080`).
+	- **Scheme**: `socks5://` or `socks5h://`
+	- **Description**: Supports SOCKS5 proxies with or without hostname resolution (e.g., `socks5://user:pass@proxy.example.com:1080`).
 
 - **HTTP/HTTPS Proxy**:
-  - **Scheme**: `http://` or `https://`
-  - **Description**: Supports standard HTTP or HTTPS proxies (e.g., `http://user:pass@proxy.example.com:8080`).
+	- **Scheme**: `http://` or `https://`
+	- **Description**: Supports standard HTTP or HTTPS proxies (e.g., `http://user:pass@proxy.example.com:8080`).
 
 **Note**: For proxies requiring authentication, the username and password must be embedded in the URI as `scheme://username:password@host:port`. Ensure these credentials are securely managed and not exposed in version control or unsecured environments. By default, connections are lazy (only established when needed) and disconnect after 1 hour of inactivity unless modified via the `timeout` parameter.
 
@@ -163,14 +161,14 @@ This configuration checks if the target host (`%h`) matches a rule in PACman usi
 For terminal applications or other tools that support HTTP proxies (e.g., `curl`, `wget`, or Rancher Desktop):
 
 - Set the following environment variables in your terminal (e.g., in `~/.zshrc`, `~/.bashrc`, or equivalent):
-  ```bash
-  export HTTP_PROXY=http://127.0.0.1:11078  # or custom address if configured
-  export HTTPS_PROXY=http://127.0.0.1:11078 # or custom address if configured
-  export NO_PROXY=localhost,127.0.0.1
-  ```
+	```bash
+	export HTTP_PROXY=http://127.0.0.1:11078  # or custom address if configured
+	export HTTPS_PROXY=http://127.0.0.1:11078 # or custom address if configured
+	export NO_PROXY=localhost,127.0.0.1
+	```
 - For applications like Rancher Desktop that require explicit proxy settings:
-  - Open the application’s settings or configuration file.
-  - Set the HTTP and HTTPS proxy to `http://127.0.0.1:11078` (or the custom address if configured).
-  - Add `localhost` and `127.0.0.1` to the "bypass proxy" or "no proxy" list to avoid local traffic routing issues.
+	- Open the application’s settings or configuration file.
+	- Set the HTTP and HTTPS proxy to `http://127.0.0.1:11078` (or the custom address if configured).
+	- Add `localhost` and `127.0.0.1` to the "bypass proxy" or "no proxy" list to avoid local traffic routing issues.
 
 For tools supporting SOCKS5 proxies, configure them to use `socks5://127.0.0.1:11078` (or the custom address if configured) if HTTP proxy settings are not supported.
