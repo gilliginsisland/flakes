@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"github.com/gilliginsisland/pacman/docs"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
@@ -105,6 +106,13 @@ func run(config Path, l net.Listener) error {
 					&menuet.MenuItem{
 						Text:    "Reload",
 						Clicked: pacman.ReloadConfig,
+					},
+					&menuet.MenuItemSeparator{},
+					&menuet.MenuItem{
+						Text: "Help",
+						Clicked: func() {
+							menuet.WebView(docs.HTML)
+						},
 					},
 				}),
 			},

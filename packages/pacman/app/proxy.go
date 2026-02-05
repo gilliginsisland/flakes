@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -45,11 +46,13 @@ func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 			return s
 		}(),
 	})
+	mux := http.NewServeMux()
+	mux.Handle("/proxy.pac", &httpproxy.PacHandler{
+		Hosts: pd.Hosts,
+	})
 	s.HandleServer(netutil.DefaultMatch, &httpproxy.Server{
-		Dialer: pd.DialContext,
-		Handler: &httpproxy.PacHandler{
-			Hosts: pd.Hosts,
-		},
+		Dialer:  pd.DialContext,
+		Handler: mux,
 	})
 	return s
 }
