@@ -43,18 +43,21 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 			timeout = time.Duration(i) * time.Second
 		}
 	}
+
+	ld := dialer.NewLazy(func(ctx context.Context) (proxy.Dialer, error) {
+		ctx, cancel := context.WithCancelCause(
+			context.WithValue(ctx, "label", l),
+		)
+		defer time.AfterFunc(2*time.Minute, func() {
+			cancel(context.DeadlineExceeded)
+		}).Stop()
+		return dialer.FromURLContext(ctx, u, fwd)
+	}, timeout)
+
 	pd := PooledDialer{
-		Label: l,
-		URL:   u,
-		dialer: dialer.NewLazy(func(ctx context.Context) (proxy.Dialer, error) {
-			ctx, cancel := context.WithCancelCause(
-				context.WithValue(ctx, "label", l),
-			)
-			defer time.AfterFunc(2*time.Minute, func() {
-				cancel(context.DeadlineExceeded)
-			}).Stop()
-			return dialer.FromURLContext(ctx, u, fwd)
-		}, timeout),
+		Label:  l,
+		URL:    u,
+		dialer: ld,
 	}
 	pd.ctx, pd.cancel = context.WithCancel(context.Background())
 	pd.updateMenu(dialer.Offline)

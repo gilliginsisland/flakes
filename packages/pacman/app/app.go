@@ -178,6 +178,8 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 	pacman.mu.Lock()
 	defer pacman.mu.Unlock()
 
+	var rs dialer.RuleSet
+
 	for k, u := range cfg.Proxies {
 		pd := pacman.pool[k]
 		if pd != nil {
@@ -191,9 +193,15 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 		pd = NewPooledDialer(k, &u.URL, &pacman.dialer)
 		pacman.pool[k] = pd
 		go pd.Track(pacman.UpdateMenu)
+
+		// add the wildcard *.label.pacman
+		subdomain := k + ".pacman"
+		rs.Add("."+subdomain, &dialer.RewritingDialer{
+			Dialer: pd.dialer,
+			Suffix: subdomain,
+		})
 	}
 
-	var rs dialer.RuleSet
 	for _, r := range cfg.Rules {
 		chain := make([]proxy.ContextDialer, len(r.Proxies))
 		for i, proxy := range r.Proxies {
@@ -204,20 +212,21 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 			chain[i] = pd.dialer
 		}
 
-		var pd proxy.ContextDialer
+		var xd proxy.ContextDialer
 		switch len(chain) {
 		case 0:
-			pd = nil
+			xd = nil
 		case 1:
-			pd = chain[0]
+			xd = chain[0]
 		default:
-			pd = dialer.Chain(chain)
+			xd = dialer.Chain(chain)
 		}
 
 		for _, h := range r.Hosts {
-			rs.Add(h, pd)
+			rs.Add(h, xd)
 		}
 	}
+
 	pacman.dialer.Swap(&rs)
 
 	for k, pd := range pacman.pool {
