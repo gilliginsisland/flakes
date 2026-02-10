@@ -12,12 +12,17 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os.runner }}
     strategy:
       matrix:
         os:
-          - macos-15
-          - macos-15-intel
+          - runner: macos-15
+            label: macos-15-arm
+          - runner: macos-15-intel
+            label: macos-15-intel
+        output:
+          - pacman-bundled
+          - pacman-debug
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,11 +33,75 @@ jobs:
       - name: Setup Magic Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build with Nix Flakes
-        run: nix build --show-trace -L .#pacman-bundled
+        run: nix build --show-trace -L .#${{ matrix.output }}
       - name: Package build output into tgz
-        run: tar -czvf pacman-${{ matrix.os }}.tgz -C ./result .
+        run: tar -czvf pacman-${{ matrix.os.label }}-${{ matrix.output }}.tgz -C ./result .
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pacman-${{ matrix.os }}
-          path: pacman-${{ matrix.os }}.tgz
+          name: pacman-${{ matrix.os.label }}-${{ matrix.output }}
+          path: pacman-${{ matrix.os.label }}-${{ matrix.output }}.tgz
+
+  bundle:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Bundle artifacts for GitHub Pages
+        run: |
+          mkdir -p ./pages-content/pool
+          # Copy all tar files to the pool directory
+          for artifact in artifacts/*/*.tgz; do
+            if [ -f "$artifact" ]; then
+              cp "$artifact" ./pages-content/pool/
+            fi
+          done
+          # Generate a simple index.html with a directory listing
+          cat <<EOF > ./pages-content/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Pacman Builds</title>
+          </head>
+          <body>
+            <h1>Pacman Builds</h1>
+            <h2>Available Files</h2>
+            <ul>
+          EOF
+          # Add a link for each tar file in the pool
+          for tar_file in ./pages-content/pool/*.tgz; do
+            if [ -f "$tar_file" ]; then
+              filename=$(basename "$tar_file")
+              echo "  <li><a href=\"pool/$filename\">$filename</a></li>" >> ./pages-content/index.html
+            fi
+          done
+          echo "  </ul>" >> ./pages-content/index.html
+          echo "</body>" >> ./pages-content/index.html
+          echo "</html>" >> ./pages-content/index.html
+          # Display generated index.html for debugging
+          cat ./pages-content/index.html
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      - name: Prepare GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./pages-content
+
+  deploy:
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
