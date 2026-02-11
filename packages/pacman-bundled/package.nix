@@ -55,8 +55,6 @@ runCommand "pacman-bundled" {
   cp -Tr "${pacman-app}/Applications/PACman.app" "$app"
   chmod -R u+w "$app"
 
-  codesign --display --entitlements entitlements.plist --xml  "$app"
-
   insert_dylib \
     "${ossl-conf-sidecar}/lib/libossl_conf_sidecar.dylib" \
     "$app/Contents/MacOS/PACman" \
@@ -89,5 +87,5 @@ runCommand "pacman-bundled" {
     install_name_tool -change "${darwin.libresolv}/lib/libresolv.9.dylib" "/usr/lib/libresolv.9.dylib" "$file"
   done
 
-  codesign -s - --force --deep --timestamp --entitlements entitlements.plist "$app"
+  codesign -s - --force --deep --timestamp --preserve-metadata "$app"
 ''
