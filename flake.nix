@@ -9,29 +9,28 @@
     let
       forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
       loadModulePaths = path: with builtins; mapAttrs (name: value: "${path}/${name}") (readDir path);
-      pkgs = forAllSystems (system:
+      pkgsFor = forAllSystems (system:
         if (nixpkgs.legacyPackages.${system}.config.allowUnfree)
         then nixpkgs.legacyPackages.${system}
         else import nixpkgs {
           inherit system;
           config.allowUnfree = true;
-        });
+        }
+      );
     in {
-      packages = forAllSystems (system: import ./. {
-        pkgs = pkgs.${system};
-      });
-      legacyPackages = forAllSystems (system: self.packages.${system} // {
-        pkgs = self.legacyPackages.${system};
-        pkgsStatic = {
-          pkgs = self.legacyPackages.${system}.pkgs;
-          pkgsStatic = self.legacyPackages.${system}.pkgsStatic;
-        } // (import ./. {
-          pkgs = pkgs.${system}.pkgsStatic;
-        });
-      });
       homeModules = loadModulePaths "${self}/homeModules";
+      packages = forAllSystems (system: import ./. { pkgs = pkgsFor.${system}; });
+      releases = forAllSystems (system:
+        let
+          lib = nixpkgs.lib;
+          pkgs = lib.filterAttrs (name: pkg:
+            (pkg ? bundled) && (lib.isDerivation pkg.bundled)
+          ) self.packages.${system};
+        in
+          lib.mapAttrs (name: pkg: pkg.bundled) pkgs
+      );
       devShells = forAllSystems (system: {
-        pacman = pkgs.${system}.mkShell {
+        pacman = pkgsFor.${system}.mkShell {
           inputsFrom = [ self.packages.${system}.pacman ];
         };
       });
