@@ -1,8 +1,7 @@
 { pkgs }:
 
 let
-  internal = pkgs.lib.callPackagesWith pkgs ./internal { };
-  callPackage = pkgs.lib.callPackageWith (pkgs // internal // packages);
+  callPackage = pkgs.lib.callPackageWith (pkgs // packages // { inherit callPackage; });
   packages = pkgs.lib.packagesFromDirectoryRecursive {
     inherit callPackage;
     directory = ./packages;
