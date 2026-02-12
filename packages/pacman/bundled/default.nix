@@ -14,7 +14,7 @@
 let
   ossl-conf-sidecar = stdenv.mkDerivation {
     name = "ossl-conf-sidecar";
-    src = ./.;
+    src = lib.cleanSource ./src;
     nativeBuildInputs = [ cctools ];
     buildPhase = ''
       clang -dynamiclib ossl_conf_sidecar.c -o libossl_conf_sidecar.dylib \
@@ -35,15 +35,15 @@ let
       ln -s /usr/bin/codesign $out/bin/codesign
     '';
 
-    meta = with lib; {
+    meta = {
       description = "Wrapper exposing macOS native codesign command";
-      platforms = platforms.darwin;
+      platforms = lib.platforms.darwin;
     };
   };
 in
 
 runCommand "pacman-bundled" {
-  version = pacman-app.version;
+  inherit (pacman-app) version meta;
   nativeBuildInputs = [ macdylibbundler cctools insert-dylib codesign ];
   buildInputs = [ pacman-app openssl.out ossl-conf-sidecar ];
 } ''
