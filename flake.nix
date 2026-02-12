@@ -34,5 +34,26 @@
           inputsFrom = [ self.packages.${system}.pacman ];
         };
       });
+      # Matrix output for GitHub Actions to build all releases
+      matrix = let
+        lib = nixpkgs.lib;
+        # Mapping of Nix systems to GitHub Actions runners
+        runners = {
+          "aarch64-darwin" = "macos-15";
+          "x86_64-darwin" = "macos-15-intel";
+        };
+        jobs = lib.flatten (lib.mapAttrsToList
+          (system: runner: lib.mapAttrsToList
+            (app: drv: {
+              inherit runner system app;
+              inherit (drv) version;
+              name = "${app}-${system}";
+              command = "nix build .#releases.${system}.${app}";
+            })
+            self.releases.${system}
+          )
+          runners
+        );
+      in { include = jobs; };
     };
 }
