@@ -3,7 +3,7 @@
 with lib;
 
 let
-  inherit(import ../.. { inherit pkgs; }) pacman-app;
+  inherit(import ../.. { inherit pkgs; }) pacman;
 
   cfg = config.programs.pacman;
 
@@ -165,7 +165,7 @@ in {
         You can pass a custom derivation here directly.
       '';
       type = types.package;
-      default = pacman-app;
+      default = pacman;
     };
   };
 
