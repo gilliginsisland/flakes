@@ -7,7 +7,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/gilliginsisland/pacman/app"
+	"github.com/gilliginsisland/pacman/internal/app"
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 )
 

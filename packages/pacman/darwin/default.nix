@@ -41,7 +41,7 @@ let
 
   resources = lib.cleanSource ./resources;
 
-  pacman-app = runCommand "pacman-app" {
+  attrs = {
     inherit (pacman) version;
     nativeBuildInputs = [ librsvg iconutil codesign ];
     buildInputs = [ pacman ];
@@ -52,7 +52,9 @@ let
     passthru = {
       bundled = callPackage ../bundled { inherit pacman-app; };
     };
-  } ''
+  };
+
+  pacman-app = runCommand "pacman-app" attrs ''
     # Prepare app bundle
     app=$out/Applications/PACman.app
     mkdir -p "$app"/Contents/{MacOS,Resources}
@@ -76,7 +78,8 @@ let
     # Copy assets
     cp icon.icns "$app/Contents/Resources/icon.icns"
     cp ${resources}/menuicon.pdf "$app/Contents/Resources/menuicon.pdf"
-    cp ${resources}/Info.plist "$app/Contents/Info.plist"
+    substitute ${resources}/Info.plist "$app/Contents/Info.plist" \
+      --replace "@VERSION@" "${attrs.version}"
 
     codesign -s - --force --deep --timestamp --entitlements ${resources}/entitlements.plist "$app"
 
