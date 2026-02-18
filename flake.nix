@@ -35,25 +35,27 @@
         };
       });
       # Matrix output for GitHub Actions to build all releases
-      matrix = let
-        lib = nixpkgs.lib;
-        # Mapping of Nix systems to GitHub Actions runners
-        runners = {
-          "aarch64-darwin" = "macos-15";
-          "x86_64-darwin" = "macos-15-intel";
+      actions =
+        let
+          lib = nixpkgs.lib;
+          # Mapping of Nix systems to GitHub Actions runners
+          runners = {
+            "aarch64-darwin" = "macos-15";
+            "x86_64-darwin" = "macos-15-intel";
+          };
+        in {
+          matrix = lib.flatten (lib.mapAttrsToList
+            (system: runner: lib.mapAttrsToList
+              (app: drv: {
+                inherit runner system app;
+                inherit (drv) version;
+                changes = drv.meta.changes or "";
+                output = "releases.${system}.${app}";
+              })
+              self.releases.${system}
+            )
+            runners
+          );
         };
-        jobs = lib.flatten (lib.mapAttrsToList
-          (system: runner: lib.mapAttrsToList
-            (app: drv: {
-              inherit runner system app;
-              inherit (drv) version;
-              name = "${app}-${system}";
-              command = "nix build .#releases.${system}.${app}";
-            })
-            self.releases.${system}
-          )
-          runners
-        );
-      in { include = jobs; };
     };
 }
