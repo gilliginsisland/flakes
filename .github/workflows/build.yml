@@ -96,52 +96,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p ./pages-content
-
-          # Generate a simple index.html with a directory listing
-          cat <<EOF > ./pages-content/index.html
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Pacman Builds</title>
-          </head>
-          <body>
-            <h1>Pacman Builds</h1>
-            <h2>Available Files</h2>
-            <ul>
-          EOF
-
-          gh release list \
-            --repo "${{ github.repository }}" \
-            --json tagName --limit 25 \
-          | jq -r '.[].tagName' \
-          | while read -r TAG; do
-
-          RELEASE_DATA=$(gh release view "$TAG" \
-            --repo "${{ github.repository }}" \
-            --json url,name,body)
-
-          URL=$(jq -r '.url' <<< "$RELEASE_DATA")
-          NAME=$(jq -r '.name' <<< "$RELEASE_DATA")
-          BODY=$(jq -r '.body' <<< "$RELEASE_DATA")
-
-          # Fallback to tag name if the release title is empty
-          DISPLAY_NAME="${NAME:-$TAG}"
-
-          cat <<EOF >> ./pages-content/index.html
-              <li>
-                <a href="$URL">$DISPLAY_NAME</a>
-                <p>$BODY</p>
-              </li>
-          EOF
-          done
-
-          cat <<EOF >> ./pages-content/index.html
-            </ul>
-          </body>
-          </html>
-          EOF
+          .github/scripts/gen-release-index.sh ${{ github.repository }} > ./pages-content/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Prepare GitHub Pages Artifact
