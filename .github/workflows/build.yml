@@ -9,53 +9,94 @@ on:
       - main
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os.runner }}
-    strategy:
-      matrix:
-        os:
-          - runner: macos-15
-            label: macos-15-arm
-          - runner: macos-15-intel
-            label: macos-15-intel
-        output:
-          - pacman-bundled
+  gen-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.gen-matrix.outputs.build }}
+      release: ${{ steps.gen-matrix.outputs.release }}
+      has_jobs: ${{ steps.gen-matrix.outputs.has_jobs }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Install Nix
         uses: cachix/install-nix-action@v31.9.0
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Magic Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Get Build Matrix
+        id: gen-matrix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .github/scripts/gen-matrix.sh > "$GITHUB_OUTPUT"
+
+  build:
+    needs: gen-matrix
+    if: ${{ fromJson(needs.gen-matrix.outputs.has_jobs) }}
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.gen-matrix.outputs.build) }}
+    runs-on: ${{ matrix.runner }}
+    env:
+      ARTIFACT_NAME: ${{ matrix.app }}-${{ matrix.system }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.9.0
       - name: Setup Magic Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build with Nix Flakes
-        run: nix build --show-trace -L .#${{ matrix.output }}
-      - name: Package build output archive
-        run: tar -czvf ${{ matrix.output }}-${{ matrix.os.label }}.tgz -C ./result .
+        run: |
+          nix build --show-trace -L .#${{ matrix.output }}
+      - name: Package Release Asset
+        run: |
+          tar -czvf "${{ env.ARTIFACT_NAME }}.tgz" -C ./result .
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: ${{ matrix.output }}-${{ matrix.os.label }}
-          path: ${{ matrix.output }}-${{ matrix.os.label }}.tgz
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.ARTIFACT_NAME }}.tgz
+          compression-level: 0
 
-  bundle:
-    needs: build
+  release:
+    needs:
+      - gen-matrix
+      - build
+    if: ${{ fromJson(needs.gen-matrix.outputs.has_jobs) }}
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.gen-matrix.outputs.release) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
-      - name: Bundle artifacts for GitHub Pages
+          merge-multiple: true
+          pattern: ${{ matrix.app }}-*
+      - name: Create Release and Upload Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p ./pages-content/pool
-          # Copy all tar files to the pool directory
-          for artifact in artifacts/*/*.tgz; do
-            if [ -f "$artifact" ]; then
-              cp "$artifact" ./pages-content/pool/
-            fi
-          done
+          gh release create "${{ matrix.tag }}" \
+            --repo "${{ github.repository }}" \
+            --target "$GITHUB_SHA" \
+            --title "${{ matrix.tag }}" \
+            --notes "${{ matrix.changes }}" \
+            artifacts/*
+
+  bundle:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bundle artifacts for GitHub Pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p ./pages-content
+
           # Generate a simple index.html with a directory listing
           cat <<EOF > ./pages-content/index.html
           <!DOCTYPE html>
@@ -70,22 +111,41 @@ jobs:
             <h2>Available Files</h2>
             <ul>
           EOF
-          # Add a link for each tar file in the pool
-          for tar_file in ./pages-content/pool/*.tgz; do
-            if [ -f "$tar_file" ]; then
-              filename=$(basename "$tar_file")
-              echo "  <li><a href=\"pool/$filename\">$filename</a></li>" >> ./pages-content/index.html
-            fi
+
+          gh release list \
+            --repo "${{ github.repository }}" \
+            --json tagName --limit 25 \
+          | jq -r '.[].tagName' \
+          | while read -r TAG; do
+
+          RELEASE_DATA=$(gh release view "$TAG" \
+            --repo "${{ github.repository }}" \
+            --json url,name,body)
+
+          URL=$(jq -r '.url' <<< "$RELEASE_DATA")
+          NAME=$(jq -r '.name' <<< "$RELEASE_DATA")
+          BODY=$(jq -r '.body' <<< "$RELEASE_DATA")
+
+          # Fallback to tag name if the release title is empty
+          DISPLAY_NAME="${NAME:-$TAG}"
+
+          cat <<EOF >> ./pages-content/index.html
+              <li>
+                <a href="$URL">$DISPLAY_NAME</a>
+                <p>$BODY</p>
+              </li>
+          EOF
           done
-          echo "  </ul>" >> ./pages-content/index.html
-          echo "</body>" >> ./pages-content/index.html
-          echo "</html>" >> ./pages-content/index.html
-          # Display generated index.html for debugging
-          cat ./pages-content/index.html
+
+          cat <<EOF >> ./pages-content/index.html
+            </ul>
+          </body>
+          </html>
+          EOF
       - name: Setup Pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v5
       - name: Prepare GitHub Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./pages-content
 
