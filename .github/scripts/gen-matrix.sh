@@ -1,22 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
-gen_jobs(){
-	nix eval --json .#actions.matrix | jq -c '.[]' | while read -r line; do
-		TAG=$(jq -r '"\(.app)@v\(.version)"' <<< "$line")
+MATRIX=$(nix eval --json .#actions.matrix | jq -c 'map(.tag = "\(.app)@v\(.version)")')
+
+filter_jobs(){
+	while read -r line; do
+		TAG=$(jq -r '.tag' <<< "$line")
 		if ! git ls-remote --tags --exit-code origin "refs/tags/${TAG}" > /dev/null 2>&1; then
 			echo "$line"
 		fi
 	done
 }
-JOBS=$(gen_jobs)
+JOBS=$(jq -c '.[]' <<< "$MATRIX" | filter_jobs)
+
+echo "apps=$MATRIX"
 
 jq -src \
 	'"build="+(. | @json)' \
 	<<< "$JOBS"
 
 jq -src \
-	'"release="+(group_by(.app,.version) | map(.[0] | {app,version,changes,tag:"\(.app)@v\(.version)"}) | @json)' \
+	'"release="+(group_by(.app,.version) | map(.[0] | {app,version,changes,tag}) | @json)' \
 	<<< "$JOBS"
 
 jq -src \
