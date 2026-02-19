@@ -12,12 +12,13 @@ jobs:
   gen-matrix:
     runs-on: ubuntu-latest
     outputs:
+      apps: ${{ steps.gen-matrix.outputs.apps }}
       build: ${{ steps.gen-matrix.outputs.build }}
       release: ${{ steps.gen-matrix.outputs.release }}
       has_jobs: ${{ steps.gen-matrix.outputs.has_jobs }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install Nix
         uses: cachix/install-nix-action@v31.9.0
       - name: Setup Magic Cache
@@ -40,7 +41,7 @@ jobs:
       ARTIFACT_NAME: ${{ matrix.app }}-${{ matrix.system }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install Nix
         uses: cachix/install-nix-action@v31.9.0
       - name: Setup Magic Cache
@@ -88,10 +89,24 @@ jobs:
             artifacts/*
 
   bundle:
-    needs: release
+    needs:
+      - gen-matrix
+      - release
     runs-on: ubuntu-latest
     steps:
-      - name: Bundle artifacts for GitHub Pages
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Generate Appcast XML Files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPS_JSON: ${{ needs.gen-matrix.outputs.apps }}
+        run: |
+          mkdir -p ./pages-content/appcasts
+          .github/scripts/gen-appcasts.sh \
+            "${{ github.repository }}" \
+            "$APPS_JSON" \
+            ./pages-content/appcasts
+      - name: Generate GitHub Pages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
