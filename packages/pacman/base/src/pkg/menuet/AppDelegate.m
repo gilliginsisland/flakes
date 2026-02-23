@@ -1,8 +1,6 @@
 #import <Cocoa/Cocoa.h>
-#include <Foundation/Foundation.h>
 
 #import "AppDelegate.h"
-#import "menu.h"
 #import "notification.h"
 
 void goAppWillFinishLaunching();
@@ -11,11 +9,14 @@ void goAppWillTerminate();
 
 @implementation AppDelegate
 
+NSMutableDictionary<NSString *, void (^)(id)> *_actions;
+
 + (AppDelegate *)sharedInstance {
 	static AppDelegate *_sharedInstance = nil;
 	static dispatch_once_t onceToken;
 	dispatch_once(&onceToken, ^{
 		_sharedInstance = [AppDelegate new];
+		_actions = [NSMutableDictionary new]; // Initialize the app actions dictionary
 	});
 	return _sharedInstance;
 }
@@ -33,6 +34,21 @@ void goAppWillTerminate();
 	goAppWillTerminate();
 }
 
+- (void)registerAction:(NSString *)action withBlock:(void (^)(id))block {
+	_actions[action] = block;
+}
+
+- (void)invokeAction:(NSString *)action withData:(id)data {
+	void (^block)(id) = _actions[action];
+	if (action) {
+		block(data);
+	}
+}
+
+- (BOOL)hasAction:(NSString *)action {
+	return _actions[action] != nil;
+}
+
 @end
 
 void runApplication() {
@@ -48,4 +64,16 @@ void terminateApplication() {
 	[[NSRunLoop mainRunLoop] performInModes:@[NSRunLoopCommonModes] block: ^{
 		[[NSApplication sharedApplication] terminate:nil];
 	}];
+}
+
+void invoke_app_action(const char *action) {
+	@autoreleasepool {
+		[[AppDelegate sharedInstance] invokeAction:[NSString stringWithUTF8String:action] withData:nil];
+	}
+}
+
+bool has_app_action(const char *action) {
+	@autoreleasepool {
+		return [[AppDelegate sharedInstance] hasAction:[NSString stringWithUTF8String:action]] ? true : false;
+	}
 }

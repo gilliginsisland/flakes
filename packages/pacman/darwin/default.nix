@@ -42,7 +42,7 @@ let
   resources = lib.cleanSource ./resources;
 
   attrs = {
-    inherit (pacman) version;
+    inherit (pacman) pname version;
     nativeBuildInputs = [ librsvg iconutil codesign ];
     buildInputs = [ pacman ];
     meta = pacman.meta // {
