@@ -10,8 +10,8 @@ func Join(a, b io.ReadWriteCloser) [2]error {
 }
 
 // JoinBuffer copies between a and b using the provided buffer size.
-func JoinBuffer(a, b io.ReadWriteCloser, bufSize int) [2]error {
-	if bufSize <= 0 {
+func JoinBuffer(a, b io.ReadWriteCloser, bufSize uint32) [2]error {
+	if bufSize == 0 {
 		panic("JoinBuffer: buffer size must be > 0")
 	}
 
