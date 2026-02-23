@@ -2,7 +2,7 @@ package stackutil
 
 import (
 	"context"
-	"errors"
+	"io"
 
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -11,6 +11,12 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+)
+
+var (
+	_ io.ReadWriteCloser = (*Endpoint)(nil)
+	_ io.WriterTo        = (*Endpoint)(nil)
+	// _ io.ReaderFrom      = (*Endpoint)(nil)
 )
 
 // WrapChannel wraps the provided netstack channel-based Endpoint and returns a wrapper
@@ -28,14 +34,43 @@ type Endpoint struct {
 	*channel.Endpoint
 }
 
-func (e *Endpoint) Read(p []byte) (n int, err error) {
+func (e *Endpoint) Read(p []byte) (int, error) {
+	return e.readPacketData(p)
+}
+
+func (e *Endpoint) WriteTo(w io.Writer) (n int64, err error) {
+	p := make([]byte, e.Endpoint.MTU())
+	for {
+		offset, err := e.readPacketData(p)
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return n, err
+		}
+		count, err := w.Write(p[:offset])
+		n += int64(count)
+		if err != nil {
+			return n, err
+		}
+	}
+}
+
+func (e *Endpoint) readPacketData(p []byte) (n int, err error) {
 	pkt := e.ReadContext(context.Background())
 	if pkt == nil {
-		return 0, errors.New("nil packet")
+		return 0, io.EOF
 	}
 	defer pkt.DecRef()
 	b := pkt.ToBuffer()
-	n = copy(p, b.Flatten())
+	vl := b.AsViewList()
+	for v := vl.Front(); v != nil; v = v.Next() {
+		s := v.AsSlice()
+		if n+len(s) > len(p) {
+			return n, io.ErrShortBuffer
+		}
+		n += copy(p[n:], s)
+	}
 	return n, nil
 }
 

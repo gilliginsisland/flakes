@@ -157,7 +157,7 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 	sd.Resolver = netutil.NewResolver(dns, sd.DialContext)
 
 	go func() {
-		netutil.JoinBuffer(rwc, WrapChannel(ch), int(opts.MTU))
+		netutil.JoinBuffer(rwc, WrapChannel(ch), opts.MTU)
 		cleanup()
 	}()
 
