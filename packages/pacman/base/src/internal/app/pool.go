@@ -16,8 +16,8 @@ import (
 
 type DialerPool map[string]*PooledDialer
 
-func (dp DialerPool) MenuItems() []menuet.Itemer {
-	items := make([]menuet.Itemer, len(dp))
+func (dp DialerPool) MenuItems() menuet.Itemer {
+	items := make(menuet.MenuItems, len(dp))
 	var idx int
 	for _, pd := range iterutil.SortedMapIter(dp) {
 		items[idx] = &pd.menu

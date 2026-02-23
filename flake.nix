@@ -31,7 +31,7 @@
       );
       devShells = forAllSystems (system: {
         pacman = pkgsFor.${system}.mkShell {
-          inputsFrom = [ self.packages.${system}.pacman ];
+          inputsFrom = self.packages.${system}.pacman.buildInputs;
         };
       });
       # Matrix output for GitHub Actions to build all releases

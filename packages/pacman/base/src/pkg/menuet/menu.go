@@ -188,12 +188,6 @@ func (f DynamicItem) item() *C.MenuItem {
 	return f().item()
 }
 
-type DynamicItems func() []Itemer
-
-func (f DynamicItems) item() *C.MenuItem {
-	return toMenuItems(f())
-}
-
 //export goItemClicked
 func goItemClicked(cUnique *C.char) {
 	unique := C.GoString(cUnique)

@@ -94,7 +94,7 @@ func run(config Path, l net.Listener) error {
 			},
 			&menuet.Section{
 				Title:   "Proxies",
-				Content: menuet.DynamicItems(pacman.pool.MenuItems),
+				Content: menuet.DynamicItem(pacman.pool.MenuItems),
 			},
 			&menuet.MenuItem{
 				Text: "Settings",
@@ -114,6 +114,19 @@ func run(config Path, l net.Listener) error {
 							menuet.WebView(docs.HTML)
 						},
 					},
+					menuet.DynamicItem(func() menuet.Itemer {
+						action := &SparkleUpdateAction{}
+						if !app.HasAction(action) {
+							return nil
+						}
+						return &menuet.MenuItems{
+							&menuet.MenuItemSeparator{},
+							&menuet.MenuItem{
+								Text:    "Check for Updates...",
+								Clicked: func() { app.InvokeAction(action) },
+							},
+						}
+					}),
 				}),
 			},
 			&menuet.MenuItem{
