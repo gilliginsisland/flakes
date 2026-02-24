@@ -80,12 +80,13 @@ jobs:
       - name: Create Release and Upload Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGES: ${{ toJson(matrix.changes) }}
         run: |
           gh release create "${{ matrix.tag }}" \
             --repo "${{ github.repository }}" \
             --target "$GITHUB_SHA" \
             --title "${{ matrix.tag }}" \
-            --notes "${{ matrix.changes }}" \
+            --notes "$(jq -r '.[] | "* "+.' <<< "$CHANGES")" \
             artifacts/*
 
   bundle:

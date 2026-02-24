@@ -49,7 +49,7 @@
               (app: drv: {
                 inherit runner system app;
                 inherit (drv) version;
-                changes = drv.meta.changes or "";
+                changes = drv.meta.changes or [];
                 output = "releases.${system}.${app}";
               })
               self.releases.${system}

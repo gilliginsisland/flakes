@@ -12,6 +12,7 @@ generate_appcast_feed() {
 	APP=$(jq -r '.app' <<< "$ENTRY")
 	SYSTEM=$(jq -r '.system' <<< "$ENTRY")
 	VERSION=$(jq -r '.version' <<< "$ENTRY")
+	# CHANGES=$(jq -r '.changes | .[] | "* "+.' <<< "$ENTRY")
 	TAG=$(jq -r '.tag' <<< "$ENTRY")
 
 	echo "Generating appcast for $APP on $SYSTEM (tag: $TAG)..." >&2
