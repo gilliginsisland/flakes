@@ -1,3 +1,7 @@
+# v3.1.2
+
+* feat: improve packet handling performance
+___
 # v3.1.1
 
 * feat: improve packet handling performance
