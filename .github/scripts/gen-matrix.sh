@@ -16,7 +16,7 @@ JOBS=$(jq -c '.[]' <<< "$MATRIX" | filter_jobs)
 echo "apps=$MATRIX"
 
 jq -src \
-	'"build="+(. | @json)' \
+	'"build="+(map({app,system,runner,output}) | @json)' \
 	<<< "$JOBS"
 
 jq -src \

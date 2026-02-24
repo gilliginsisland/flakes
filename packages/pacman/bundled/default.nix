@@ -1,7 +1,7 @@
 {
   lib,
   stdenv,
-  pacman-app,
+  pacman,
   openssl,
   libiconv,
   darwin,
@@ -81,9 +81,9 @@ let
   };
 
   attrs = {
-    inherit (pacman-app) pname version meta;
+    inherit (pacman) pname version meta;
     nativeBuildInputs = [ macdylibbundler cctools insert-dylib codesign ];
-    buildInputs = [ pacman-app openssl.out ossl-conf-sidecar sparkle-sidecar ];
+    buildInputs = [ pacman openssl.out ossl-conf-sidecar sparkle-sidecar ];
   };
 in
 
@@ -94,7 +94,7 @@ runCommand "pacman-bundled" attrs ''
   cp -Tr "${openssl.out}/etc/ssl" "$app/Contents/Resources/ssl"
   cp -Tr "${openssl.out}/lib/engines-3" "$app/Contents/PlugIns/engines-3"
   cp -Tr "${openssl.out}/lib/ossl-modules" "$app/Contents/PlugIns/ossl-modules"
-  cp -Tr "${pacman-app}/Applications/PACman.app" "$app"
+  cp -Tr "${pacman}/Applications/PACman.app" "$app"
   chmod -R u+w "$app"
 
   insert_dylib \
