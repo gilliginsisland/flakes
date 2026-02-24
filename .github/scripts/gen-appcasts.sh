@@ -12,6 +12,7 @@ generate_appcast_feed() {
 	APP=$(jq -r '.app' <<< "$ENTRY")
 	SYSTEM=$(jq -r '.system' <<< "$ENTRY")
 	VERSION=$(jq -r '.version' <<< "$ENTRY")
+	# CHANGES=$(jq -r '.changes | .[] | "* "+.' <<< "$ENTRY")
 	TAG=$(jq -r '.tag' <<< "$ENTRY")
 
 	echo "Generating appcast for $APP on $SYSTEM (tag: $TAG)..." >&2
@@ -60,7 +61,7 @@ generate_appcast_feed() {
 					<link>$LINK</link>
 					<sparkle:version>$VERSION</sparkle:version>
 					<sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-					<description><![CDATA[$BODY]]></description>
+					<description sparkle:format="markdown"><![CDATA[$BODY]]></description>
 					<pubDate>$PUB_DATE</pubDate>
 					<enclosure url="$URL" length="$SIZE" type="application/octet-stream"/>
 				</item>

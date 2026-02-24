@@ -19,30 +19,51 @@ let
     ];
   });
 
-  attrs = {
-    pname = "pacman";
-    version = "3.1.0";
+  parseSection = section:
+    let
+      lines = lib.map lib.trim (lib.splitString "\n" section);
+      version = lib.removePrefix "# v" (lib.findFirst (lib.hasPrefix "# v") "" lines);
+      changes = lib.map
+        (lib.removePrefix "* ")
+        (lib.filter (lib.hasPrefix "* ") lines);
+    in
+      lib.optionalAttrs (version != "") {
+        inherit version changes;
+      };
 
-    meta = {
-      description = "Rule-based HTTP proxy server.";
-      homepage = "https://github.com/gilliginsisland/flakes";
-      platforms = lib.platforms.all;
-      mainProgram = "pacman";
-    };
+  parseChangelog = content:
+    let
+      sections = lib.map
+        (section: parseSection (lib.trim section))
+        (lib.splitString "___" content);
+    in
+      lib.filter (x: x != {}) sections;
 
-    nativeBuildInputs = [ pkg-config ];
-    buildInputs = [ openconnect' apple-sdk_15 (darwinMinVersionHook "14.4") ];
+  changelog = parseChangelog (builtins.readFile ./src/docs/CHANGELOG.md);
+in buildGoModule (final: {
+  pname = "pacman";
+  version = (builtins.elemAt changelog 0).version;
 
-    ldflags = [
-      "-X github.com/gilliginsisland/pacman/internal/version.Version=${attrs.version}"
-    ];
-
-    env = {
-      CGO_ENABLED = "1";
-    };
-
-    vendorHash = null;
-
-    src = lib.cleanSource ./src;
+  meta = {
+    description = "Rule-based HTTP proxy server.";
+    homepage = "https://github.com/gilliginsisland/flakes";
+    platforms = lib.platforms.all;
+    mainProgram = "pacman";
+    changes = (builtins.elemAt changelog 0).changes;
   };
-in buildGoModule attrs
+
+  nativeBuildInputs = [ pkg-config ];
+  buildInputs = [ openconnect' apple-sdk_15 (darwinMinVersionHook "14.4") ];
+
+  ldflags = [
+    "-X github.com/gilliginsisland/pacman/internal/version.Version=${final.version}"
+  ];
+
+  env = {
+    CGO_ENABLED = "1";
+  };
+
+  vendorHash = null;
+
+  src = lib.cleanSource ./src;
+})
