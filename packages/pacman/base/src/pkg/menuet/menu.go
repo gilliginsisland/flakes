@@ -185,7 +185,11 @@ func (s MenuItems) item() *C.MenuItem {
 type DynamicItem func() Itemer
 
 func (f DynamicItem) item() *C.MenuItem {
-	return f().item()
+	i := f()
+	if i == nil {
+		return nil
+	}
+	return i.item()
 }
 
 //export goItemClicked
