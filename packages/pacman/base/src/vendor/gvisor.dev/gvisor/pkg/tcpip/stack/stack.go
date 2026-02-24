@@ -186,8 +186,14 @@ type Stack struct {
 	// saveRestoreEnabled indicates whether the stack is saved and restored.
 	saveRestoreEnabled bool
 
-	// removeNICs indicates if the NICs and routes should be removed before saving.
-	removeNICs bool `state:"nosave"`
+	// removeConf indicates whether to remove NICs and routes and terminate
+	// active connections before saving. This flag will be set to true only
+	// when resume is false.
+	removeConf bool `state:"nosave"`
+
+	// externalNetworkingDisabled indicates whether external networking is
+	// disabled. This means all non-loopback NICs are disabled.
+	externalNetworkingDisabled bool
 }
 
 // NetworkProtocolFactory instantiates a network protocol.
@@ -2095,6 +2101,8 @@ func (s *Stack) ReplaceConfig(st *Stack) {
 		s.nics[id] = nic
 		if nic.IsLoopback() {
 			s.loopbackNIC = nic
+		} else if s.externalNetworkingDisabled {
+			nic.disable()
 		}
 		_ = s.NextNICID()
 	}
@@ -2567,9 +2575,40 @@ func RestoreStackFromContext(ctx context.Context) *Stack {
 	return nil
 }
 
-// SetRemoveNICs sets the removeNICs in stack to true during save/restore.
-func (s *Stack) SetRemoveNICs() {
+// SetRemoveConf sets the removeConf in stack to the given value.
+func (s *Stack) SetRemoveConf(removeConf bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.removeNICs = true
+	s.removeConf = removeConf
+}
+
+// GetRemoveConf gets the removeConf from stack.
+func (s *Stack) GetRemoveConf() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.removeConf
+}
+
+// DisableAllNonLoopbackNICs disables all non-loopback NICs in the stack.
+func (s *Stack) DisableAllNonLoopbackNICs() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.externalNetworkingDisabled = true
+	for _, nic := range s.nics {
+		if !nic.IsLoopback() {
+			nic.disable()
+		}
+	}
+}
+
+// EnableAllNonLoopbackNICs enables all non-loopback NICs in the stack.
+func (s *Stack) EnableAllNonLoopbackNICs() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.externalNetworkingDisabled = false
+	for _, nic := range s.nics {
+		if !nic.IsLoopback() {
+			nic.enable()
+		}
+	}
 }

@@ -6,11 +6,11 @@
 
 stdenv.mkDerivation (final: {
   pname = "sparkle-binary";
-  version = "2.8.1";
+  version = "2.9.0";
 
   src = fetchzip {
     url = "https://github.com/sparkle-project/Sparkle/releases/download/${final.version}/Sparkle-${final.version}.tar.xz";
-    sha256 = "sha256-oZSkPcAnjCeNlfkQ8gyilPEIRqjnYWU/jBYrLonp7c0=";
+    sha256 = "sha256-1P9l2K1ODkFs4BF4xUVFQMUvEvOWa6g+fdVeboCAhAI=";
     stripRoot = false;
   };
 
