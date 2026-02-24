@@ -16,7 +16,7 @@ import (
 var (
 	_ io.ReadWriteCloser = (*Endpoint)(nil)
 	_ io.WriterTo        = (*Endpoint)(nil)
-	// _ io.ReaderFrom      = (*Endpoint)(nil)
+	_ io.ReaderFrom      = (*Endpoint)(nil)
 )
 
 // WrapChannel wraps the provided netstack channel-based Endpoint and returns a wrapper
@@ -75,15 +75,34 @@ func (e *Endpoint) readPacketData(p []byte) (n int, err error) {
 }
 
 func (e *Endpoint) Write(p []byte) (n int, err error) {
+	return e.writePacketData(p)
+}
+
+func (e *Endpoint) ReadFrom(r io.Reader) (n int64, err error) {
+	p := make([]byte, e.Endpoint.MTU())
+	for {
+		count, err := r.Read(p)
+		n += int64(count)
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return n, err
+		}
+		_, err = e.writePacketData(p[:count])
+		if err != nil {
+			return n, err
+		}
+	}
+}
+
+func (e *Endpoint) writePacketData(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
 
-	// NewPacketBuffer takes ownership of the data, so making a copy is necessary
-	data := make([]byte, len(p))
-	copy(data, p)
 	pb := stack.NewPacketBuffer(stack.PacketBufferOptions{
-		Payload: buffer.MakeWithData(data),
+		Payload: buffer.MakeWithData(p),
 	})
 
 	var ipv tcpip.NetworkProtocolNumber
