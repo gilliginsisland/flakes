@@ -50,7 +50,7 @@ let
       platforms = lib.platforms.darwin;
     };
     passthru = {
-      bundled = callPackage ../bundled {};
+      bundled = callPackage ./bundled {};
     };
   };
 
