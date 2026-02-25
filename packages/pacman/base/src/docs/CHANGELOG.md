@@ -1,3 +1,7 @@
+# v3.1.3
+
+* bugfix: nil pointer on dynamic item
+___
 # v3.1.2
 
 * feat: improve packet handling performance
