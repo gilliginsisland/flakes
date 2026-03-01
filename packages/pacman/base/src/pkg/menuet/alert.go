@@ -3,6 +3,11 @@ package menuet
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa
+#cgo nocallback make_alert
+#cgo nocallback show_alert
+#cgo nocallback destroy_alert
+#cgo nocallback destroy_alert_response
+#cgo nocallback make_alert_node
 
 #include <stdlib.h>
 

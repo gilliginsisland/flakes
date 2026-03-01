@@ -3,6 +3,10 @@ package menuet
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa
+#cgo nocallback make_status_item
+#cgo nocallback update_status_item
+#cgo nocallback remove_status_item
+#cgo nocallback make_menu_item
 
 #include <stdlib.h>
 

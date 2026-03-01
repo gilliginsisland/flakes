@@ -3,6 +3,7 @@ package menuet
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa -framework WebKit
+#cgo nocallback openWebView
 
 #include <stdlib.h>
 
