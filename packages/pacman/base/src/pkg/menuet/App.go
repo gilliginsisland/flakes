@@ -3,6 +3,9 @@ package menuet
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa
+#cgo nocallback invoke_app_action
+#cgo nocallback has_app_action
+#cgo nocallback terminateApplication
 
 #import "AppDelegate.h"
 

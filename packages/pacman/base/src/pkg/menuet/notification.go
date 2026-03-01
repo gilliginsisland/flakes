@@ -3,6 +3,15 @@ package menuet
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa -framework UserNotifications
+#cgo nocallback make_notification_action_node
+#cgo nocallback make_notification_action_text_node
+#cgo nocallback destroy_notification_category_nodes
+#cgo nocallback make_notification_category_node
+#cgo nocallback set_notification_categories
+#cgo nocallback make_notification
+#cgo nocallback destroy_notification
+#cgo nocallback show_notification
+#cgo nocallback destroy_notification_response
 
 #import <UserNotifications/UserNotifications.h>
 
