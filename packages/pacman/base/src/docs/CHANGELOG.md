@@ -1,3 +1,7 @@
+# v3.1.5
+
+* feat: create default config on launch
+___
 # v3.1.4
 
 * feat: major networking performance improvement
