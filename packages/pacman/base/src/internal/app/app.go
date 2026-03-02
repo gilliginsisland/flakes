@@ -92,10 +92,17 @@ func run(config Path, l net.Listener) error {
 					}
 				}),
 			},
-			&menuet.Section{
-				Title:   "Proxies",
-				Content: menuet.DynamicItem(pacman.pool.MenuItems),
-			},
+			menuet.DynamicItem(func() menuet.Itemer {
+				if len(pacman.pool) == 0 {
+					return &menuet.MenuItem{
+						Text: "No Proxies Configured",
+					}
+				}
+				return &menuet.Section{
+					Title:   "Proxies",
+					Content: pacman.pool.MenuItems(),
+				}
+			}),
 			&menuet.MenuItem{
 				Text: "Settings",
 				Submenu: (menuet.MenuItems{

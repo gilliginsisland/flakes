@@ -14,7 +14,7 @@ import (
 var opts Opts
 
 type Opts struct {
-	ConfigPath app.Path          `short:"c" long:"config" description:"Path to the config file" default:"~/.config/pacman/config"`
+	ConfigPath app.Path          `short:"c" long:"config" description:"Path to the config file"`
 	LogLevel   flagutil.LogLevel `short:"v" long:"verbosity" description:"Verbosity level"`
 }
 
@@ -34,6 +34,14 @@ func handleCommand(cmd flags.Commander, args []string) error {
 	slog.SetDefault(logger)
 
 	slog.Debug(fmt.Sprintf("Running command: %#v", cmd))
+
+	if opts.ConfigPath == "" {
+		path, err := app.EnsureDefaultConfigFile()
+		if err != nil {
+			return err
+		}
+		opts.ConfigPath = path
+	}
 
 	return cmd.Execute(args)
 }
