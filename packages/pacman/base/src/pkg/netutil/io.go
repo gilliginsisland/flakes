@@ -1,16 +1,17 @@
 package netutil
 
 import (
+	"errors"
 	"io"
 )
 
 // Join uses the default buffer size (32 KiB) for copying.
-func Join(a, b io.ReadWriteCloser) [2]error {
+func Join(a, b io.ReadWriteCloser) error {
 	return JoinBuffer(a, b, 32*1024)
 }
 
 // JoinBuffer copies between a and b using the provided buffer size.
-func JoinBuffer(a, b io.ReadWriteCloser, bufSize uint32) [2]error {
+func JoinBuffer(a, b io.ReadWriteCloser, bufSize uint32) error {
 	if bufSize == 0 {
 		panic("JoinBuffer: buffer size must be > 0")
 	}
@@ -31,12 +32,7 @@ func JoinBuffer(a, b io.ReadWriteCloser, bufSize uint32) [2]error {
 		pipe(a, b), // b → a
 	}
 
-	var errs [2]error
-	for i, ch := range chans {
-		errs[i] = <-ch
-	}
-
-	return errs
+	return errors.Join(<-chans[0], <-chans[1])
 }
 
 // RWCDumper wraps an io.ReadWriteCloser and calls the Dumper function
