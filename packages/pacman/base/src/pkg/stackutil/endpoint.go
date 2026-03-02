@@ -14,31 +14,23 @@ import (
 )
 
 var (
-	_ io.ReadWriteCloser = (*Endpoint)(nil)
-	_ io.WriterTo        = (*Endpoint)(nil)
-	_ io.ReaderFrom      = (*Endpoint)(nil)
+	_ io.ReadWriteCloser = (*RWCEndpoint)(nil)
+	_ io.WriterTo        = (*RWCEndpoint)(nil)
+	_ io.ReaderFrom      = (*RWCEndpoint)(nil)
 )
 
-// WrapChannel wraps the provided netstack channel-based Endpoint and returns a wrapper
-// that implements io.Reader and io.Writer on the channel. This allows callers to read
-// and write packets as raw []byte directly to the channel.
-func WrapChannel(channel *channel.Endpoint) *Endpoint {
-	return &Endpoint{
-		Endpoint: channel,
-	}
-}
-
-// Endpoint is a wrapper around a channel.Endpoint that implements
-// the io.Reader and io.Writer interfaces.
-type Endpoint struct {
+// RWCEndpoint is a wrapper around a netstack channel-based Endpoint
+// that implements the io.Reader and io.Writer interfaces. This allows
+// reading and writing packets as raw []byte directly to the channel.
+type RWCEndpoint struct {
 	*channel.Endpoint
 }
 
-func (e *Endpoint) Read(p []byte) (int, error) {
+func (e *RWCEndpoint) Read(p []byte) (int, error) {
 	return e.readPacketData(p)
 }
 
-func (e *Endpoint) WriteTo(w io.Writer) (n int64, err error) {
+func (e *RWCEndpoint) WriteTo(w io.Writer) (n int64, err error) {
 	p := make([]byte, e.Endpoint.MTU())
 	for {
 		offset, err := e.readPacketData(p)
@@ -56,7 +48,7 @@ func (e *Endpoint) WriteTo(w io.Writer) (n int64, err error) {
 	}
 }
 
-func (e *Endpoint) readPacketData(p []byte) (n int, err error) {
+func (e *RWCEndpoint) readPacketData(p []byte) (n int, err error) {
 	pkt := e.ReadContext(context.Background())
 	if pkt == nil {
 		return 0, io.EOF
@@ -74,11 +66,11 @@ func (e *Endpoint) readPacketData(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (e *Endpoint) Write(p []byte) (n int, err error) {
+func (e *RWCEndpoint) Write(p []byte) (n int, err error) {
 	return e.writePacketData(p)
 }
 
-func (e *Endpoint) ReadFrom(r io.Reader) (n int64, err error) {
+func (e *RWCEndpoint) ReadFrom(r io.Reader) (n int64, err error) {
 	p := make([]byte, e.Endpoint.MTU())
 	for {
 		count, err := r.Read(p)
@@ -96,7 +88,7 @@ func (e *Endpoint) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 }
 
-func (e *Endpoint) writePacketData(p []byte) (n int, err error) {
+func (e *RWCEndpoint) writePacketData(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -119,7 +111,7 @@ func (e *Endpoint) writePacketData(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (e *Endpoint) Close() error {
+func (e *RWCEndpoint) Close() error {
 	e.Endpoint.Close()
 	return nil
 }

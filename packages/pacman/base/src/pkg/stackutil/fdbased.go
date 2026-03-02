@@ -1,10 +1,14 @@
 package stackutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"runtime"
+
+	"golang.org/x/sync/errgroup"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -106,18 +110,19 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 		},
 	})
 
-	var ep stack.LinkEndpoint
-	ch := channel.New(1024, opts.MTU, "")
+	rwcep := RWCEndpoint{
+		Endpoint: channel.New(1024, opts.MTU, ""),
+	}
+
+	var ep stack.LinkEndpoint = rwcep.Endpoint
 	// if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
 	// 	ep = &DumpingLinkEndpoint{
-	// 		LinkEndpoint: ch,
+	// 		LinkEndpoint: ep,
 	// 		Dumper: PacketDumperFunc(func(pkt *stack.PacketBuffer, chain string) {
 	// 			b := pkt.ToBuffer()
 	// 			netutil.DumpPacket(b.Flatten(), chain)
 	// 		}),
 	// 	}
-	// } else {
-	ep = ch
 	// }
 
 	cleanup := func() {
@@ -153,13 +158,19 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 		})
 	}
 
-	sd := Dialer{Stack: s}
-	sd.Resolver = netutil.NewResolver(dns, sd.DialContext)
-
+	g, ctx := errgroup.WithContext(context.Background())
+	context.AfterFunc(ctx, cleanup)
+	for range runtime.GOMAXPROCS(0) {
+		g.Go(func() error {
+			netutil.JoinBuffer(rwc, &rwcep, opts.MTU)
+			return nil
+		})
+	}
 	go func() {
-		netutil.JoinBuffer(rwc, WrapChannel(ch), opts.MTU)
-		cleanup()
+		_ = g.Wait()
 	}()
 
+	sd := Dialer{Stack: s}
+	sd.Resolver = netutil.NewResolver(dns, sd.DialContext)
 	return &sd, nil
 }
