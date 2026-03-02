@@ -1,3 +1,7 @@
+# v3.1.4
+
+* feat: major networking performance improvement
+___
 # v3.1.3
 
 * bugfix: nil pointer on dynamic item
