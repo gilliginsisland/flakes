@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
+	"github.com/gilliginsisland/pacman/docs"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"sigs.k8s.io/yaml"
 )
@@ -92,6 +95,31 @@ func (p Path) ExpandUser() (string, error) {
 	}
 	// replace the leading '~'
 	return home + s[1:], nil
+}
+
+const DefaultConfigPath Path = "~/.config/pacman/config"
+
+func EnsureDefaultConfigFile() (Path, error) {
+	s, err := DefaultConfigPath.ExpandUser()
+	if err != nil {
+		return "", err
+	}
+	_, err = os.Stat(s)
+	if err == nil {
+		return DefaultConfigPath, nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	err = os.MkdirAll(filepath.Dir(s), 0o755)
+	if err != nil {
+		return "", err
+	}
+	err = os.WriteFile(s, []byte(docs.DefaultConfig), 0o600)
+	if err != nil {
+		return "", err
+	}
+	return DefaultConfigPath, nil
 }
 
 func ParseConfigFile(path Path) (*Config, error) {

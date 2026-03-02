@@ -16,6 +16,9 @@ var githubMarkdownCSS string
 //go:embed marked.umd.js
 var markedJS string
 
+//go:embed default-config.yaml
+var DefaultConfig string
+
 var HTML = fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>

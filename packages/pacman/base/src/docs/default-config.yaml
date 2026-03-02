@@ -1,0 +1,50 @@
+listen: 127.0.0.1:11078
+proxies:
+  # Example proxies (uncomment and edit):
+  # cisco_vpn:
+  #   username: user
+  #   password: pass
+  #   protocol: anyconnect
+  #   host: vpn.example.com
+  #   path: usergroup
+  #   options:
+  #     token: totp
+  #     timeout: 0
+  # global_protect:
+  #   username: admin
+  #   password: secret
+  #   protocol: gp
+  #   host: gateway.example.com
+  #   path: employee-group
+  #   options:
+  #     token: totp
+  #     timeout: 7200
+  # socks_proxy:
+  #   username: proxyuser
+  #   password: proxypass
+  #   protocol: socks5
+  #   host: proxy.example.com:1080
+  #   options:
+  #     timeout: 1800
+  # ssh_tunnel:
+  #   username: sshuser
+  #   password: sshpass
+  #   protocol: ssh
+  #   host: proxy.example.com:22
+  #   options:
+  #     identity: /path/to/privatekey
+  #     timeout: 0
+rules:
+  # Example rules (uncomment and edit):
+  # - hosts:
+  #     - "*.internal.example.com"
+  #     - ".example.com"
+  #     - "192.168.1.0/24"
+  #   proxies:
+  #     - cisco_vpn
+  #     - socks_proxy
+  # - hosts:
+  #     - "specific.example.com"
+  #   proxies:
+  #     - global_protect
+  #     - ssh_tunnel
