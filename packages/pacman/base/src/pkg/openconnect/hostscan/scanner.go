@@ -13,36 +13,35 @@ type mockScanner struct {
 func (s *mockScanner) Scan() *Report {
 	r := Report{
 		OS: OS{
-			Version:      "Darwin",
-			ServicePack:  "26.1",
+			Version:      "Mac OS X",
+			ServicePack:  "26.3",
 			Architecture: "arm64",
 		},
 		Policy: Policy{
 			Location: "Default",
 		},
 		Device: Device{
-			Protection:          "none",
-			ProtectionVersion:   "5.1.8.122",
-			ProtectionExtension: "4.3.3902.0",
+			Protection:        "none",
+			ProtectionVersion: "5.1.8.122",
 		},
 		Enforce: "success",
 		PersonalFireWall: map[string]PersonalFireWall{
 			"100386": {
 				Exists:      true,
 				Description: "Packet Filter (Mac)",
-				Version:     "26.1",
+				Version:     "26.3",
 				Enabled:     "ok",
 			},
 			"100250": {
 				Exists:      true,
 				Description: "CrowdStrike Falcon (Mac)",
-				Version:     "7.29.20103.0",
+				Version:     "7.33.20503.0",
 				Enabled:     "ok",
 			},
 			"100022": {
 				Exists:      true,
 				Description: "Mac OS X Builtin Firewall (Mac)",
-				Version:     "26.1",
+				Version:     "26.3",
 				Enabled:     "ok",
 			},
 		},
@@ -66,7 +65,7 @@ func (s *mockScanner) Scan() *Report {
 			"100137": {
 				Exists:      true,
 				Description: "Gatekeeper (Mac)",
-				Version:     "26.1",
+				Version:     "26.3",
 				Activescan:  "ok",
 			},
 		},

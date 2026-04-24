@@ -542,11 +542,7 @@ func (e *endpoint) writePacket(r *stack.Route, pkt *stack.PacketBuffer) tcpip.Er
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		ipCheck := nft.CheckOutput(pkt, stack.IP)
-		// nftables allows us to use the inet family to apply rules to both IPv4
-		// and IPv6 packets.
-		inetCheck := nft.CheckOutput(pkt, stack.Inet)
-		if !ipCheck || !inetCheck {
+		if !nft.CheckOutput(pkt, stack.IP) {
 			// nftables is telling us to drop the packet.
 			return nil
 		}
@@ -593,9 +589,7 @@ func (e *endpoint) writePacketPostRouting(r *stack.Route, pkt *stack.PacketBuffe
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		ipCheck := nft.CheckOutput(pkt, stack.IP)
-		inetCheck := nft.CheckOutput(pkt, stack.Inet)
-		if !ipCheck || !inetCheck {
+		if !nft.CheckPostrouting(pkt, stack.IP) {
 			// nftables is telling us to drop the packet.
 			return nil
 		}
@@ -712,9 +706,7 @@ func (e *endpoint) forwardPacketWithRoute(route *stack.Route, pkt *stack.PacketB
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		ipCheck := nft.CheckForward(pkt, stack.IP)
-		inetCheck := nft.CheckForward(pkt, stack.Inet)
-		if !ipCheck || !inetCheck {
+		if !nft.CheckForward(pkt, stack.IP) {
 			// nftables is telling us to drop the packet.
 			return nil
 		}
@@ -768,7 +760,9 @@ func (e *endpoint) forwardPacketWithRoute(route *stack.Route, pkt *stack.PacketB
 		// WriteHeaderIncludedPacket checks for the presence of the Don't Fragment bit
 		// while sending the packet and returns this error iff fragmentation is
 		// necessary and the bit is also set.
-		_ = e.protocol.returnError(&icmpReasonFragmentationNeeded{}, pkt, false /* deliveredLocally */)
+		_ = e.protocol.returnError(&icmpReasonFragmentationNeeded{
+			mtu: forwardToEp.nic.MTU(),
+		}, pkt, false /* deliveredLocally */)
 		return &ip.ErrMessageTooLong{}
 	case *tcpip.ErrNoBufferSpace:
 		return &ip.ErrOutgoingDeviceNoBufferSpace{}
@@ -821,9 +815,7 @@ func (e *endpoint) forwardUnicastPacket(pkt *stack.PacketBuffer) ip.ForwardingEr
 		}
 
 		if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-			ipCheck := nft.CheckForward(pkt, stack.IP)
-			inetCheck := nft.CheckForward(pkt, stack.Inet)
-			if !ipCheck || !inetCheck {
+			if !nft.CheckForward(pkt, stack.IP) {
 				// nftables is telling us to drop the packet.
 				return nil
 			}
@@ -917,9 +909,7 @@ func (e *endpoint) HandlePacket(pkt *stack.PacketBuffer) {
 		}
 
 		if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-			ipCheck := nft.CheckPrerouting(pkt, stack.IP)
-			inetCheck := nft.CheckPrerouting(pkt, stack.Inet)
-			if !ipCheck || !inetCheck {
+			if !nft.CheckPrerouting(pkt, stack.IP) {
 				// nftables is telling us to drop the packet.
 				return
 			}
@@ -1267,9 +1257,7 @@ func (e *endpoint) deliverPacketLocally(h header.IPv4, pkt *stack.PacketBuffer, 
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		ipCheck := nft.CheckInput(pkt, stack.IP)
-		inetCheck := nft.CheckInput(pkt, stack.Inet)
-		if !ipCheck || !inetCheck {
+		if !nft.CheckInput(pkt, stack.IP) {
 			// nftables is telling us to drop the packet.
 			return
 		}
