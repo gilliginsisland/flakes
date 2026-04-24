@@ -85,16 +85,15 @@ func (p Path) String() string {
 
 // expandUser expands a leading "~" to the current user's home directory.
 func (p Path) ExpandUser() (string, error) {
-	s := string(p)
-	if !strings.HasPrefix(s, "~") {
+	s, found := strings.CutPrefix(string(p), "~/")
+	if !found {
 		return s, nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("cannot expand %w", err)
 	}
-	// replace the leading '~'
-	return home + s[1:], nil
+	return filepath.Join(home, s), nil
 }
 
 const DefaultConfigPath Path = "~/.config/pacman/config"

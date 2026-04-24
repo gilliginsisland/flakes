@@ -1,10 +1,11 @@
 {
   lib,
-  buildGoModule,
+  buildGo126Module,
   pkg-config,
   openconnect_openssl,
   apple-sdk_15,
   darwinMinVersionHook,
+  fetchFromGitLab,
 }:
 
 let
@@ -12,6 +13,13 @@ let
     vpnc-scripts = "/etc/vpnc/vpnc-script";
     stoken = null;
   }).overrideAttrs (prev: {
+    version = "9.12-unstable-2026-03-11";
+    src = fetchFromGitLab {
+      owner = "openconnect";
+      repo = "openconnect";
+      rev = "a7e751442e0e4bb8e3f18965960b1428e1a26bbc";
+      hash = "sha256-OV5LMTV3NqSASChelVh5Hpw+ZnuJ89FPLkGTCej2j4w=";
+    };
     patches = (prev.patches or []) ++ lib.filesystem.listFilesRecursive (lib.cleanSource ./src/patches);
     configureFlags = prev.configureFlags ++ [
       "--without-libpcsclite"
@@ -40,7 +48,7 @@ let
       lib.filter (x: x != {}) sections;
 
   changelog = parseChangelog (builtins.readFile ./src/docs/CHANGELOG.md);
-in buildGoModule (final: {
+in buildGo126Module (final: {
   pname = "pacman";
   version = (builtins.elemAt changelog 0).version;
 

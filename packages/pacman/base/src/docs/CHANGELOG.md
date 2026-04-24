@@ -1,3 +1,7 @@
+# v3.1.6
+
+* chore: update deps and toolchain to go1.26
+___
 # v3.1.5
 
 * feat: create default config on launch
