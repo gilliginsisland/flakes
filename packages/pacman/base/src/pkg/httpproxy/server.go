@@ -85,8 +85,6 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer destConn.Close()
 
-	w.WriteHeader(http.StatusOK)
-
 	// obtain underlying client TCP connection
 	clientConn, bufClientConn, err := hj.Hijack()
 	if err != nil {
@@ -94,6 +92,10 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("failed to hijack the connection: %w", err)
 	}
 	defer clientConn.Close()
+
+	if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
+		return fmt.Errorf("failed to write CONNECT response: %w", err)
+	}
 
 	netutil.Join(destConn, &netutil.BuffConn{
 		Conn:       clientConn,

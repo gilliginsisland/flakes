@@ -1,5 +1,6 @@
 # v3.1.6
 
+* bugfix: write CONNECT tunnel responses without transfer encoding
 * chore: update deps and toolchain to go1.26
 ___
 # v3.1.5
