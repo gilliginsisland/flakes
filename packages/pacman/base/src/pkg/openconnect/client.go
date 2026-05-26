@@ -17,7 +17,27 @@ type Conn struct {
 	once syncutil.Once
 }
 
+const (
+	CiscoVersionString     = "5.1.8.122"
+	CiscoUserAgent         = "AnyConnect Darwin_i386 " + CiscoVersionString
+	GlobalProtectUserAgent = "Global Protect"
+)
+
 func Connect(ctx context.Context, opts Options) (*Conn, error) {
+	switch opts.Protocol {
+	case ProtocolAnyConnect:
+		if opts.UserAgent == "" {
+			opts.UserAgent = CiscoUserAgent
+		}
+		if opts.VersionString == "" {
+			opts.VersionString = CiscoVersionString
+		}
+	case ProtocolGlobalProtect:
+		if opts.UserAgent == "" {
+			opts.UserAgent = GlobalProtectUserAgent
+		}
+	}
+
 	vpn, err := New(opts)
 	if err != nil {
 		return nil, err
