@@ -1,3 +1,7 @@
+# v3.1.7
+
+* bugfix: send Cisco AnyConnect client version in auth requests
+___
 # v3.1.6
 
 * bugfix: write CONNECT tunnel responses without transfer encoding
