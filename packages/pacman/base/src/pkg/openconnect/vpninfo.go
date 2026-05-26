@@ -29,12 +29,9 @@ type Protocol string
 const (
 	ProtocolAnyConnect    Protocol = "anyconnect"
 	ProtocolGlobalProtect Protocol = "gp"
-)
 
-var UserAgents = map[Protocol]string{
-	ProtocolAnyConnect:    "AnyConnect Darwin_i386 5.1.8.122",
-	ProtocolGlobalProtect: "Global Protect",
-}
+	DefaultUserAgent = "AnyConnect-compatible OpenConnect VPN Agent"
+)
 
 type Callbacks struct {
 	ValidatePeerCert   func(cert string) bool
@@ -46,6 +43,7 @@ type Callbacks struct {
 
 type Options struct {
 	UserAgent           string
+	VersionString       string
 	Protocol            Protocol
 	Server              string
 	CSD                 string
@@ -66,7 +64,7 @@ type VpnInfo struct {
 // NewVpnInfo initializes a new VPN session with callbacks.
 func New(opts Options) (*VpnInfo, error) {
 	if opts.UserAgent == "" {
-		opts.UserAgent, _ = UserAgents[opts.Protocol]
+		opts.UserAgent = DefaultUserAgent
 	}
 
 	cUserAgent := C.CString(opts.UserAgent)
@@ -119,6 +117,12 @@ func (v *VpnInfo) ParseOpts(opts Options) error {
 		}
 	}
 
+	if opts.VersionString != "" {
+		if err := v.SetVersionString(opts.VersionString); err != nil {
+			return err
+		}
+	}
+
 	if opts.Protocol != "" {
 		if err := v.SetProtocol(opts.Protocol); err != nil {
 			return err
@@ -155,6 +159,13 @@ func (v *VpnInfo) SetUserAgent(userAgent string) error {
 	cStr := C.CString(userAgent)
 	defer C.free(unsafe.Pointer(cStr))
 	return ocErrno("set user agent", C.openconnect_set_useragent(v.vpninfo, cStr))
+}
+
+// SetVersionString sets the VPN client version reported in auth XML.
+func (v *VpnInfo) SetVersionString(version string) error {
+	cStr := C.CString(version)
+	defer C.free(unsafe.Pointer(cStr))
+	return ocErrno("set version string", C.openconnect_set_version_string(v.vpninfo, cStr))
 }
 
 func (v *VpnInfo) ParseURL(url string) error {
