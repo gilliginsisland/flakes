@@ -1,0 +1,32 @@
+diff --git a/library.c b/library.c
+index 840846d..786cff5 100644
+--- a/library.c
++++ b/library.c
+@@ -496,2 +497,3 @@ void openconnect_set_loglevel(struct openconnect_info *vpninfo, int level)
+ void openconnect_set_loglevel(struct openconnect_info *vpninfo, int level)
+ {
++	vpninfo->dump_http_traffic = level >= PRG_DEBUG;
+diff --git a/http.c b/http.c
+index ca16582..22e9efd 100644
+--- a/http.c
++++ b/http.c
+@@ -258,0 +259,3 @@ int process_http_response(struct openconnect_info *vpninfo, int connect,
++	if (vpninfo->dump_http_traffic && hdrbuf->pos)
++		dump_buf(vpninfo, '<', hdrbuf->data);
++
+@@ -288,0 +292,3 @@ int process_http_response(struct openconnect_info *vpninfo, int connect,
++		if (vpninfo->dump_http_traffic)
++			dump_buf(vpninfo, '<', hdrbuf->data);
++
+diff --git a/cstp.c b/cstp.c
+index b459356..ff4ea27 100644
+--- a/cstp.c
++++ b/cstp.c
+@@ -360,0 +361,3 @@ int cstp_connect(struct openconnect_info *vpninfo)
++	if (vpninfo->dump_http_traffic)
++		dump_buf(vpninfo, '<', buf);
++
+@@ -403,0 +407,3 @@ int cstp_connect(struct openconnect_info *vpninfo)
++		if (vpninfo->dump_http_traffic)
++			dump_buf(vpninfo, '<', buf);
++
