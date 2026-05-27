@@ -1,0 +1,61 @@
+diff --git a/auth.c b/auth.c
+index d289ea4..34bd413 100644
+--- a/auth.c
++++ b/auth.c
+@@ -689,2 +689,4 @@ static int parse_xml_response(struct openconnect_info *vpninfo,
+ 			     _("XML response has no \"auth\" node\n"));
++		if (form->error && vpninfo->process_form_error)
++			vpninfo->process_form_error(vpninfo->cbdata, form->error);
+ 		ret = -EINVAL;
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+index f036c07..11af544 100644
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -132,2 +132,3 @@ OPENCONNECT_5_9 {
+ 	openconnect_set_sni;
++	openconnect_set_form_error_callback;
+ } OPENCONNECT_5_8;
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+index 7cb04d0..596a77d 100644
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -104,2 +104,3 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+  openconnect_set_useragent@OPENCONNECT_5_8 9.00
++ openconnect_set_form_error_callback@OPENCONNECT_5_9 9.12
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
+diff --git a/library.c b/library.c
+index 840846d..08c3a5a 100644
+--- a/library.c
++++ b/library.c
+@@ -1543,4 +1543,10 @@ void openconnect_set_reconnected_handler(struct openconnect_info *vpninfo,
+ }
+ 
++void openconnect_set_form_error_callback(struct openconnect_info *vpninfo,
++					 openconnect_form_error_vfn form_error_callback)
++{
++	vpninfo->process_form_error = form_error_callback;
++}
++
+ void openconnect_set_stats_handler(struct openconnect_info *vpninfo,
+ 				   openconnect_stats_vfn stats_handler)
+diff --git a/openconnect-internal.h b/openconnect-internal.h
+index 9a7d5a5..0361749 100644
+--- a/openconnect-internal.h
++++ b/openconnect-internal.h
+@@ -812,2 +812,3 @@ struct openconnect_info {
+ 	openconnect_process_auth_form_vfn process_auth_form;
++	openconnect_form_error_vfn process_form_error;
+ 	openconnect_progress_vfn progress;
+diff --git a/openconnect.h b/openconnect.h
+index 5160937..d22135c 100644
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -763,4 +763,8 @@ typedef int (*openconnect_write_new_config_vfn) (void *privdata, const char *buf
+ typedef int (*openconnect_process_auth_form_vfn) (void *privdata,
+ 						 struct oc_auth_form *form);
++/* Report a parsed authentication form error. */
++typedef void (*openconnect_form_error_vfn) (void *privdata, const char *error);
++void openconnect_set_form_error_callback(struct openconnect_info *vpninfo,
++					 openconnect_form_error_vfn form_error_callback);
+ /* Logging output which the user *may* want to see. */
+ typedef void __attribute__ ((format(printf, 3, 4)))
