@@ -8,6 +8,7 @@
 
 int go_validate_peer_cert(void *context, char *cert);
 int go_process_auth_form(void *context, struct oc_auth_form *form);
+void go_process_form_error(void *context, char *message);
 void go_progress(void *context, int level, char *message);
 int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
 void go_reconnected_handler(void *context);
@@ -54,6 +55,10 @@ struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {
 	openconnect_set_external_browser_callback(
 		vpninfo,
 		(openconnect_open_webview_vfn) go_external_browser_callback
+	);
+	openconnect_set_form_error_callback(
+		vpninfo,
+		(openconnect_form_error_vfn) go_process_form_error
 	);
 	openconnect_set_reconnected_handler(
 		vpninfo,

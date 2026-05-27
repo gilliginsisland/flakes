@@ -1,0 +1,52 @@
+diff --git a/auth.c b/auth.c
+index d289ea4..34bd413 100644
+--- a/auth.c
++++ b/auth.c
+@@ -687,0 +688,2 @@ static int parse_xml_response(struct openconnect_info *vpninfo,
++		if (form->error && vpninfo->process_form_error)
++			vpninfo->process_form_error(vpninfo->cbdata, form->error);
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+index 2ca187b..11af544 100644
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -133,0 +134 @@ OPENCONNECT_5_9 {
++	openconnect_set_form_error_callback;
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+index cd54f80..596a77d 100644
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -104,3 +104,4 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+  openconnect_set_useragent@OPENCONNECT_5_8 9.00
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
+  openconnect_get_tun_fd@OPENCONNECT_5_9 9.12
++ openconnect_set_form_error_callback@OPENCONNECT_5_9 9.12
+diff --git a/library.c b/library.c
+index 840846d..08c3a5a 100644
+--- a/library.c
++++ b/library.c
+@@ -1544,3 +1545,9 @@ void openconnect_set_reconnected_handler(struct openconnect_info *vpninfo,
+ }
+-
++
++void openconnect_set_form_error_callback(struct openconnect_info *vpninfo,
++					 openconnect_form_error_vfn form_error_callback)
++{
++	vpninfo->process_form_error = form_error_callback;
++}
++
+ void openconnect_set_stats_handler(struct openconnect_info *vpninfo,
+diff --git a/openconnect-internal.h b/openconnect-internal.h
+index 9a7d5a5..0361749 100644
+--- a/openconnect-internal.h
++++ b/openconnect-internal.h
+@@ -812,0 +813 @@ struct openconnect_info {
++	openconnect_form_error_vfn process_form_error;
+diff --git a/openconnect.h b/openconnect.h
+index 5160937..d22135c 100644
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -764,0 +765,4 @@ typedef int (*openconnect_process_auth_form_vfn) (void *privdata,
++/* Report a parsed authentication form error. */
++typedef void (*openconnect_form_error_vfn) (void *privdata, const char *error);
++void openconnect_set_form_error_callback(struct openconnect_info *vpninfo,
++					 openconnect_form_error_vfn form_error_callback);
