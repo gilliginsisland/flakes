@@ -14,7 +14,6 @@ import "C"
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"syscall"
 	"unsafe"
@@ -36,6 +35,7 @@ const (
 type Callbacks struct {
 	ValidatePeerCert   func(cert string) bool
 	ProcessAuthForm    func(form *AuthForm) FormResult
+	ProcessFormError   func(err error)
 	Progress           func(level LogLevel, message string)
 	ExternalBrowser    func(uri string) error
 	ReconnectedHandler func()
@@ -59,6 +59,22 @@ type VpnInfo struct {
 	done    chan struct{}
 	err     syncutil.AtomicValue[error]
 	Callbacks
+}
+
+type OpError struct {
+	Op  string
+	Err error
+}
+
+func (e *OpError) Error() string {
+	if e.Op == "" {
+		return e.Err.Error()
+	}
+	return e.Op + ": " + e.Err.Error()
+}
+
+func (e *OpError) Unwrap() error {
+	return e.Err
 }
 
 // NewVpnInfo initializes a new VPN session with callbacks.
@@ -245,7 +261,28 @@ func (v *VpnInfo) SetDPD(min_seconds int) {
 }
 
 func (v *VpnInfo) ObtainCookie() error {
-	return ocErrno("obtain cookie", C.openconnect_obtain_cookie(v.vpninfo))
+	var formErr error
+	processFormError := v.ProcessFormError
+	v.ProcessFormError = func(err error) {
+		if formErr == nil {
+			formErr = err
+		}
+		if processFormError != nil {
+			processFormError(err)
+		}
+	}
+	defer func() {
+		v.ProcessFormError = processFormError
+	}()
+
+	err := ocErrno("obtain cookie", C.openconnect_obtain_cookie(v.vpninfo))
+	if err != nil && formErr != nil {
+		return &OpError{
+			Op:  "obtain cookie",
+			Err: formErr,
+		}
+	}
+	return err
 }
 
 func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {
@@ -285,9 +322,12 @@ func (v *VpnInfo) Done() <-chan struct{} {
 	return v.done
 }
 
-func ocErrno(context string, rc C.int) error {
+func ocErrno(op string, rc C.int) error {
 	if rc == 0 {
 		return nil
 	}
-	return fmt.Errorf("%s: %w", context, syscall.Errno(-rc))
+	return &OpError{
+		Op:  op,
+		Err: syscall.Errno(-rc),
+	}
 }

@@ -7,6 +7,7 @@ package openconnect
 import "C"
 
 import (
+	"errors"
 	"unsafe"
 )
 
@@ -85,6 +86,19 @@ func go_process_auth_form(context unsafe.Pointer, form *C.struct_oc_auth_form) C
 
 	// Pass converted form to the callback
 	return C.int(v.ProcessAuthForm(&f))
+}
+
+//export go_process_form_error
+func go_process_form_error(context unsafe.Pointer, message *C.char) {
+	v, ok := handles.Load(uintptr(context))
+	if !ok {
+		return
+	}
+
+	if v.ProcessFormError == nil {
+		return
+	}
+	v.ProcessFormError(errors.New(C.GoString(message)))
 }
 
 //export go_progress
