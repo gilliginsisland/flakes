@@ -11,14 +11,17 @@ package menuet
 #cgo nocallback make_notification
 #cgo nocallback destroy_notification
 #cgo nocallback show_notification
+#cgo nocallback remove_notification
 #cgo nocallback destroy_notification_response
 
+#include <stdlib.h>
 #import <UserNotifications/UserNotifications.h>
 
 #import "notification.h"
 
 */
 import "C"
+import "unsafe"
 
 var (
 	DefaultActionIdentifier = fromNSString(C.UNNotificationDefaultActionIdentifier)
@@ -31,6 +34,26 @@ type NotificationCategoryOptions int
 const (
 	CategoryOptionNone          NotificationCategoryOptions = C.UNNotificationCategoryOptionNone
 	CategoryOptionCustomDismiss                             = C.UNNotificationCategoryOptionCustomDismissAction
+)
+
+// NotificationPresentationOptions represents UNNotificationPresentationOptions.
+type NotificationPresentationOptions int
+
+const (
+	NotificationPresentationOptionNone   NotificationPresentationOptions = C.UNNotificationPresentationOptionNone
+	NotificationPresentationOptionBadge                                  = C.UNNotificationPresentationOptionBadge
+	NotificationPresentationOptionSound                                  = C.UNNotificationPresentationOptionSound
+	NotificationPresentationOptionList                                   = C.UNNotificationPresentationOptionList
+	NotificationPresentationOptionBanner                                 = C.UNNotificationPresentationOptionBanner
+)
+
+// NotificationInterruptionLevel represents UNNotificationInterruptionLevel.
+type NotificationInterruptionLevel int
+
+const (
+	NotificationInterruptionLevelPassive       NotificationInterruptionLevel = C.UNNotificationInterruptionLevelPassive
+	NotificationInterruptionLevelActive                                      = C.UNNotificationInterruptionLevelActive
+	NotificationInterruptionLevelTimeSensitive                               = C.UNNotificationInterruptionLevelTimeSensitive
 )
 
 // NotificationAction represents a base UNNotificationAction
@@ -84,11 +107,13 @@ type NotificationCategory struct {
 
 // Notification represents a UNNotificationRequest
 type Notification struct {
-	CategoryIdentifier string // Must match a registered category
-	Identifier         string // Unique ID for this notification
-	Title              string
-	Subtitle           string
-	Body               string
+	CategoryIdentifier  string // Must match a registered category
+	Identifier          string // Unique ID for this notification
+	Title               string
+	Subtitle            string
+	Body                string
+	PresentationOptions NotificationPresentationOptions
+	InterruptionLevel   NotificationInterruptionLevel
 }
 
 // NotificationResponse represents the response from a notification action
@@ -124,13 +149,25 @@ func (a *Application) Notification(notif Notification) {
 	cnotif := C.make_notification()
 	defer C.destroy_notification(cnotif)
 	*cnotif = C.Notification{
-		categoryIdentifier: C.CString(notif.CategoryIdentifier),
-		identifier:         C.CString(notif.Identifier),
-		title:              C.CString(notif.Title),
-		subtitle:           C.CString(notif.Subtitle),
-		body:               C.CString(notif.Body),
+		categoryIdentifier:  C.CString(notif.CategoryIdentifier),
+		identifier:          C.CString(notif.Identifier),
+		title:               C.CString(notif.Title),
+		subtitle:            C.CString(notif.Subtitle),
+		body:                C.CString(notif.Body),
+		presentationOptions: C.int(notif.PresentationOptions),
+		interruptionLevel:   C.int(notif.InterruptionLevel),
 	}
 	C.show_notification(cnotif)
+}
+
+// RemoveNotification removes a pending or delivered notification by identifier.
+func (a *Application) RemoveNotification(identifier string) {
+	if identifier == "" {
+		return
+	}
+	cidentifier := C.CString(identifier)
+	defer C.free(unsafe.Pointer(cidentifier))
+	C.remove_notification(cidentifier)
 }
 
 //export go_notification_response_received
