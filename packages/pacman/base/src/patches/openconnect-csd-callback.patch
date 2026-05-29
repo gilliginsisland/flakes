@@ -1,0 +1,132 @@
+diff --git a/auth.c b/auth.c
+index 6fe669f..ef37d8d 100644
+--- a/auth.c
++++ b/auth.c
+@@ -1180,7 +1180,7 @@ static int run_csd_script(struct openconnect_info *vpninfo, char *buf, int bufle
+ 		return -EINVAL;
+ 	}
+ 
+-	if (!vpninfo->uid_csd_given && !vpninfo->csd_wrapper) {
++	if (!vpninfo->uid_csd_given && !vpninfo->csd_wrapper && !vpninfo->process_csd) {
+ 		vpn_progress(vpninfo, PRG_ERR,
+ 			     _("Error: Server asked us to download and run a 'Cisco Secure Desktop' trojan.\n"
+ 			       "This facility is disabled by default for security reasons, so you may wish to enable it.\n"));
+@@ -1240,6 +1240,37 @@ static int run_csd_script(struct openconnect_info *vpninfo, char *buf, int bufle
+ 		     _("Trying to run CSD Trojan script '%s'.\n"),
+ 		     vpninfo->csd_wrapper ?: fname);
+ 
++	if (vpninfo->process_csd) {
++		ret = vpninfo->process_csd(vpninfo->cbdata,
++					   openconnect_get_hostname(vpninfo),
++					   openconnect_get_peer_cert_hash(vpninfo)+11,
++					   vpninfo->csd_token,
++					   vpninfo->csd_ticket,
++					   "0");
++		if (ret) {
++			vpn_progress(vpninfo, PRG_ERR,
++				     _("CSD callback failed with status: %d\n"), ret);
++		} else {
++			vpn_progress(vpninfo, PRG_INFO,
++				     _("CSD script '%s' completed successfully.\n"),
++				     vpninfo->csd_wrapper ?: fname);
++
++			free(vpninfo->urlpath);
++			vpninfo->urlpath = strdup(vpninfo->csd_waiturl +
++			                          (vpninfo->csd_waiturl[0] == '/' ? 1 : 0));
++			vpninfo->csd_scriptname = strdup(fname);
++			http_add_cookie(vpninfo, "sdesktop", vpninfo->csd_token, 1);
++			ret = 0;
++		}
++
++		free(vpninfo->csd_stuburl);
++		vpninfo->csd_stuburl = NULL;
++		free(vpninfo->csd_waiturl);
++		vpninfo->csd_waiturl = NULL;
++
++		return ret;
++	}
++
+ 	child = fork();
+ 	if (child == -1) {
+ 		goto out;
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+index f036c07..13631d7 100644
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -50,6 +50,7 @@ OPENCONNECT_5.0 {
+ 	openconnect_set_token_callbacks;
+ 	openconnect_set_token_mode;
+ 	openconnect_set_urlpath;
++	openconnect_set_csd_callback;
+ 	openconnect_set_xmlpost;
+ 	openconnect_set_xmlsha1;
+ 	openconnect_setup_cmd_pipe;
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+index 7cb04d0..ef51454 100644
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -59,6 +59,7 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+  openconnect_set_token_callbacks@OPENCONNECT_5.0 7.00
+  openconnect_set_token_mode@OPENCONNECT_5.0 7.00
+  openconnect_set_urlpath@OPENCONNECT_5.0 7.00
++ openconnect_set_csd_callback@OPENCONNECT_5.0 9.12
+  openconnect_set_xmlpost@OPENCONNECT_5.0 7.00
+  openconnect_set_xmlsha1@OPENCONNECT_5.0 7.00
+  openconnect_setup_cmd_pipe@OPENCONNECT_5.0 7.00
+diff --git a/library.c b/library.c
+index 840846d..b2aa39f 100644
+--- a/library.c
++++ b/library.c
+@@ -1163,6 +1163,20 @@ int openconnect_setup_csd(struct openconnect_info *vpninfo, uid_t uid,
+ 	return 0;
+ }
+ 
++void openconnect_set_csd_callback(struct openconnect_info *vpninfo,
++				  openconnect_process_csd_vfn process_csd)
++{
++	vpninfo->process_csd = process_csd;
++	if (process_csd) {
++		if (!vpninfo->csd_wrapper)
++			vpninfo->csd_wrapper = strdup("callback");
++	} else if (vpninfo->csd_wrapper &&
++		   !strcmp(vpninfo->csd_wrapper, "callback")) {
++		free(vpninfo->csd_wrapper);
++		vpninfo->csd_wrapper = NULL;
++	}
++}
++
+ void openconnect_set_xmlpost(struct openconnect_info *vpninfo, int enable)
+ {
+ 	vpninfo->xmlpost = enable;
+diff --git a/openconnect-internal.h b/openconnect-internal.h
+index 9a7d5a5..cb1d6f6 100644
+--- a/openconnect-internal.h
++++ b/openconnect-internal.h
+@@ -524,6 +524,7 @@ struct openconnect_info {
+ 	char *dtls_ciphers;
+ 	char *dtls12_ciphers;
+ 	char *csd_wrapper;
++	openconnect_process_csd_vfn process_csd;
+ 	int trojan_interval;
+ 	time_t last_trojan;
+ 	int no_http_keepalive;
+diff --git a/openconnect.h b/openconnect.h
+index 5160937..2d8b98e 100644
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -624,6 +624,15 @@ int openconnect_set_cafile(struct openconnect_info *, const char *);
+  */
+ void openconnect_set_system_trust(struct openconnect_info *vpninfo, unsigned val);
+ 
++/* Handle CSD hostscan without executing a wrapper. */
++typedef int (*openconnect_process_csd_vfn) (void *privdata,
++					    const char *hostname,
++					    const char *sha256,
++					    const char *token,
++					    const char *ticket,
++					    const char *stub);
++void openconnect_set_csd_callback(struct openconnect_info *vpninfo,
++				  openconnect_process_csd_vfn process_csd);
+ int openconnect_setup_csd(struct openconnect_info *, uid_t, int silent, const char *wrapper);
+ void openconnect_set_xmlpost(struct openconnect_info *, int enable);
+ 

@@ -35,10 +35,18 @@ const (
 type Callbacks struct {
 	ValidatePeerCert   func(cert string) bool
 	ProcessAuthForm    func(form *AuthForm) FormResult
-	ProcessFormError   func(err error)
+	ProcessCSD         func(info CSDInfo) error
 	Progress           func(level LogLevel, message string)
 	ExternalBrowser    func(uri string) error
 	ReconnectedHandler func()
+}
+
+type CSDInfo struct {
+	Hostname string
+	SHA256   string
+	Token    string
+	Ticket   string
+	Stub     string
 }
 
 type Options struct {
@@ -56,8 +64,7 @@ type Options struct {
 // VpnInfo represents a VPN session in Go.
 type VpnInfo struct {
 	vpninfo *C.struct_openconnect_info
-	done    chan struct{}
-	err     syncutil.AtomicValue[error]
+	errCh   chan error
 	Callbacks
 }
 
@@ -93,7 +100,7 @@ func New(opts Options) (*VpnInfo, error) {
 
 	v := VpnInfo{
 		vpninfo: vpninfo,
-		done:    make(chan struct{}),
+		errCh:   make(chan error, 1),
 	}
 
 	handles.Store(uintptr(unsafe.Pointer(vpninfo)), &v)
@@ -115,11 +122,6 @@ func (v *VpnInfo) Free() {
 	C.openconnect_vpninfo_free(v.vpninfo)
 	handles.Delete(uintptr(unsafe.Pointer(v.vpninfo)))
 	v.vpninfo = nil
-	select {
-	case <-v.done:
-	default:
-		close(v.done)
-	}
 }
 
 func (v *VpnInfo) ParseOpts(opts Options) error {
@@ -261,28 +263,23 @@ func (v *VpnInfo) SetDPD(min_seconds int) {
 }
 
 func (v *VpnInfo) ObtainCookie() error {
-	var formErr error
-	processFormError := v.ProcessFormError
-	v.ProcessFormError = func(err error) {
-		if formErr == nil {
-			formErr = err
-		}
-		if processFormError != nil {
-			processFormError(err)
-		}
+	var enableCSD C.int
+	if v.ProcessCSD != nil {
+		enableCSD = 1
 	}
-	defer func() {
-		v.ProcessFormError = processFormError
-	}()
+	C.go_set_csd_callback(v.vpninfo, enableCSD)
 
 	err := ocErrno("obtain cookie", C.openconnect_obtain_cookie(v.vpninfo))
-	if err != nil && formErr != nil {
-		return &OpError{
-			Op:  "obtain cookie",
-			Err: formErr,
-		}
+	if err == nil {
+		return nil
 	}
-	return err
+
+	select {
+	case callbackErr := <-v.errCh:
+		return callbackErr
+	default:
+		return err
+	}
 }
 
 func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {
@@ -309,17 +306,6 @@ func (v *VpnInfo) GetTunFd() (int, error) {
 		err = errors.New("get tun fd: fd not setup")
 	}
 	return fd, err
-}
-
-// Err returns the error from mainloop if it has completed
-// or nil if it hasn’t run or isn’t done
-func (v *VpnInfo) Err() error {
-	return v.err.Load()
-}
-
-// Done returns a channel that is closed when the mainloop completes
-func (v *VpnInfo) Done() <-chan struct{} {
-	return v.done
 }
 
 func ocErrno(op string, rc C.int) error {
