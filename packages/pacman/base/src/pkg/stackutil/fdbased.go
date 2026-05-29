@@ -162,7 +162,7 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 	context.AfterFunc(ctx, cleanup)
 	for range runtime.GOMAXPROCS(0) {
 		g.Go(func() error {
-			return netutil.JoinBuffer(rwc, &rwcep, opts.MTU)
+			return netutil.Join(rwc, &rwcep)
 		})
 	}
 	go func() {
