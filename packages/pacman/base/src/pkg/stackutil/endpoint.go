@@ -54,10 +54,15 @@ func (e *RWCEndpoint) readPacketData(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	defer pkt.DecRef()
-	b := pkt.ToBuffer()
-	vl := b.AsViewList()
+	vl, offset := pkt.AsViewList()
 	for v := vl.Front(); v != nil; v = v.Next() {
 		s := v.AsSlice()
+		if offset >= len(s) {
+			offset -= len(s)
+			continue
+		}
+		s = s[offset:]
+		offset = 0
 		if n+len(s) > len(p) {
 			return n, io.ErrShortBuffer
 		}

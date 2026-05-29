@@ -5,22 +5,23 @@ import (
 	"io"
 )
 
-// Join uses the default buffer size (32 KiB) for copying.
+// Join copies between a and b with the default io.CopyBuffer behavior.
 func Join(a, b io.ReadWriteCloser) error {
-	return JoinBuffer(a, b, 32*1024)
+	return JoinBuffer(a, b, 0)
 }
 
 // JoinBuffer copies between a and b using the provided buffer size.
+// A bufSize of 0 lets io.CopyBuffer choose its default behavior.
 func JoinBuffer(a, b io.ReadWriteCloser, bufSize uint32) error {
-	if bufSize == 0 {
-		panic("JoinBuffer: buffer size must be > 0")
-	}
-
 	pipe := func(dst, src io.ReadWriteCloser) <-chan error {
 		ch := make(chan error, 1)
 		go func() {
+			var buf []byte
+			if bufSize != 0 {
+				buf = make([]byte, bufSize)
+			}
 			defer dst.Close()
-			_, err := io.CopyBuffer(dst, src, make([]byte, bufSize))
+			_, err := io.CopyBuffer(dst, src, buf)
 			ch <- err
 			close(ch)
 		}()
