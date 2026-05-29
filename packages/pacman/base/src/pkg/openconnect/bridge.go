@@ -84,8 +84,15 @@ func go_process_auth_form(context unsafe.Pointer, form *C.struct_oc_auth_form) C
 		f.Options = append(f.Options, option)
 	}
 
-	// Pass converted form to the callback
-	return C.int(v.ProcessAuthForm(&f))
+	if err := v.ProcessAuthForm(&f); err != nil {
+		select {
+		case v.errCh <- &OpError{Op: "auth", Err: err}:
+		default:
+		}
+		return C.OC_FORM_RESULT_CANCELLED
+	}
+
+	return C.OC_FORM_RESULT_OK
 }
 
 //export go_process_form_error

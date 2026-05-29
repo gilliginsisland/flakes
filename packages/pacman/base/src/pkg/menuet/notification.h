@@ -32,6 +32,8 @@ typedef struct Notification {
 	char* title;
 	char* subtitle;
 	char* body;
+	int presentationOptions;
+	int interruptionLevel;
 } Notification;
 
 typedef struct NotificationResponse {
@@ -55,6 +57,7 @@ void destroy_notification_response(NotificationResponse* response);
 
 void set_notification_categories(NotificationCategory* category);
 void show_notification(Notification* notification);
+void remove_notification(const char* identifier);
 
 @interface NotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
 

@@ -54,13 +54,3 @@ type AuthForm struct {
 	AuthGroup *FormOption
 	Options   []FormOption
 }
-
-//go:generate go tool stringer -type=FormResult -trimprefix=FormResult
-type FormResult int
-
-const (
-	FormResultErr       FormResult = C.OC_FORM_RESULT_ERR
-	FormResultOk        FormResult = C.OC_FORM_RESULT_OK
-	FormResultCancelled FormResult = C.OC_FORM_RESULT_CANCELLED
-	FormResultNewgroup  FormResult = C.OC_FORM_RESULT_NEWGROUP
-)

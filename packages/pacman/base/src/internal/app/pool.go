@@ -119,7 +119,9 @@ func (pd *PooledDialer) action(state dialer.ConnectionState) (string, func()) {
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	notif := notify.Notification{
-		Title: pd.Label,
+		Identifier:          "status:" + pd.Label,
+		Title:               pd.Label,
+		PresentationOptions: menuet.NotificationPresentationOptionBanner,
 	}
 	switch state {
 	case dialer.Offline:
@@ -133,13 +135,16 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 		notif.Body = "The proxy connection has been established."
 	case dialer.Failed:
 		notif.Subtitle = "Proxy connection failed"
-		notif.Body = err.Error()
+		notif.Body = ""
 	default:
 		notif.Subtitle = "Unknown connection state"
 		notif.Body = "Dialer is in an unknown state."
 	}
 	if err != nil {
-		notif.Body += " " + err.Error()
+		if notif.Body != "" {
+			notif.Body += "\n"
+		}
+		notif.Body += err.Error()
 	}
 	notify.Notify(notif)
 }

@@ -34,7 +34,7 @@ const (
 
 type Callbacks struct {
 	ValidatePeerCert   func(cert string) bool
-	ProcessAuthForm    func(form *AuthForm) FormResult
+	ProcessAuthForm    func(form *AuthForm) error
 	ProcessCSD         func(info CSDInfo) error
 	Progress           func(level LogLevel, message string)
 	ExternalBrowser    func(uri string) error

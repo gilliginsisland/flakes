@@ -5,6 +5,8 @@
 
 #import "notification.h"
 
+static NSString * const kPresentationOptions = @"presentationOptions";
+
 void go_notification_response_received(NotificationResponse *resp);
 
 Notification* make_notification() {
@@ -159,12 +161,35 @@ void show_notification(Notification* notification) {
 		if (notification->body) {
 			content.body = [NSString stringWithUTF8String:notification->body];
 		}
+		content.userInfo = @{
+			kPresentationOptions: @(notification->presentationOptions),
+		};
+		if (@available(macOS 12.0, *)) {
+			content.interruptionLevel = (UNNotificationInterruptionLevel)notification->interruptionLevel;
+		}
 		UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:nil];
-		[[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
+		UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+		[center addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
 			if (error) {
 				NSLog(@"Error showing notification: %@", error);
 			}
 		}];
+	}
+}
+
+void remove_notification(const char* identifier) {
+	if (!identifier) {
+		return;
+	}
+	@autoreleasepool {
+		NSString *notificationIdentifier = [NSString stringWithUTF8String:identifier];
+		if (!notificationIdentifier) {
+			return;
+		}
+		UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+		NSArray<NSString *> *identifiers = @[notificationIdentifier];
+		[center removePendingNotificationRequestsWithIdentifiers:identifiers];
+		[center removeDeliveredNotificationsWithIdentifiers:identifiers];
 	}
 }
 
@@ -231,6 +256,11 @@ void show_notification(Notification* notification) {
 	willPresentNotification:(UNNotification *)notification
 	withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
 {
+	NSNumber *presentationOptions = notification.request.content.userInfo[kPresentationOptions];
+	if ([presentationOptions isKindOfClass:[NSNumber class]]) {
+		completionHandler((UNNotificationPresentationOptions)[presentationOptions unsignedIntegerValue]);
+		return;
+	}
 	completionHandler(
 		UNNotificationPresentationOptionBadge |
 		UNNotificationPresentationOptionSound |

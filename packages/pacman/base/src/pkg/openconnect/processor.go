@@ -14,14 +14,14 @@ var (
 
 // FormProcessor defines an interface for processing authentication forms.
 type FormProcessor interface {
-	ProcessForm(form *AuthForm) FormResult
+	ProcessForm(form *AuthForm) error
 }
 
 // FormProcessorFn is a function type that implements the FormProcessor interface.
-type FormProcessorFn func(form *AuthForm) FormResult
+type FormProcessorFn func(form *AuthForm) error
 
 // ProcessForm calls the function itself to satisfy the FormProcessor interface.
-func (fn FormProcessorFn) ProcessForm(form *AuthForm) FormResult {
+func (fn FormProcessorFn) ProcessForm(form *AuthForm) error {
 	return fn(form)
 }
 
@@ -32,25 +32,29 @@ type CredentialsProcessor struct {
 }
 
 // ProcessForm implements the FormProcessor interface to set username and password fields.
-func (cp *CredentialsProcessor) ProcessForm(form *AuthForm) FormResult {
+func (cp *CredentialsProcessor) ProcessForm(form *AuthForm) error {
 	for _, opt := range form.Options {
 		switch opt.Type {
 		case FormOptionText:
 			if strings.HasPrefix(strings.ToLower(opt.Name), "user") {
-				opt.SetValue(cp.Username)
+				if err := opt.SetValue(cp.Username); err != nil {
+					return err
+				}
 			}
 		case FormOptionPassword:
-			opt.SetValue(cp.Password)
+			if err := opt.SetValue(cp.Password); err != nil {
+				return err
+			}
 		}
 	}
-	return FormResultOk
+	return nil
 }
 
 // LoggerFunc defines a function type for logging messages with attributes.
 type LoggerFunc func(msg string, attrs ...slog.Attr)
 
 // ProcessForm implements the FormProcessor interface to log form details.
-func (lf LoggerFunc) ProcessForm(form *AuthForm) FormResult {
+func (lf LoggerFunc) ProcessForm(form *AuthForm) error {
 	lf("Processing Auth Form",
 		slog.String("banner", form.Banner),
 		slog.String("message", form.Message),
@@ -70,18 +74,18 @@ func (lf LoggerFunc) ProcessForm(form *AuthForm) FormResult {
 			)
 		}
 	}
-	return FormResultOk
+	return nil
 }
 
 // AggregateProcessor combines multiple FormProcessors and calls them in sequence.
 type AggregateProcessor []FormProcessor
 
 // ProcessForm calls each processor in sequence, returning the first error encountered.
-func (ap AggregateProcessor) ProcessForm(form *AuthForm) FormResult {
+func (ap AggregateProcessor) ProcessForm(form *AuthForm) error {
 	for _, processor := range ap {
-		if result := processor.ProcessForm(form); result != FormResultOk {
-			return result
+		if err := processor.ProcessForm(form); err != nil {
+			return err
 		}
 	}
-	return FormResultOk
+	return nil
 }
