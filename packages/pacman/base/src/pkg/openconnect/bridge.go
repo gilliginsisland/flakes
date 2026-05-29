@@ -95,10 +95,44 @@ func go_process_form_error(context unsafe.Pointer, message *C.char) {
 		return
 	}
 
-	if v.ProcessFormError == nil {
-		return
+	select {
+	case v.errCh <- &OpError{Op: "auth", Err: errors.New(C.GoString(message))}:
+	default:
 	}
-	v.ProcessFormError(errors.New(C.GoString(message)))
+}
+
+//export go_process_csd
+func go_process_csd(context unsafe.Pointer, hostname, sha256, token, ticket, stub *C.char) C.int {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.ProcessCSD == nil {
+		return C.int(-22)
+	}
+
+	info := CSDInfo{
+		Hostname: goString(hostname),
+		SHA256:   goString(sha256),
+		Token:    goString(token),
+		Ticket:   goString(ticket),
+		Stub:     goString(stub),
+	}
+
+	err := v.ProcessCSD(info)
+	if err == nil {
+		return 0
+	}
+
+	select {
+	case v.errCh <- &OpError{Op: "hostscan", Err: err}:
+	default:
+	}
+	return C.int(-22)
+}
+
+func goString(s *C.char) string {
+	if s == nil {
+		return ""
+	}
+	return C.GoString(s)
 }
 
 //export go_progress
@@ -134,11 +168,19 @@ func go_reconnected_handler(context unsafe.Pointer) {
 }
 
 //export go_mainloop_result
-func go_mainloop_result(vpninfo *C.struct_openconnect_info, result C.int) {
-	v, ok := handles.Load(uintptr(unsafe.Pointer(vpninfo)))
+func go_mainloop_result(context unsafe.Pointer, result C.int) {
+	v, ok := handles.Load(uintptr(context))
 	if !ok {
 		return
 	}
-	v.err.Store(ocErrno("main loop", result))
-	v.Free()
+
+	err := ocErrno("main loop", result)
+	if err == nil {
+		return
+	}
+
+	select {
+	case v.errCh <- err:
+	default:
+	}
 }

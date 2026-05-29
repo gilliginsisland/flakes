@@ -2,15 +2,18 @@ package oc
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
+	"github.com/gilliginsisland/pacman/pkg/openconnect/hostscan"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
@@ -147,6 +150,54 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) openconnect.FormRes
 	return result
 }
 
+func (cb *callbacks) ProcessCSD(info openconnect.CSDInfo) error {
+	cb.DebugLog("Processing CSD",
+		slog.String("hostname", info.Hostname),
+		slog.String("ticket", info.Ticket),
+		slog.String("stub", info.Stub),
+	)
+
+	hash, err := base64.StdEncoding.DecodeString(info.SHA256)
+	if err != nil {
+		return fmt.Errorf("invalid CSD SHA256: %w", err)
+	}
+
+	client := hostscan.NewClient(info.Hostname, hash)
+	token := info.Token
+	if info.Ticket != "" {
+		stub := info.Stub
+		if stub == "" {
+			stub = "0"
+		}
+		token, err = client.GetToken(info.Ticket, stub)
+		if err != nil {
+			return fmt.Errorf("fetch hostscan token: %w", err)
+		}
+	}
+
+	manifest, err := client.GetManifest()
+	if err != nil {
+		return fmt.Errorf("get hostscan policy: %w", err)
+	}
+
+	res, err := client.PostReport(hostscan.NewMockScanner(manifest).Scan(), token)
+	if err != nil {
+		return fmt.Errorf("post hostscan report: %w", err)
+	}
+	defer res.Body.Close()
+
+	txt, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("read hostscan response: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("hostscan server returned error: %s", string(txt))
+	}
+
+	cb.DebugLog("CSD completed successfully", slog.String("response", string(txt)))
+	return nil
+}
+
 type Dialer struct {
 	*stackutil.Dialer
 	*openconnect.Conn
@@ -163,12 +214,18 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		cb.label = cb.url.Redacted()
 	}
 
-	var csd string
-	if csd = u.Query().Get("csd"); csd == "" {
-		switch u.Scheme {
-		case "anyconnect":
-			csd, _ = os.Executable()
-		}
+	callbacks := openconnect.Callbacks{
+		Progress: cb.Progress,
+		ProcessAuthForm: (&openconnect.AggregateProcessor{
+			openconnect.LoggerFunc(cb.DebugLog), &cb,
+		}).ProcessForm,
+		ExternalBrowser: cb.ExternalBrowser,
+		ValidatePeerCert: func(cert string) bool {
+			return true
+		},
+	}
+	if u.Scheme == "anyconnect" {
+		callbacks.ProcessCSD = cb.ProcessCSD
 	}
 
 	var logLevel openconnect.LogLevel
@@ -184,20 +241,10 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 	conn, err := openconnect.Connect(ctx, openconnect.Options{
 		Protocol:            openconnect.Protocol(u.Scheme),
 		Server:              fmt.Sprintf("%s%s", u.Host, u.Path),
-		CSD:                 csd,
 		ForceDPD:            5,
 		LogLevel:            logLevel,
 		AllowInsecureCrypto: true,
-		Callbacks: openconnect.Callbacks{
-			Progress: cb.Progress,
-			ProcessAuthForm: (&openconnect.AggregateProcessor{
-				openconnect.LoggerFunc(cb.DebugLog), &cb,
-			}).ProcessForm,
-			ExternalBrowser: cb.ExternalBrowser,
-			ValidatePeerCert: func(cert string) bool {
-				return true
-			},
-		},
+		Callbacks:           callbacks,
 	})
 	if err != nil {
 		return nil, err

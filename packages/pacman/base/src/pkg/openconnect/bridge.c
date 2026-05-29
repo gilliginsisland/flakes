@@ -9,10 +9,12 @@
 int go_validate_peer_cert(void *context, char *cert);
 int go_process_auth_form(void *context, struct oc_auth_form *form);
 void go_process_form_error(void *context, char *message);
+int go_process_csd(void *context, char *hostname, char *sha256, char *token,
+		   char *ticket, char *stub);
 void go_progress(void *context, int level, char *message);
 int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
 void go_reconnected_handler(void *context);
-void go_mainloop_result(struct openconnect_info *vpninfo, int result);
+void go_mainloop_result(void *context, int result);
 
 void go_progress_vargs(void *context, int level, const char *fmt, ...) {
 	va_list args;
@@ -42,6 +44,10 @@ void go_progress_vargs(void *context, int level, const char *fmt, ...) {
 
 	// Free allocated memory
 	free(buffer);
+}
+
+void go_set_csd_callback(struct openconnect_info *vpninfo, int enabled) {
+	openconnect_set_csd_callback(vpninfo, enabled ? (openconnect_process_csd_vfn) go_process_csd : NULL);
 }
 
 struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {

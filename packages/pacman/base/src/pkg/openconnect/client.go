@@ -2,19 +2,19 @@ package openconnect
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/gilliginsisland/pacman/pkg/syncutil"
 	"golang.org/x/sys/unix"
 )
 
 type Conn struct {
-	vpn  *VpnInfo
-	cmd  *CMDPipe
-	once syncutil.Once
+	vpn      *VpnInfo
+	cmd      *CMDPipe
+	ctx      context.Context
+	cancel   context.CancelCauseFunc
+	mainLoop bool
 }
 
 const (
@@ -58,51 +58,63 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		return nil, err
 	}
 
-	defer cp.PropagateContext(ctx)()
+	defer context.AfterFunc(ctx, func() {
+		cp.Cancel()
+	})()
 
-	err = vpn.ObtainCookie()
-	if err != nil {
+	if err = vpn.ObtainCookie(); err != nil {
 		return nil, err
 	}
 
-	err = vpn.MakeCSTPConnection()
-	if err != nil {
+	if err = vpn.MakeCSTPConnection(); err != nil {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancelCause(context.Background())
 	conn := Conn{
-		vpn: vpn,
-		cmd: cp,
+		vpn:    vpn,
+		cmd:    cp,
+		ctx:    ctx,
+		cancel: cancel,
 	}
+	context.AfterFunc(ctx, vpn.Free)
 	return &conn, nil
 }
 
 func (c *Conn) Run() error {
-	var err error
-	ran := c.once.Do(func() {
-		err = c.vpn.MainLoop()
-	})
-	if !ran {
-		return errors.New("cannot reuse completed connection")
+	done := make(chan struct{})
+	go func() {
+		select {
+		case err := <-c.vpn.errCh:
+			c.cancel(err)
+		case <-done:
+		}
+	}()
+	err := c.vpn.MainLoop()
+	if err != nil {
+		close(done)
+		c.cancel(err)
+	} else {
+		c.mainLoop = true
 	}
 	return err
 }
 
+func (c *Conn) Done() <-chan struct{} {
+	return c.ctx.Done()
+}
+
 func (c *Conn) Wait() error {
-	<-c.vpn.Done()
-	return c.vpn.Err()
+	<-c.Done()
+	return context.Cause(c.ctx)
 }
 
 func (c *Conn) Close() error {
-	if c.once.Do(c.vpn.Free) {
-		return nil
-	}
-	select {
-	case <-c.vpn.Done():
-		return nil
-	default:
+	if c.mainLoop {
 		return c.cmd.Cancel()
 	}
+	c.cancel(nil)
+	return nil
 }
 
 func (c *Conn) TunClient() (*os.File, *IPInfo, error) {

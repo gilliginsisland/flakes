@@ -49,12 +49,6 @@ func handleCommand(cmd flags.Commander, args []string) error {
 func ParseArgs(args []string) ([]string, error) {
 	if len(args) == 0 {
 		args = []string{"proxy"}
-	} else if args[0] == "" {
-		// for csd wrapper, there is no way to pass extra args
-		// also the flags are sent in an incompatible way
-		if _, ok := os.LookupEnv("CSD_TOKEN"); ok {
-			args = []string{"csd"}
-		}
 	}
 
 	return parser.ParseArgs(args)
