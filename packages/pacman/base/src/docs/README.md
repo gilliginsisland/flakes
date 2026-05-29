@@ -195,3 +195,21 @@ For tools supporting HTTP proxies (e.g., `curl`, `wget`, Rancher Desktop):
   - Add `localhost`, `127.0.0.1` to "bypass proxy" list to avoid local traffic issues.
 
 For SOCKS5-only apps, use `socks5://127.0.0.1:11078` (or custom address).
+
+### Runtime Diagnostics
+
+PACman serves Go pprof under `/debug/pprof/` on the same address as `/proxy.pac`.
+
+Open the endpoint index:
+
+```bash
+open http://127.0.0.1:11078/debug/pprof/
+```
+
+Start the pprof web UI for a CPU profile:
+
+```bash
+go tool pprof -http=:0 'http://127.0.0.1:11078/debug/pprof/profile?seconds=30'
+```
+
+Change `seconds` in the URL to control the CPU profile duration.

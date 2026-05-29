@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	httpPprof "net/http/pprof"
 	"os"
 	"path/filepath"
 
@@ -50,6 +51,12 @@ func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 	mux.Handle("/proxy.pac", &httpproxy.PacHandler{
 		Hosts: pd.Hosts,
 	})
+	pprofPrefix := "/debug/pprof/"
+	mux.HandleFunc(pprofPrefix, httpPprof.Index)
+	mux.HandleFunc(pprofPrefix+"cmdline", httpPprof.Cmdline)
+	mux.HandleFunc(pprofPrefix+"profile", httpPprof.Profile)
+	mux.HandleFunc(pprofPrefix+"symbol", httpPprof.Symbol)
+	mux.HandleFunc(pprofPrefix+"trace", httpPprof.Trace)
 	s.HandleServer(netutil.DefaultMatch, &httpproxy.Server{
 		Dialer:  pd.DialContext,
 		Handler: mux,

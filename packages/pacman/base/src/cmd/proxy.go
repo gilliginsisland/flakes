@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net"
 
-	_ "net/http/pprof"
-
 	"github.com/jessevdk/go-flags"
 
 	"github.com/gilliginsisland/pacman/internal/app"
