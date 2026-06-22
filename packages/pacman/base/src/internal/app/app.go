@@ -202,17 +202,15 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 
 	for k, u := range cfg.Proxies {
 		pd := pacman.pool[k]
-		if pd != nil {
-			// skip new PooledDialer if the URL has not changed
-			if pd.URL.String() == u.String() {
-				continue
-			}
+		if pd == nil || pd.URL.String() != u.String() {
 			// close existing dialer after we update the dialer ruleset
-			defer pd.Close()
+			if pd != nil {
+				defer pd.Close()
+			}
+			pd = NewPooledDialer(k, &u.URL, &pacman.dialer)
+			pacman.pool[k] = pd
+			go pd.Track(pacman.UpdateMenu)
 		}
-		pd = NewPooledDialer(k, &u.URL, &pacman.dialer)
-		pacman.pool[k] = pd
-		go pd.Track(pacman.UpdateMenu)
 
 		// add the wildcard *.label.pacman
 		subdomain := k + ".pacman"
