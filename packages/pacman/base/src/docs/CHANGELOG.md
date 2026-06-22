@@ -1,3 +1,11 @@
+# v3.1.8
+
+* Optimized posture checking and VPN packet handling
+* Improved VPN error and status notifications
+* Added runtime diagnostics for troubleshooting connection issues
+* Fixed proxy aliases after config reloads and with mixed-case hostnames
+* Updated dependencies
+___
 # v3.1.7
 
 * bugfix: send Cisco AnyConnect client version in auth requests
