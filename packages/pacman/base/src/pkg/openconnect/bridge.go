@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"errors"
+	"log/slog"
 	"unsafe"
 )
 
@@ -171,7 +172,17 @@ func go_reconnected_handler(context unsafe.Pointer) {
 	if !ok || v.ReconnectedHandler == nil {
 		return
 	}
+	slog.Debug("openconnect reconnected callback")
 	v.ReconnectedHandler()
+}
+
+//export go_protect_socket
+func go_protect_socket(context unsafe.Pointer, fd C.int) {
+	v, ok := handles.Load(uintptr(context))
+	if !ok || v.ProtectSocket == nil {
+		return
+	}
+	v.ProtectSocket(int(fd))
 }
 
 //export go_mainloop_result
@@ -182,9 +193,10 @@ func go_mainloop_result(context unsafe.Pointer, result C.int) {
 	}
 
 	err := ocErrno("main loop", result)
-	if err == nil {
-		return
-	}
+	slog.Debug("openconnect mainloop result",
+		slog.Int("result", int(result)),
+		slog.Any("error", err),
+	)
 
 	select {
 	case v.errCh <- err:

@@ -1,24 +1,46 @@
+diff --git a/gpst.c b/gpst.c
+index 244aaf0..04fc661 100644
+--- a/gpst.c
++++ b/gpst.c
+@@ -1152,6 +1152,7 @@ int gpst_mainloop(struct openconnect_info *vpninfo, int *timeout, int readable)
+ 		vpn_progress(vpninfo, PRG_ERR,
+ 				     _("Failed to connect ESP tunnel; using HTTPS instead.\n"));
+ 		/* XX: gpst_connect does nothing if ESP is enabled and has secrets */
++		vpninfo->pacman_debug.gpst_esp_fallbacks++;
+ 		vpninfo->dtls_state = DTLS_NOSECRET;
+ 		if ((ret = gpst_connect(vpninfo))) {
+ 			vpninfo->quit_reason = "GPST connect failed";
 diff --git a/libopenconnect.map.in b/libopenconnect.map.in
-index f036c07..2ca187b 100644
+index 13631d7..5bdb6f9 100644
 --- a/libopenconnect.map.in
 +++ b/libopenconnect.map.in
-@@ -131,2 +131,3 @@ OPENCONNECT_5_9 {
+@@ -130,6 +130,8 @@ OPENCONNECT_5_8 {
+ 
+ OPENCONNECT_5_9 {
   global:
 +	openconnect_get_tun_fd;
++	openconnect_get_pacman_debug;
  	openconnect_set_sni;
+ } OPENCONNECT_5_8;
+ 
 diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
-index 7cb04d0..cd54f80 100644
+index ef51454..1aa0700 100644
 --- a/libopenconnect5.symbols
 +++ b/libopenconnect5.symbols
-@@ -103,2 +103,3 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+@@ -102,5 +102,7 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+  openconnect_set_external_browser_callback@OPENCONNECT_5_8 9.00
+  openconnect_set_mca_cert@OPENCONNECT_5_8 9.00
   openconnect_set_mca_key_password@OPENCONNECT_5_8 9.00
 + openconnect_get_tun_fd@OPENCONNECT_5_9 9.12
++ openconnect_get_pacman_debug@OPENCONNECT_5_9 9.12
   openconnect_set_useragent@OPENCONNECT_5_8 9.00
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
 diff --git a/library.c b/library.c
-index 840846d..786cff5 100644
+index 00d01ac..d24bf4a 100644
 --- a/library.c
 +++ b/library.c
-@@ -1593,4 +1593,9 @@ int openconnect_setup_tun_device(struct openconnect_info *vpninfo,
+@@ -1607,6 +1607,20 @@ int openconnect_setup_tun_device(struct openconnect_info *vpninfo,
+ 	return openconnect_setup_tun_fd(vpninfo, tun_fd);
  }
  
 +int openconnect_get_tun_fd(struct openconnect_info *vpninfo)
@@ -26,16 +48,135 @@ index 840846d..786cff5 100644
 +	return vpninfo->tun_fd;
 +}
 +
++int openconnect_get_pacman_debug(struct openconnect_info *vpninfo,
++				 struct openconnect_pacman_debug *debug)
++{
++	if (!vpninfo || !debug)
++		return -EINVAL;
++	*debug = vpninfo->pacman_debug;
++	return 0;
++}
++
  static const char * const compr_name_map[] = {
  	[COMPR_DEFLATE] = "Deflate",
+ 	[COMPR_LZS] = "LZS",
+diff --git a/mainloop.c b/mainloop.c
+index f4babc7..2a9ae61 100644
+--- a/mainloop.c
++++ b/mainloop.c
+@@ -31,6 +31,29 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++static void pacman_debug_snapshot(struct openconnect_info *vpninfo, int timeout,
++				  int did_work, int udp_r, int tcp_r, int tun_r)
++{
++	vpninfo->pacman_debug.dtls_state = vpninfo->dtls_state;
++	vpninfo->pacman_debug.dtls_fd = vpninfo->dtls_fd;
++	vpninfo->pacman_debug.ssl_fd = vpninfo->ssl_fd;
++	vpninfo->pacman_debug.tun_fd = vpninfo->tun_fd;
++	vpninfo->pacman_debug.timeout = timeout;
++	vpninfo->pacman_debug.did_work = did_work;
++	vpninfo->pacman_debug.udp_r = udp_r;
++	vpninfo->pacman_debug.tcp_r = tcp_r;
++	vpninfo->pacman_debug.tun_r = tun_r;
++	vpninfo->pacman_debug.need_poll_cmd_fd = vpninfo->need_poll_cmd_fd;
++}
++
++static void pacman_debug_after_poll(struct openconnect_info *vpninfo, int timeout,
++				    int did_work, int udp_r, int tcp_r, int tun_r)
++{
++	pacman_debug_snapshot(vpninfo, timeout, did_work, udp_r, tcp_r, tun_r);
++	if (vpninfo->dtls_fd >= 0 && udp_r && vpninfo->dtls_state <= DTLS_DISABLED)
++		vpninfo->pacman_debug.stale_dtls_wakes++;
++}
++
+ int queue_new_packet(struct openconnect_info *vpninfo,
+ 		     struct pkt_q *q, void *buf, int len)
+ {
+@@ -198,6 +221,8 @@ int openconnect_mainloop(struct openconnect_info *vpninfo,
+ 			timeout = INT_MAX;
+ 		else
+ 			timeout = 1000;
++		vpninfo->pacman_debug.mainloop_loops++;
++		pacman_debug_snapshot(vpninfo, timeout, did_work, udp_r, tcp_r, tun_r);
+ 
+ 		if (!tun_is_up(vpninfo)) {
+ 			if (vpninfo->delay_tunnel_reason) {
+@@ -247,8 +272,10 @@ int openconnect_mainloop(struct openconnect_info *vpninfo,
+ 		if (vpninfo->quit_reason)
+ 			break;
+ 
+-		if (vpninfo->need_poll_cmd_fd)
++		if (vpninfo->need_poll_cmd_fd) {
++			vpninfo->pacman_debug.command_fd_polls++;
+ 			poll_cmd_fd(vpninfo, 0);
++		}
+ 
+ 		if (vpninfo->got_cancel_cmd) {
+ 			if (vpninfo->delay_close != NO_DELAY_CLOSE) {
+@@ -380,6 +407,7 @@ int openconnect_mainloop(struct openconnect_info *vpninfo,
+ #endif
+ 				}
+ 			}
++			pacman_debug_after_poll(vpninfo, timeout, did_work, udp_r, tcp_r, tun_r);
+ 			continue;
+ 		}
+ #endif
+@@ -406,8 +434,9 @@ int openconnect_mainloop(struct openconnect_info *vpninfo,
+ 			udp_r = FD_ISSET(vpninfo->dtls_fd, &rfds);
+ 		if (vpninfo->ssl_fd >= 0)
+ 			tcp_r = FD_ISSET(vpninfo->ssl_fd, &rfds);
++		pacman_debug_after_poll(vpninfo, timeout, did_work, udp_r, tcp_r, tun_r);
+ #endif
+-	}
++		}
+ 
+ 	if (vpninfo->quit_reason && vpninfo->proto->vpn_close_session)
+ 		vpninfo->proto->vpn_close_session(vpninfo, vpninfo->quit_reason);
+diff --git a/openconnect-internal.h b/openconnect-internal.h
+index 95565b8..4289ec9 100644
+--- a/openconnect-internal.h
++++ b/openconnect-internal.h
+@@ -726,6 +726,8 @@ struct openconnect_info {
+ #endif
+ #endif
+ 
++	struct openconnect_pacman_debug pacman_debug;
++
+ #ifdef __sun__
+ 	int ip_fd;
+ 	int ip6_fd;
 diff --git a/openconnect.h b/openconnect.h
-index 5160937..7865b98 100644
+index 913ebe7..0fa9f6f 100644
 --- a/openconnect.h
 +++ b/openconnect.h
-@@ -835,4 +835,6 @@ typedef void (*openconnect_setup_tun_vfn) (void *privdata);
+@@ -843,6 +843,28 @@ void openconnect_override_getaddrinfo(struct openconnect_info *vpninfo, openconn
+ typedef void (*openconnect_setup_tun_vfn) (void *privdata);
  void openconnect_set_setup_tun_handler(struct openconnect_info *vpninfo,
  				       openconnect_setup_tun_vfn setup_tun);
 +int openconnect_get_tun_fd(struct openconnect_info *vpninfo);
 +
++struct openconnect_pacman_debug {
++	unsigned int mainloop_loops;
++	unsigned int command_fd_polls;
++	unsigned int stale_dtls_wakes;
++	unsigned int gpst_esp_fallbacks;
++	int dtls_state;
++	int dtls_fd;
++	int ssl_fd;
++	int tun_fd;
++	int timeout;
++	int did_work;
++	int udp_r;
++	int tcp_r;
++	int tun_r;
++	int need_poll_cmd_fd;
++};
++
++int openconnect_get_pacman_debug(struct openconnect_info *vpninfo,
++				 struct openconnect_pacman_debug *debug);
++
  
  /* Callback for indicating that a TCP reconnection succeeded. */
+ typedef void (*openconnect_reconnected_vfn) (void *privdata);

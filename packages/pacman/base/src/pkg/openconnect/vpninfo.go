@@ -15,6 +15,7 @@ import "C"
 import (
 	"errors"
 	"os"
+	"strconv"
 	"syscall"
 	"unsafe"
 
@@ -39,6 +40,7 @@ type Callbacks struct {
 	Progress           func(level LogLevel, message string)
 	ExternalBrowser    func(uri string) error
 	ReconnectedHandler func()
+	ProtectSocket      func(fd int)
 }
 
 type CSDInfo struct {
@@ -71,6 +73,27 @@ type VpnInfo struct {
 type OpError struct {
 	Op  string
 	Err error
+}
+
+type DebugSnapshot struct {
+	ID               string   `json:"id"`
+	Hostname         string   `json:"hostname,omitempty"`
+	Protocol         Protocol `json:"protocol,omitempty"`
+	MainloopLoops    uint64   `json:"mainloopLoops"`
+	CommandFDPolls   uint64   `json:"commandFdPolls"`
+	StaleDTLSWakes   uint64   `json:"staleDtlsWakes"`
+	GPSTESPFallbacks uint64   `json:"gpstEspFallbacks"`
+	DTLSState        int      `json:"dtlsState"`
+	DTLSStateName    string   `json:"dtlsStateName"`
+	DTLSFD           int      `json:"dtlsFd"`
+	SSLFD            int      `json:"sslFd"`
+	TunFD            int      `json:"tunFd"`
+	Timeout          int      `json:"timeout"`
+	DidWork          int      `json:"didWork"`
+	UDPR             int      `json:"udpR"`
+	TCPR             int      `json:"tcpR"`
+	TunR             int      `json:"tunR"`
+	NeedPollCMDFD    int      `json:"needPollCmdFd"`
 }
 
 func (e *OpError) Error() string {
@@ -288,7 +311,7 @@ func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {
 		return nil, ocErrno("setup cmd pipe", fd)
 	}
 	f := os.NewFile(uintptr(fd), "")
-	return &CMDPipe{w: f}, nil
+	return &CMDPipe{w: f, fd: int(fd)}, nil
 }
 
 func (v *VpnInfo) MakeCSTPConnection() error {
@@ -306,6 +329,72 @@ func (v *VpnInfo) GetTunFd() (int, error) {
 		err = errors.New("get tun fd: fd not setup")
 	}
 	return fd, err
+}
+
+func DebugSnapshots() []DebugSnapshot {
+	var snapshots []DebugSnapshot
+	handles.Range(func(_, value any) bool {
+		v := value.(*VpnInfo)
+		if snapshot, ok := v.DebugSnapshot(); ok {
+			snapshots = append(snapshots, snapshot)
+		}
+		return true
+	})
+	return snapshots
+}
+
+func (v *VpnInfo) DebugSnapshot() (DebugSnapshot, bool) {
+	if v == nil || v.vpninfo == nil {
+		return DebugSnapshot{}, false
+	}
+
+	var debug C.struct_openconnect_pacman_debug
+	if C.openconnect_get_pacman_debug(v.vpninfo, &debug) != 0 {
+		return DebugSnapshot{}, false
+	}
+
+	dtlsState := int(debug.dtls_state)
+	return DebugSnapshot{
+		ID:               strconv.FormatUint(uint64(uintptr(unsafe.Pointer(v.vpninfo))), 16),
+		Hostname:         v.Hostname(),
+		Protocol:         v.Protocol(),
+		MainloopLoops:    uint64(debug.mainloop_loops),
+		CommandFDPolls:   uint64(debug.command_fd_polls),
+		StaleDTLSWakes:   uint64(debug.stale_dtls_wakes),
+		GPSTESPFallbacks: uint64(debug.gpst_esp_fallbacks),
+		DTLSState:        dtlsState,
+		DTLSStateName:    dtlsStateName(dtlsState),
+		DTLSFD:           int(debug.dtls_fd),
+		SSLFD:            int(debug.ssl_fd),
+		TunFD:            int(debug.tun_fd),
+		Timeout:          int(debug.timeout),
+		DidWork:          int(debug.did_work),
+		UDPR:             int(debug.udp_r),
+		TCPR:             int(debug.tcp_r),
+		TunR:             int(debug.tun_r),
+		NeedPollCMDFD:    int(debug.need_poll_cmd_fd),
+	}, true
+}
+
+func dtlsStateName(state int) string {
+	switch state {
+	case 0:
+		return "NOSECRET"
+	case 1:
+		return "SECRET"
+	case 2:
+		return "DISABLED"
+	case 3:
+		return "SLEEPING"
+	case 4:
+		return "CONNECTING"
+	case 5:
+		return "CONNECTED"
+	case 6:
+		return "ESTABLISHED"
+	default:
+		return "UNKNOWN"
+	}
 }
 
 func ocErrno(op string, rc C.int) error {

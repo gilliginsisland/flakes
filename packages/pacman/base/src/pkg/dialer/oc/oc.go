@@ -9,6 +9,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
+	"sync"
+	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/notify"
@@ -50,6 +55,9 @@ type callbacks struct {
 	ctx   context.Context
 	cp    openconnect.CredentialsProcessor
 	label string
+
+	socketsMu sync.Mutex
+	sockets   []int
 }
 
 func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
@@ -73,6 +81,56 @@ func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
 func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 	xtras = append(xtras, slog.String("proxy", cb.label))
 	slog.LogAttrs(context.Background(), slog.LevelDebug, msg, xtras...)
+}
+
+func (cb *callbacks) Reconnected() {
+	cb.DebugLog("OpenConnect reconnected")
+}
+
+func (cb *callbacks) ProtectSocket(fd int) {
+	cb.socketsMu.Lock()
+	cb.sockets = append(cb.sockets, fd)
+	cb.socketsMu.Unlock()
+	cb.DebugLog("OpenConnect protected socket", slog.Int("fd", fd))
+}
+
+func (cb *callbacks) forceSocketFailure(mode string) error {
+	cb.socketsMu.Lock()
+	if len(cb.sockets) == 0 {
+		cb.socketsMu.Unlock()
+		return errors.New("no OpenConnect socket has been recorded")
+	}
+	fd := cb.sockets[len(cb.sockets)-1]
+	cb.socketsMu.Unlock()
+
+	switch mode {
+	case "", "shutdown":
+		return unix.Shutdown(fd, unix.SHUT_RDWR)
+	case "close":
+		return unix.Close(fd)
+	default:
+		return fmt.Errorf("unknown socket failure mode %q", mode)
+	}
+}
+
+func (cb *callbacks) scheduleSocketFailure(after time.Duration, mode string) {
+	go func() {
+		timer := time.NewTimer(after)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+		case <-cb.ctx.Done():
+			return
+		}
+
+		err := cb.forceSocketFailure(mode)
+		cb.DebugLog("OpenConnect experiment forced socket failure",
+			slog.Duration("after", after),
+			slog.String("mode", mode),
+			slog.Any("error", err),
+		)
+	}()
 }
 
 func (cb *callbacks) ExternalBrowser(uri string) error {
@@ -224,7 +282,9 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		ProcessAuthForm: (&openconnect.AggregateProcessor{
 			openconnect.LoggerFunc(cb.DebugLog), &cb,
 		}).ProcessForm,
-		ExternalBrowser: cb.ExternalBrowser,
+		ExternalBrowser:    cb.ExternalBrowser,
+		ReconnectedHandler: cb.Reconnected,
+		ProtectSocket:      cb.ProtectSocket,
 		ValidatePeerCert: func(cert string) bool {
 			return true
 		},
@@ -243,16 +303,34 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		logLevel = openconnect.LogLevelErr
 	}
 
+	forceDPD := queryInt(u.Query(), "force-dpd", 5)
+	if v := queryInt(u.Query(), "dpd", forceDPD); v != forceDPD {
+		forceDPD = v
+	}
+	if after, ok := queryDuration(u.Query(), "experiment-dead-peer-after"); ok {
+		cb.DebugLog("OpenConnect experiment configured",
+			slog.Int("force_dpd", forceDPD),
+			slog.Duration("dead_peer_after", after),
+			slog.String("dead_peer_mode", u.Query().Get("experiment-dead-peer-mode")),
+		)
+	} else {
+		cb.DebugLog("OpenConnect configured", slog.Int("force_dpd", forceDPD))
+	}
+
 	conn, err := openconnect.Connect(ctx, openconnect.Options{
 		Protocol:            openconnect.Protocol(u.Scheme),
 		Server:              fmt.Sprintf("%s%s", u.Host, u.Path),
-		ForceDPD:            5,
+		ForceDPD:            forceDPD,
 		LogLevel:            logLevel,
 		AllowInsecureCrypto: true,
 		Callbacks:           callbacks,
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if after, ok := queryDuration(u.Query(), "experiment-dead-peer-after"); ok {
+		cb.scheduleSocketFailure(after, u.Query().Get("experiment-dead-peer-mode"))
 	}
 
 	d, err := WithConn(conn)
@@ -262,6 +340,44 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 	}
 
 	return d, nil
+}
+
+func queryInt(q url.Values, key string, defaultValue int) int {
+	value := q.Get(key)
+	if value == "" {
+		return defaultValue
+	}
+	i, err := strconv.Atoi(value)
+	if err != nil {
+		slog.Debug("invalid OpenConnect integer query parameter",
+			slog.String("key", key),
+			slog.String("value", value),
+			slog.Any("error", err),
+		)
+		return defaultValue
+	}
+	return i
+}
+
+func queryDuration(q url.Values, key string) (time.Duration, bool) {
+	value := q.Get(key)
+	if value == "" {
+		return 0, false
+	}
+	d, err := time.ParseDuration(value)
+	if err == nil {
+		return d, true
+	}
+	seconds, secondsErr := strconv.Atoi(value)
+	if secondsErr == nil {
+		return time.Duration(seconds) * time.Second, true
+	}
+	slog.Debug("invalid OpenConnect duration query parameter",
+		slog.String("key", key),
+		slog.String("value", value),
+		slog.Any("error", err),
+	)
+	return 0, false
 }
 
 func WithConn(conn *openconnect.Conn) (*Dialer, error) {

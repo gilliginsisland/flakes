@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/httpproxy"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
+	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/sshproxy"
 )
 
@@ -57,6 +59,20 @@ func NewProxyServer(pd *dialer.ByHost) *netutil.MuxServer {
 	mux.HandleFunc(pprofPrefix+"profile", httpPprof.Profile)
 	mux.HandleFunc(pprofPrefix+"symbol", httpPprof.Symbol)
 	mux.HandleFunc(pprofPrefix+"trace", httpPprof.Trace)
+	mux.HandleFunc(pprofPrefix+"openconnect", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(openconnect.DebugSnapshots()); err != nil {
+			slog.Debug("openconnect debug snapshot failed", slog.Any("error", err))
+		}
+	})
 	s.HandleServer(netutil.DefaultMatch, &httpproxy.Server{
 		Dialer:  pd.DialContext,
 		Handler: mux,

@@ -8,14 +8,21 @@ import "C"
 
 import (
 	"io"
+	"log/slog"
 )
 
 type CMDPipe struct {
-	w io.Writer
+	w  io.Writer
+	fd int
 }
 
 func (cp *CMDPipe) write(r rune) error {
 	_, err := cp.w.Write([]byte{byte(r)})
+	slog.Debug("openconnect command pipe write",
+		slog.Int("fd", cp.fd),
+		slog.String("cmd", string(r)),
+		slog.Any("error", err),
+	)
 	return err
 }
 

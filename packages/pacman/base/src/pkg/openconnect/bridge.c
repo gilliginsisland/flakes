@@ -14,6 +14,7 @@ int go_process_csd(void *context, char *hostname, char *sha256, char *token,
 void go_progress(void *context, int level, char *message);
 int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
 void go_reconnected_handler(void *context);
+void go_protect_socket(void *context, int fd);
 void go_mainloop_result(void *context, int result);
 
 void go_progress_vargs(void *context, int level, const char *fmt, ...) {
@@ -69,6 +70,10 @@ struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {
 	openconnect_set_reconnected_handler(
 		vpninfo,
 		(openconnect_reconnected_vfn) go_reconnected_handler
+	);
+	openconnect_set_protect_socket_handler(
+		vpninfo,
+		(openconnect_protect_socket_vfn) go_protect_socket
 	);
 	return vpninfo;
 }

@@ -2,6 +2,7 @@ package openconnect
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -82,19 +83,23 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 }
 
 func (c *Conn) Run() error {
+	slog.Debug("openconnect mainloop start")
 	done := make(chan struct{})
 	go func() {
 		select {
 		case err := <-c.vpn.errCh:
+			slog.Debug("openconnect mainloop callback error", slog.Any("error", err))
 			c.cancel(err)
 		case <-done:
 		}
 	}()
 	err := c.vpn.MainLoop()
 	if err != nil {
+		slog.Debug("openconnect mainloop start failed", slog.Any("error", err))
 		close(done)
 		c.cancel(err)
 	} else {
+		slog.Debug("openconnect mainloop started")
 		c.mainLoop = true
 	}
 	return err
@@ -106,12 +111,17 @@ func (c *Conn) Done() <-chan struct{} {
 
 func (c *Conn) Wait() error {
 	<-c.Done()
-	return context.Cause(c.ctx)
+	err := context.Cause(c.ctx)
+	slog.Debug("openconnect conn wait returned", slog.Any("error", err))
+	return err
 }
 
 func (c *Conn) Close() error {
+	slog.Debug("openconnect conn close", slog.Bool("mainloop", c.mainLoop))
 	if c.mainLoop {
-		return c.cmd.Cancel()
+		err := c.cmd.Cancel()
+		slog.Debug("openconnect conn cancel result", slog.Any("error", err))
+		return err
 	}
 	c.cancel(nil)
 	return nil
