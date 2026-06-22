@@ -30,7 +30,7 @@ func (rd *RewritingDialer) DialContext(ctx context.Context, network, address str
     }
 
     // Check if the host matches the pattern *.<label>.pacman
-    if subdomain, ok := strings.CutSuffix(host, "."+rd.Suffix); ok {
+    if subdomain, ok := strings.CutSuffix(strings.ToLower(host), strings.ToLower("."+rd.Suffix)); ok {
         // Extract the part before the suffix (e.g., "10.0.0.1" from "10.0.0.1.ocna.pacman")
         host = subdomain
         if host == "" {
