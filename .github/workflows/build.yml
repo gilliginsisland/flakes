@@ -3,9 +3,7 @@ name: Build Nix Flakes
 on:
   push:
     branches:
-      - main
-  pull_request:
-    branches:
+      - develop
       - main
 
 jobs:
