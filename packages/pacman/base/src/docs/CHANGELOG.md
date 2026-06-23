@@ -1,3 +1,7 @@
+# v3.1.9
+
+* Signed release builds with a stable certificate for more reliable automatic updates
+___
 # v3.1.8
 
 * Optimized posture checking and VPN packet handling
