@@ -16,6 +16,7 @@ jobs:
       build: ${{ steps.gen-matrix.outputs.build }}
       release: ${{ steps.gen-matrix.outputs.release }}
       has_jobs: ${{ steps.gen-matrix.outputs.has_jobs }}
+      should_publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gen-matrix.outputs.has_jobs == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -46,12 +47,11 @@ jobs:
         uses: cachix/install-nix-action@v31.9.0
       - name: Setup Magic Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: Build with Nix Flakes
+      - name: Package Artifact
+        env:
+          FLAKESIGN_CERT: ${{ secrets.FLAKESIGN_CERT }}
         run: |
-          nix build --show-trace -L .#${{ matrix.output }}
-      - name: Package Release Asset
-        run: |
-          tar -czvf "${{ env.ARTIFACT_NAME }}.tgz" -C ./result .
+          nix run .#flakesign -- .#${{ matrix.output }} "${{ env.ARTIFACT_NAME }}.tgz"
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
         with:
@@ -63,7 +63,7 @@ jobs:
     needs:
       - gen-matrix
       - build
-    if: ${{ fromJson(needs.gen-matrix.outputs.has_jobs) }}
+    if: ${{ needs.gen-matrix.outputs.should_publish == 'true' }}
     strategy:
       matrix:
         include: ${{ fromJson(needs.gen-matrix.outputs.release) }}
@@ -93,6 +93,7 @@ jobs:
     needs:
       - gen-matrix
       - release
+    if: ${{ needs.gen-matrix.outputs.should_publish == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -121,7 +122,10 @@ jobs:
           path: ./pages-content
 
   deploy:
-    needs: bundle
+    needs:
+      - gen-matrix
+      - bundle
+    if: ${{ needs.gen-matrix.outputs.should_publish == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write

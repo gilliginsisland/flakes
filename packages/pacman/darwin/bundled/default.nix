@@ -9,6 +9,7 @@
   runCommand,
   cctools,
   insert-dylib,
+  rcodesign,
   sparkle-project,
 }:
 
@@ -65,24 +66,9 @@ let
     '';
   };
 
-  codesign = stdenv.mkDerivation {
-    name = "codesign";
-
-    phases = [ "installPhase" ];
-    installPhase = ''
-      mkdir -p $out/bin
-      ln -s /usr/bin/codesign $out/bin/codesign
-    '';
-
-    meta = {
-      description = "Wrapper exposing macOS native codesign command";
-      platforms = lib.platforms.darwin;
-    };
-  };
-
   attrs = {
     inherit (pacman) pname version meta;
-    nativeBuildInputs = [ macdylibbundler cctools insert-dylib codesign ];
+    nativeBuildInputs = [ macdylibbundler cctools insert-dylib rcodesign ];
     buildInputs = [ pacman openssl.out ossl-conf-sidecar sparkle-sidecar ];
   };
 in
@@ -139,5 +125,7 @@ runCommand "pacman-bundled" attrs ''
     install_name_tool -change "${darwin.libresolv}/lib/libresolv.9.dylib" "/usr/lib/libresolv.9.dylib" "$file"
   done
 
-  codesign -s - --force --deep --timestamp --preserve-metadata "$app"
+  rcodesign sign \
+    --timestamp-url none \
+    "$app"
 ''
