@@ -64,6 +64,7 @@ in buildGo126Module (final: {
   buildInputs = [ openconnect' apple-sdk_15 (darwinMinVersionHook "14.4") ];
 
   ldflags = [
+    "-w"
     "-X github.com/gilliginsisland/pacman/internal/version.Version=${final.version}"
   ];
 

@@ -4,6 +4,7 @@
   librsvg,
   runCommand,
   callPackage,
+  rcodesign,
 }:
 
 let
@@ -24,26 +25,11 @@ let
     };
   };
 
-  codesign = stdenv.mkDerivation {
-    name = "codesign";
-
-    phases = [ "installPhase" ];
-    installPhase = ''
-      mkdir -p $out/bin
-      ln -s /usr/bin/codesign $out/bin/codesign
-    '';
-
-    meta = {
-      description = "Wrapper exposing macOS native codesign command";
-      platforms = lib.platforms.darwin;
-    };
-  };
-
   resources = lib.cleanSource ./resources;
 
   attrs = {
     inherit (pacman) pname version;
-    nativeBuildInputs = [ librsvg iconutil codesign ];
+    nativeBuildInputs = [ librsvg iconutil rcodesign ];
     buildInputs = [ pacman ];
     meta = pacman.meta // {
       mainProgram = "pacman";
@@ -59,6 +45,7 @@ let
     app=$out/Applications/PACman.app
     mkdir -p "$app"/Contents/{MacOS,Resources}
     cp "${pacman}/bin/pacman" "$app/Contents/MacOS/PACman"
+    chmod u+w "$app/Contents/MacOS/PACman"
 
     # Generate .icns from icon.png
     input=${resources}/icon.svg
@@ -81,7 +68,11 @@ let
     substitute ${resources}/Info.plist "$app/Contents/Info.plist" \
       --replace "@VERSION@" "${attrs.version}"
 
-    codesign -s - --force --deep --timestamp --entitlements ${resources}/entitlements.plist "$app"
+    rcodesign sign \
+      --timestamp-url none \
+      --binary-identifier io.github.gilliginsisland.pacman \
+      --entitlements-xml-file ${resources}/entitlements.plist \
+      "$app/Contents/MacOS/PACman"
 
     mkdir -p "$out/bin"
     ln -s "$app/Contents/MacOS/PACman" "$out/bin/pacman"
