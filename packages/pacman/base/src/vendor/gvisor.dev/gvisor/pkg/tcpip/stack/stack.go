@@ -187,6 +187,11 @@ type Stack struct {
 	// when resume is false.
 	removeConf bool `state:"nosave"`
 
+	// allowLiveTCPMigration allows TCP connection state to be migrated.
+	// If false, any connected TCP endpoints will be terminated
+	// during save/restore.
+	allowLiveTCPMigration bool `state:"nosave"`
+
 	// externalNetworkingDisabled indicates whether external networking is
 	// disabled. This means all non-loopback NICs are disabled.
 	externalNetworkingDisabled bool
@@ -243,6 +248,11 @@ type Options struct {
 	// AllowPacketEndpointWrite determines if packet endpoints support write
 	// operations.
 	AllowPacketEndpointWrite bool
+
+	// AllowLiveTCPMigration allows TCP connection state to be migrated.
+	// If false, any connected TCP endpoints will be terminated
+	// during save/restore.
+	AllowLiveTCPMigration bool
 
 	// RandSource is an optional source to use to generate random
 	// numbers. If omitted it defaults to a Source seeded by the data
@@ -428,8 +438,9 @@ func New(opts Options) *Stack {
 			Default: DefaultBufferSize,
 			Max:     DefaultMaxBufferSize,
 		},
-		tcpInvalidRateLimit: defaultTCPInvalidRateLimit,
-		tsOffsetSecret:      secureRNG.Uint32(),
+		tcpInvalidRateLimit:   defaultTCPInvalidRateLimit,
+		tsOffsetSecret:        secureRNG.Uint32(),
+		allowLiveTCPMigration: opts.AllowLiveTCPMigration,
 	}
 
 	// Add specified network protocols.
@@ -2075,10 +2086,20 @@ func (s *Stack) getNICs() map[tcpip.NICID]*nic {
 	return nics
 }
 
+// ResetConfig resets the stack's NICs and ID generator.
+func (s *Stack) ResetConfig() {
+	nics := make(map[tcpip.NICID]*nic)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nics = nics
+	s.loopbackNIC = nil
+	s.nicIDGen.Store(0)
+}
+
 // ReplaceConfig replaces config in the loaded stack.
 func (s *Stack) ReplaceConfig(st *Stack) {
 	if st == nil {
-		panic("stack.Stack cannot be nil when netstack s/r is enabled")
+		panic("stack.Stack cannot be nil when replacing config")
 	}
 
 	// Update route table.
@@ -2092,10 +2113,6 @@ func (s *Stack) ReplaceConfig(st *Stack) {
 	// Update iptables and nftables.
 	s.tables = st.IPTables()
 	s.nftables = st.NFTables()
-
-	// Update NICs.
-	s.nics = make(map[tcpip.NICID]*nic)
-	s.loopbackNIC = nil
 	for id, nic := range nics {
 		nic.stack = s
 		s.nics[id] = nic
@@ -2203,6 +2220,12 @@ func (s *Stack) unregisterPacketEndpointLocked(nicID tcpip.NICID, netProto tcpip
 // WritePacketToRemote writes a payload on the specified NIC using the provided
 // network protocol and remote link address.
 func (s *Stack) WritePacketToRemote(nicID tcpip.NICID, remote tcpip.LinkAddress, netProto tcpip.NetworkProtocolNumber, payload buffer.Buffer) tcpip.Error {
+	return s.WritePacketToRemoteWithMark(nicID, remote, netProto, payload, 0)
+}
+
+// WritePacketToRemoteWithMark writes a payload on the specified NIC using the
+// provided network protocol, remote link address, and packet mark.
+func (s *Stack) WritePacketToRemoteWithMark(nicID tcpip.NICID, remote tcpip.LinkAddress, netProto tcpip.NetworkProtocolNumber, payload buffer.Buffer, mark uint32) tcpip.Error {
 	s.mu.Lock()
 	nic, ok := s.nics[nicID]
 	s.mu.Unlock()
@@ -2212,6 +2235,7 @@ func (s *Stack) WritePacketToRemote(nicID tcpip.NICID, remote tcpip.LinkAddress,
 	pkt := NewPacketBuffer(PacketBufferOptions{
 		ReserveHeaderBytes: int(nic.MaxHeaderLength()),
 		Payload:            payload,
+		Mark:               mark,
 	})
 	defer pkt.DecRef()
 	pkt.NetworkProtocolNumber = netProto
@@ -2221,6 +2245,12 @@ func (s *Stack) WritePacketToRemote(nicID tcpip.NICID, remote tcpip.LinkAddress,
 // WriteRawPacket writes data directly to the specified NIC without adding any
 // headers.
 func (s *Stack) WriteRawPacket(nicID tcpip.NICID, proto tcpip.NetworkProtocolNumber, payload buffer.Buffer) tcpip.Error {
+	return s.WriteRawPacketWithMark(nicID, proto, payload, 0)
+}
+
+// WriteRawPacketWithMark writes data directly to the specified NIC without adding any
+// headers, setting the specified packet mark.
+func (s *Stack) WriteRawPacketWithMark(nicID tcpip.NICID, proto tcpip.NetworkProtocolNumber, payload buffer.Buffer, mark uint32) tcpip.Error {
 	s.mu.RLock()
 	nic, ok := s.nics[nicID]
 	s.mu.RUnlock()
@@ -2230,6 +2260,7 @@ func (s *Stack) WriteRawPacket(nicID tcpip.NICID, proto tcpip.NetworkProtocolNum
 
 	pkt := NewPacketBuffer(PacketBufferOptions{
 		Payload: payload,
+		Mark:    mark,
 	})
 	defer pkt.DecRef()
 	pkt.NetworkProtocolNumber = proto
@@ -2293,6 +2324,11 @@ func (s *Stack) IsInGroup(nicID tcpip.NICID, multicastAddr tcpip.Address) (bool,
 // IPTables returns the stack's iptables.
 func (s *Stack) IPTables() *IPTables {
 	return s.tables
+}
+
+// SetIPTables sets the stack's iptables.
+func (s *Stack) SetIPTables(tables *IPTables) {
+	s.tables = tables
 }
 
 // NFTables returns the stack's nftables.
@@ -2564,6 +2600,20 @@ func (s *Stack) GetAllowConnectedOnSave() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.allowConnectedOnSave
+}
+
+// AllowLiveTCPMigration returns if TCP connections can be migrated.
+func (s *Stack) AllowLiveTCPMigration() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.allowLiveTCPMigration
+}
+
+// SetAllowLiveTCPMigration sets if TCP connections can be migrated.
+func (s *Stack) SetAllowLiveTCPMigration(allow bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.allowLiveTCPMigration = allow
 }
 
 // DisableAllNonLoopbackNICs disables all non-loopback NICs in the stack.

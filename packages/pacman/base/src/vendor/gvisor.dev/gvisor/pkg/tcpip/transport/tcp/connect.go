@@ -663,14 +663,18 @@ func (h *handshake) transitionToStateEstablishedLocked(s *segment) {
 	// (indicated by a negative send window scale).
 	initSender(h.ep, h.iss, h.ackNum-1, h.sndWnd, h.mss, h.sndWndScale)
 
-	now := h.ep.stack.Clock().NowMonotonic()
+	// Use the final handshake ACK's ingress time (s.rcvdTime) rather than the
+	// current clock to seed the initial RTT/RTO. If the ACK was delayed inside
+	// the stack before processing, the processing-time clock would inflate the
+	// initial RTO, which then persists for several RTTs.
+	rcvd := s.rcvdTime
 
 	var rtt time.Duration
 	if h.ep.SendTSOk && s.parsedOptions.TSEcr != 0 {
-		rtt = h.ep.elapsed(now, s.parsedOptions.TSEcr)
+		rtt = h.ep.elapsed(rcvd, s.parsedOptions.TSEcr)
 	}
 	if !h.sampleRTTWithTSOnly && rtt == 0 {
-		rtt = now.Sub(h.startTime)
+		rtt = rcvd.Sub(h.startTime)
 	}
 
 	if rtt > 0 {
@@ -829,7 +833,10 @@ func (e *Endpoint) sendSynTCP(r *stack.Route, tf tcpFields, opts header.TCPSynOp
 	if r.NetProto() == header.IPv6ProtocolNumber && tf.expOptVal != 0 {
 		hdrSize += header.IPv6ExperimentHdrLength
 	}
-	p := stack.NewPacketBuffer(stack.PacketBufferOptions{ReserveHeaderBytes: hdrSize})
+	p := stack.NewPacketBuffer(stack.PacketBufferOptions{
+		ReserveHeaderBytes: hdrSize,
+		Mark:               e.ops.GetMark(),
+	})
 	defer p.DecRef()
 	if err := e.sendTCP(r, tf, p, stack.GSO{}); err != nil {
 		e.stats.SendErrors.SynSendToNetworkFailed.Increment()
@@ -905,7 +912,10 @@ func sendTCPBatch(r *stack.Route, tf tcpFields, pkt *stack.PacketBuffer, gso sta
 				// Reserve extra bytes for the experiment option.
 				hdrSize += header.IPv6ExperimentHdrLength
 			}
-			splitPkt := stack.NewPacketBuffer(stack.PacketBufferOptions{ReserveHeaderBytes: hdrSize})
+			splitPkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+				ReserveHeaderBytes: hdrSize,
+				Mark:               pkt.Mark,
+			})
 			splitPkt.Data().ReadFromPacketData(pkt.Data(), packetSize)
 			pkt = splitPkt
 		}
@@ -1013,7 +1023,9 @@ func (e *Endpoint) makeOptions(sackBlocks []header.SACKBlock) []byte {
 //
 // +checklocks:e.mu
 func (e *Endpoint) sendEmptyRaw(flags header.TCPFlags, seq, ack seqnum.Value, rcvWnd seqnum.Size) tcpip.Error {
-	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{})
+	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{
+		Mark: e.ops.GetMark(),
+	})
 	defer pkt.DecRef()
 	return e.sendRaw(pkt, flags, seq, ack, rcvWnd)
 }
@@ -1178,46 +1190,61 @@ func (e *Endpoint) drainClosingSegmentQueue() {
 	}
 }
 
+// handleReset processes an inbound segment carrying the RST flag.
+//
+// Acceptance follows RFC 5961 section 3.2:
+//   - If the segment sequence number is out of window, the segment is
+//     silently dropped.
+//   - If the segment sequence number is in window but not exactly equal
+//     to RCV.NXT, the implementation sends a challenge ACK and drops
+//     the segment.
+//   - Only an exact match against RCV.NXT causes the connection to be
+//     reset.
+//
+// This is stricter than RFC 793 page 37, which accepted any in-window RST.
+// The strict-match rule defends against off-path blind RST injection.
+// Linux has implemented it since version 3.6 (2012); see
+// net/ipv4/tcp_input.c tcp_validate_incoming().
+//
 // +checklocks:e.mu
 func (e *Endpoint) handleReset(s *segment) (ok bool, err tcpip.Error) {
-	if e.rcv.acceptable(s.sequenceNumber, 0) {
-		// RFC 793, page 37 states that "in all states
-		// except SYN-SENT, all reset (RST) segments are
-		// validated by checking their SEQ-fields." So
-		// we only process it if it's acceptable.
-		switch e.EndpointState() {
-		// In case of a RST in CLOSE-WAIT linux moves
-		// the socket to closed state with an error set
-		// to indicate EPIPE.
-		//
-		// Technically this seems to be at odds w/ RFC.
-		// As per https://tools.ietf.org/html/rfc793#section-2.7
-		// page 69 the behavior for a segment arriving
-		// w/ RST bit set in CLOSE-WAIT is inlined below.
-		//
-		//  ESTABLISHED
-		//  FIN-WAIT-1
-		//  FIN-WAIT-2
-		//  CLOSE-WAIT
-
-		//  If the RST bit is set then, any outstanding RECEIVEs and
-		//  SEND should receive "reset" responses. All segment queues
-		//  should be flushed.  Users should also receive an unsolicited
-		//  general "connection reset" signal. Enter the CLOSED state,
-		//  delete the TCB, and return.
-		case StateCloseWait:
-			e.transitionToStateCloseLocked()
-			e.hardError = &tcpip.ErrAborted{}
-			return false, nil
-		default:
-			// RFC 793, page 37 states that "in all states
-			// except SYN-SENT, all reset (RST) segments are
-			// validated by checking their SEQ-fields." So
-			// we only process it if it's acceptable.
-			return false, &tcpip.ErrConnectionReset{}
-		}
+	if !e.rcv.acceptable(s.sequenceNumber, 0) {
+		// Out of window. Silent drop.
+		return true, nil
 	}
-	return true, nil
+
+	if s.sequenceNumber != e.rcv.RcvNxt {
+		// In window but not an exact match. Send a challenge ACK and drop the
+		// segment per RFC 5961 section 3.2. The challenge ACK helper rate-limits
+		// challenge transmission per RFC 5961 section 7.
+		e.snd.maybeSendOutOfWindowAck(s)
+		return true, nil
+	}
+
+	switch e.EndpointState() {
+	// In case of a RST in CLOSE-WAIT linux moves the socket to closed state
+	// with an error set to indicate EPIPE.
+	//
+	// As per https://tools.ietf.org/html/rfc793#section-2.7 page 69 the
+	// behavior for a segment arriving w/ RST bit set in CLOSE-WAIT is
+	// inlined below.
+	//
+	//  ESTABLISHED
+	//  FIN-WAIT-1
+	//  FIN-WAIT-2
+	//  CLOSE-WAIT
+	//
+	//  If the RST bit is set then, any outstanding RECEIVEs and SEND should
+	//  receive "reset" responses. All segment queues should be flushed.
+	//  Users should also receive an unsolicited general "connection reset"
+	//  signal. Enter the CLOSED state, delete the TCB, and return.
+	case StateCloseWait:
+		e.transitionToStateCloseLocked()
+		e.hardError = &tcpip.ErrAborted{}
+		return false, nil
+	default:
+		return false, &tcpip.ErrConnectionReset{}
+	}
 }
 
 // handleSegments processes all inbound segments.

@@ -79,8 +79,8 @@ golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/versions
 # gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 ## explicit
-# gvisor.dev/gvisor v0.0.0-20260519190036-266ba6c868f3
-## explicit; go 1.25.5
+# gvisor.dev/gvisor v0.0.0-20260722212953-d9874d35ea2a
+## explicit; go 1.26.3
 gvisor.dev/gvisor/pkg/atomicbitops
 gvisor.dev/gvisor/pkg/bits
 gvisor.dev/gvisor/pkg/buffer
