@@ -14,7 +14,7 @@ func (s *mockScanner) Scan() *Report {
 	r := Report{
 		OS: OS{
 			Version:      "Mac OS X",
-			ServicePack:  "26.3",
+			ServicePack:  "26.4.1",
 			Architecture: "arm64",
 		},
 		Policy: Policy{
@@ -29,19 +29,19 @@ func (s *mockScanner) Scan() *Report {
 			"100386": {
 				Exists:      true,
 				Description: "Packet Filter (Mac)",
-				Version:     "26.3",
+				Version:     "26.4.1",
 				Enabled:     "ok",
 			},
 			"100250": {
 				Exists:      true,
 				Description: "CrowdStrike Falcon (Mac)",
-				Version:     "7.33.20503.0",
+				Version:     "7.36.20807.0",
 				Enabled:     "ok",
 			},
 			"100022": {
 				Exists:      true,
 				Description: "Mac OS X Builtin Firewall (Mac)",
-				Version:     "26.3",
+				Version:     "26.4.1",
 				Enabled:     "ok",
 			},
 		},
@@ -49,7 +49,7 @@ func (s *mockScanner) Scan() *Report {
 			"100366": {
 				Exists:      true,
 				Description: "Xprotect (Mac)",
-				Version:     "5325",
+				Version:     "5344",
 				Activescan:  "ok",
 				LastUpdate:  545119,
 				Timestamp:   int(time.Now().Unix()) - 545119,
@@ -57,7 +57,7 @@ func (s *mockScanner) Scan() *Report {
 			"100250": {
 				Exists:      true,
 				Description: "CrowdStrike Falcon (Mac)",
-				Version:     "7.29.20103.0",
+				Version:     "7.36.20807.0",
 				Activescan:  "ok",
 				LastUpdate:  9447,
 				Timestamp:   int(time.Now().Unix()) - 9447,
@@ -65,7 +65,7 @@ func (s *mockScanner) Scan() *Report {
 			"100137": {
 				Exists:      true,
 				Description: "Gatekeeper (Mac)",
-				Version:     "26.3",
+				Version:     "26.4.1",
 				Activescan:  "ok",
 			},
 		},
