@@ -13,12 +13,12 @@ let
     vpnc-scripts = "/etc/vpnc/vpnc-script";
     stoken = null;
   }).overrideAttrs (prev: {
-    version = "9.12-unstable-2026-03-11";
+    version = "9.21";
     src = fetchFromGitLab {
       owner = "openconnect";
       repo = "openconnect";
-      rev = "a7e751442e0e4bb8e3f18965960b1428e1a26bbc";
-      hash = "sha256-OV5LMTV3NqSASChelVh5Hpw+ZnuJ89FPLkGTCej2j4w=";
+      rev = "8b702bf2dbaf11302ed98629214b1df5d50a12aa";
+      hash = "sha256-Jtd4cIR6BWSQPmLm8UOvlEcC1g6QlMgFw/aM7cokOCw=";
     };
     patches = (prev.patches or []) ++ lib.filesystem.listFilesRecursive (lib.cleanSource ./src/patches);
     configureFlags = prev.configureFlags ++ [
