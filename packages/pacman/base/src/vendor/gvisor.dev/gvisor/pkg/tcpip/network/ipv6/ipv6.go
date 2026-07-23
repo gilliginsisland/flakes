@@ -672,7 +672,7 @@ func (e *endpoint) Disable() {
 }
 
 func (e *endpoint) disableLocked() {
-	if !e.Enabled() {
+	if !e.isEnabled() {
 		return
 	}
 
@@ -832,7 +832,8 @@ func (e *endpoint) WritePacket(r *stack.Route, params stack.NetworkHeaderParams,
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		if !nft.CheckOutput(pkt, stack.IP6) {
+		// TODO: b/486197011 - Add support for NAT re-routing in IPv6.
+		if !nft.CheckOutput(pkt, r, stack.IP6) {
 			// nftables is telling us to drop the packet.
 			return nil
 		}
@@ -879,7 +880,7 @@ func (e *endpoint) writePacket(r *stack.Route, pkt *stack.PacketBuffer, protocol
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		if !nft.CheckPostrouting(pkt, stack.IP6) {
+		if !nft.CheckPostrouting(pkt, r, stack.IP6) {
 			// nftables is telling us to drop the packet.
 			return nil
 		}
@@ -1026,7 +1027,8 @@ func (e *endpoint) forwardUnicastPacket(pkt *stack.PacketBuffer) ip.ForwardingEr
 		}
 
 		if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-			if !nft.CheckForward(pkt, stack.IP6) {
+
+			if !nft.CheckForward(pkt, nil, stack.IP6) {
 				// nftables is telling us to drop the packet.
 				return nil
 			}
@@ -1074,7 +1076,7 @@ func (e *endpoint) forwardPacketWithRoute(route *stack.Route, pkt *stack.PacketB
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		if !nft.CheckForward(pkt, stack.IP6) {
+		if !nft.CheckForward(pkt, route, stack.IP6) {
 			// nftables is telling us to drop the packet.
 			return nil
 		}
@@ -1094,6 +1096,10 @@ func (e *endpoint) forwardPacketWithRoute(route *stack.Route, pkt *stack.PacketB
 	//   Hop Limit           8-bit unsigned integer. Decremented by 1 by
 	//                       each node that forwards the packet.
 	newHdr.SetHopLimit(hopLimit - 1)
+
+	if route.RequiresTXTransportChecksum() {
+		newPkt.CalculateTransportChecksum()
+	}
 
 	forwardToEp, ok := e.protocol.getEndpointForNIC(route.NICID())
 	if !ok {
@@ -1176,7 +1182,7 @@ func (e *endpoint) HandlePacket(pkt *stack.PacketBuffer) {
 		}
 
 		if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-			if !nft.CheckPrerouting(pkt, stack.IP6) {
+			if !nft.CheckPrerouting(pkt, nil, stack.IP6) {
 				// nftables is telling us to drop the packet.
 				return
 			}
@@ -1434,7 +1440,7 @@ func (e *endpoint) deliverPacketLocally(h header.IPv6, pkt *stack.PacketBuffer, 
 	}
 
 	if nft := stk.NFTables(); nft != nil && stk.IsNFTablesConfigured() {
-		if !nft.CheckInput(pkt, stack.IP6) {
+		if !nft.CheckInput(pkt, nil, stack.IP6) {
 			// nftables is telling us to drop the packet.
 			return
 		}
@@ -2735,6 +2741,8 @@ func (p *protocol) SendRejectionError(pkt *stack.PacketBuffer, rejectWith stack.
 		return p.returnError(&icmpReasonPortUnreachable{}, pkt, inputHook)
 	case stack.RejectIPv6WithICMPAdminProhibited:
 		return p.returnError(&icmpReasonAdministrativelyProhibited{}, pkt, inputHook)
+	case stack.RejectIPv6WithTCPReset:
+		return ip.RejectWithTCPReset(pkt, ProtocolNumber, p.stack, inputHook)
 	default:
 		panic(fmt.Sprintf("unhandled %[1]T = %[1]d", rejectWith))
 	}

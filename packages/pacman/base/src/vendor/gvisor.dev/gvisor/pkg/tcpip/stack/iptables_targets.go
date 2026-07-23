@@ -64,8 +64,11 @@ const (
 	RejectIPv4WithICMPNetUnreachable
 	RejectIPv4WithICMPHostUnreachable
 	RejectIPv4WithICMPPortUnreachable
+	RejectIPv4WithICMPProtUnreachable
+	RejectIPv4WithICMPEchoReply
 	RejectIPv4WithICMPNetProhibited
 	RejectIPv4WithICMPHostProhibited
+	RejectIPv4WithTCPReset
 	RejectIPv4WithICMPAdminProhibited
 )
 
@@ -106,9 +109,14 @@ type RejectIPv6WithICMPType int
 const (
 	_ RejectIPv6WithICMPType = iota
 	RejectIPv6WithICMPNoRoute
+	RejectIPv6WithICMPAdminProhibited
+	RejectIPv6WithICMPNotNeighbour
 	RejectIPv6WithICMPAddrUnreachable
 	RejectIPv6WithICMPPortUnreachable
-	RejectIPv6WithICMPAdminProhibited
+	RejectIPv6WithICMPEchoReply
+	RejectIPv6WithTCPReset
+	RejectIPv6WithICMPPolicyFail
+	RejectIPv6WithICMPRejectRoute
 )
 
 // RejectIPv6Target drops packets and sends back an error packet in response to the
@@ -298,10 +306,10 @@ type SNATTarget struct {
 }
 
 func dnatAction(pkt *PacketBuffer, hook Hook, r *Route, port uint16, address tcpip.Address, changePort, changeAddress bool) (RuleVerdict, int) {
-	return natAction(pkt, hook, r, portOrIdentRange{start: port, size: 1}, address, true /* dnat */, changePort, changeAddress)
+	return natAction(pkt, hook, r, PortOrIdentRange{Start: port, Size: 1}, address, true /* dnat */, changePort, changeAddress)
 }
 
-func targetPortRangeForTCPAndUDP(originalSrcPort uint16) portOrIdentRange {
+func targetPortRangeForTCPAndUDP(originalSrcPort uint16) PortOrIdentRange {
 	// As per iptables(8),
 	//
 	//   If no port range is specified, then source ports below 512 will be
@@ -310,16 +318,16 @@ func targetPortRangeForTCPAndUDP(originalSrcPort uint16) portOrIdentRange {
 	//   1024 or above.
 	switch {
 	case originalSrcPort < 512:
-		return portOrIdentRange{start: 1, size: 511}
+		return PortOrIdentRange{Start: 1, Size: 511}
 	case originalSrcPort < 1024:
-		return portOrIdentRange{start: 1, size: 1023}
+		return PortOrIdentRange{Start: 1, Size: 1023}
 	default:
-		return portOrIdentRange{start: 1024, size: math.MaxUint16 - 1023}
+		return PortOrIdentRange{Start: 1024, Size: math.MaxUint16 - 1023}
 	}
 }
 
 func snatAction(pkt *PacketBuffer, hook Hook, r *Route, port uint16, address tcpip.Address, changePort, changeAddress bool) (RuleVerdict, int) {
-	portsOrIdents := portOrIdentRange{start: port, size: 1}
+	portsOrIdents := PortOrIdentRange{Start: port, Size: 1}
 
 	switch pkt.TransportProtocolNumber {
 	case header.UDPProtocolNumber:
@@ -335,13 +343,13 @@ func snatAction(pkt *PacketBuffer, hook Hook, r *Route, port uint16, address tcp
 		// behaviour.
 		//
 		// https://github.com/torvalds/linux/blob/58e1100fdc5990b0cc0d4beaf2562a92e621ac7d/net/netfilter/nf_nat_core.c#L391
-		portsOrIdents = portOrIdentRange{start: 0, size: math.MaxUint16 + 1}
+		portsOrIdents = PortOrIdentRange{Start: 0, Size: math.MaxUint16 + 1}
 	}
 
 	return natAction(pkt, hook, r, portsOrIdents, address, false /* dnat */, changePort, changeAddress)
 }
 
-func natAction(pkt *PacketBuffer, hook Hook, r *Route, portsOrIdents portOrIdentRange, address tcpip.Address, dnat, changePort, changeAddress bool) (RuleVerdict, int) {
+func natAction(pkt *PacketBuffer, hook Hook, r *Route, portsOrIdents PortOrIdentRange, address tcpip.Address, dnat, changePort, changeAddress bool) (RuleVerdict, int) {
 	// Drop the packet if network and transport header are not set.
 	if len(pkt.NetworkHeader().Slice()) == 0 || len(pkt.TransportHeader().Slice()) == 0 {
 		return RuleDrop, 0

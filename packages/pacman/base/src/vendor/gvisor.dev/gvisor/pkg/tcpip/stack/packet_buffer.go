@@ -20,6 +20,7 @@ import (
 	"gvisor.dev/gvisor/pkg/buffer"
 	"gvisor.dev/gvisor/pkg/sync"
 	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/checksum"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
 )
 
@@ -56,6 +57,9 @@ type PacketBufferOptions struct {
 	// OnRelease is a function to be run when the packet buffer is no longer
 	// referenced (released back to the pool).
 	OnRelease func()
+
+	// Mark is the mark value of this packet.
+	Mark uint32
 }
 
 // A PacketBuffer contains all the data of a network packet.
@@ -154,12 +158,19 @@ type PacketBuffer struct {
 	// NICID is the ID of the last interface the network packet was handled at.
 	NICID tcpip.NICID
 
+	// InputNICID is the ID of the interface that the network packet
+	// was received on.
+	InputNICID tcpip.NICID
+
 	// RXChecksumValidated indicates that checksum verification may be
 	// safely skipped.
 	RXChecksumValidated bool
 
 	// NetworkPacketInfo holds an incoming packet's network-layer information.
 	NetworkPacketInfo NetworkPacketInfo
+
+	// Mark is the mark value of this packet.
+	Mark uint32
 
 	tuple *tuple
 
@@ -182,6 +193,7 @@ func NewPacketBuffer(opts PacketBufferOptions) *PacketBuffer {
 	}
 	pk.NetworkPacketInfo.IsForwardedPacket = opts.IsForwardedPacket
 	pk.onRelease = opts.OnRelease
+	pk.Mark = opts.Mark
 	pk.InitRefs()
 	return pk
 }
@@ -380,6 +392,7 @@ func (pk *PacketBuffer) Clone() *PacketBuffer {
 	newPk.headers = pk.headers
 	newPk.Hash = pk.Hash
 	newPk.Owner = pk.Owner
+	newPk.Mark = pk.Mark
 	newPk.GSOOptions = pk.GSOOptions
 	newPk.EgressRoute = pk.EgressRoute
 	newPk.NetworkProtocolNumber = pk.NetworkProtocolNumber
@@ -388,6 +401,7 @@ func (pk *PacketBuffer) Clone() *PacketBuffer {
 	newPk.TransportProtocolNumber = pk.TransportProtocolNumber
 	newPk.PktType = pk.PktType
 	newPk.NICID = pk.NICID
+	newPk.InputNICID = pk.InputNICID
 	newPk.RXChecksumValidated = pk.RXChecksumValidated
 	newPk.NetworkPacketInfo = pk.NetworkPacketInfo
 	newPk.tuple = pk.tuple
@@ -431,6 +445,7 @@ func (pk *PacketBuffer) CloneToInbound() *PacketBuffer {
 	newPk.InitRefs()
 	// Treat unfilled header portion as reserved.
 	newPk.reserved = pk.AvailableHeaderBytes()
+	newPk.Mark = pk.Mark
 	newPk.tuple = pk.tuple
 	return newPk
 }
@@ -466,8 +481,75 @@ func (pk *PacketBuffer) DeepCopyForForwarding(reservedHeaderBytes int) *PacketBu
 	}
 
 	newPk.tuple = pk.tuple
+	newPk.Mark = pk.Mark
 
 	return newPk
+}
+
+// IsConnTrackConfigured returns whether connection tracking is configured for this packet.
+func (pk *PacketBuffer) IsConnTrackConfigured() bool {
+	return pk.tuple != nil && pk.tuple.conn != nil
+}
+
+// FillConnTrackInfo fills connection tracking information for the packet.
+func (pk *PacketBuffer) FillConnTrackInfo(opts ConnTrackInfoOpts, info *ConnTrackInfo) bool {
+	t := pk.tuple
+	if t == nil || t.conn == nil {
+		return false
+	}
+	return t.conn.FillConnTrackInfo(opts, info)
+}
+
+// IsReplyPacket returns whether the packet is a reply packet.
+func (pk *PacketBuffer) IsReplyPacket() bool {
+	t := pk.tuple
+	if t == nil {
+		return false
+	}
+	return t.reply
+}
+
+// IsNATConfigured returns whether NAT is configured for this packet.
+func (pk *PacketBuffer) IsNATConfigured(nt NATType) bool {
+	if !pk.IsConnTrackConfigured() {
+		return false
+	}
+	return pk.tuple.conn.IsNATConfigured(nt)
+}
+
+// ConfigureNoopNAT configures a no-op NAT for the packet.
+// Called if no NAT rules are configured for this packet.
+func (pk *PacketBuffer) ConfigureNoopNAT(natType NATType) bool {
+	if !pk.IsConnTrackConfigured() {
+		return false
+	}
+	return pk.tuple.conn.ConfigureNoopNAT(pk, natType)
+}
+
+// ConfigureNAT configures NAT for the packet.
+// Called if NAT rules are configured for this packet.
+// Returns whether NAT was configured or not.
+func (pk *PacketBuffer) ConfigureNAT(portsOrIdents PortOrIdentRange, natAddress tcpip.Address, natType NATType, changePort, changeAddress bool) bool {
+	if !pk.IsConnTrackConfigured() {
+		return false
+	}
+	return pk.tuple.conn.ConfigureNAT(portsOrIdents, natAddress, natType, changePort, changeAddress)
+}
+
+// ConfigureMasquerade configures NAT masquerade for the packet.
+func (pk *PacketBuffer) ConfigureMasquerade(portsOrIdents PortOrIdentRange, route *Route, stk *Stack, changePort bool) bool {
+	if !pk.IsConnTrackConfigured() {
+		return false
+	}
+	return pk.tuple.conn.configureMasquerade(pk, route, stk, portsOrIdents, changePort)
+}
+
+// FinalizeConnTrack finalizes the connection tracking state for the packet.
+func (pk *PacketBuffer) FinalizeConnTrack() bool {
+	if pk.tuple == nil || pk.tuple.conn == nil {
+		return true
+	}
+	return pk.tuple.conn.finalize()
 }
 
 // headerInfo stores metadata about a header in a packet.
@@ -910,7 +992,7 @@ func (pk *PacketBuffer) GetHeaders() (netHdr header.Network, transHdr header.Tra
 		}
 		return nil, nil, false, false
 	default:
-		panic(fmt.Sprintf("unexpected transport protocol = %d", pk.TransportProtocolNumber))
+		return nil, nil, false, false
 	}
 }
 
@@ -966,7 +1048,7 @@ func UpdateHeaders(n header.Network, t header.Transport, updateSRCFields, fullCh
 				t.SetIdentWithChecksumUpdate(newPortOrIdent)
 			}
 		default:
-			panic(fmt.Sprintf("unexpected ICMPv4 type = %d", icmpType))
+			panic(fmt.Sprintf("unexpected ICMPv6 type = %d", icmpType))
 		}
 
 		var oldAddr tcpip.Address
@@ -991,5 +1073,87 @@ func UpdateHeaders(n header.Network, t header.Transport, updateSRCFields, fullCh
 		n.SetSourceAddress(newAddr)
 	} else {
 		n.SetDestinationAddress(newAddr)
+	}
+}
+
+// CalculateTransportChecksum calculates the transport-layer checksum of the
+// packet.
+// TODO: b/521901282 - Verify with GSO.
+func (pk *PacketBuffer) CalculateTransportChecksum() {
+	netHdr, transHdr, isICMPError, ok := pk.GetHeaders()
+	if isICMPError {
+		// Skip ICMP errors because GetHeaders() returns inner headers, but pk.Data()
+		// contains the outer payload (including inner IP header), which would
+		// corrupt the checksum calculation if used as the transport payload.
+		// Inner headers are already incrementally updated by NAT if needed.
+		// This aligns with Linux, which also relies on incremental updates for
+		// inner headers and does not perform full recalculation from scratch.
+		return
+	}
+	if !ok {
+		// Try to parse headers from Data if not set (e.g., forwarded packet).
+		if pk.NetworkProtocolNumber == 0 {
+			return
+		}
+		netHdr = pk.Network()
+		transProto := netHdr.TransportProtocol()
+
+		var headerSize int
+		switch transProto {
+		case header.TCPProtocolNumber:
+			// Peek at minimum TCP header to find data offset (which includes options).
+			b, ok := pk.Data().PullUp(header.TCPMinimumSize)
+			if !ok {
+				return
+			}
+			tcp := header.TCP(b)
+			headerSize = int(tcp.DataOffset())
+			if headerSize < header.TCPMinimumSize {
+				return
+			}
+		case header.UDPProtocolNumber:
+			headerSize = header.UDPMinimumSize
+		default:
+			return
+		}
+
+		// Consume the transport header.
+		if _, ok := pk.TransportHeader().Consume(headerSize); !ok {
+			return
+		}
+		pk.TransportProtocolNumber = transProto
+
+		// Refresh headers.
+		netHdr, transHdr, isICMPError, ok = pk.GetHeaders()
+		if !ok || isICMPError {
+			return
+		}
+	}
+
+	var xsum uint16
+	switch t := transHdr.(type) {
+	case header.TCP:
+		src := netHdr.SourceAddress()
+		dst := netHdr.DestinationAddress()
+		proto := netHdr.TransportProtocol()
+		totalLen := uint16(len(t) + pk.Data().Size())
+		xsum = header.PseudoHeaderChecksum(proto, src, dst, totalLen)
+		xsum = checksum.Combine(xsum, pk.Data().Checksum())
+		t.SetChecksum(0)
+		t.SetChecksum(^t.CalculateChecksum(xsum))
+	case header.UDP:
+		src := netHdr.SourceAddress()
+		dst := netHdr.DestinationAddress()
+		proto := netHdr.TransportProtocol()
+		totalLen := uint16(len(t) + pk.Data().Size())
+		xsum = header.PseudoHeaderChecksum(proto, src, dst, totalLen)
+		xsum = checksum.Combine(xsum, pk.Data().Checksum())
+		t.SetChecksum(0)
+		csum := ^t.CalculateChecksum(xsum)
+		// udp csum RFC 768.
+		if csum == 0 {
+			csum = 0xFFFF
+		}
+		t.SetChecksum(csum)
 	}
 }
