@@ -1,3 +1,7 @@
+# v3.2.0
+
+* Updated hostscan definitions to work with newer cisco versions
+___
 # v3.1.9
 
 * Signed release builds with a stable certificate for more reliable automatic updates
