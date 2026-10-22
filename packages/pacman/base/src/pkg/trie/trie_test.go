@@ -32,7 +32,8 @@ func TestHostTrieMatch(t *testing.T) {
 		{"x.b.com", "", false},                        // early miss
 		{"x.a.b.com", "wild-a-b", true},               // deep match
 		{"foo.co.uk", "wild-co-uk", true},             // multi-part tld
-		{"FOO.EXAMPLE.ORG", "wild-example-org", true}, // case insensitivity
+		{"FOO.Example.ORG", "wild-example-org", true}, // exact case
+		{"foo.example.org", "", false},                // case sensitivity
 	}
 
 	for _, tc := range tests {

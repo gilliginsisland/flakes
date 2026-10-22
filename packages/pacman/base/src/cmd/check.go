@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/gilliginsisland/pacman/internal/app"
-	"github.com/gilliginsisland/pacman/pkg/trie"
 )
 
 func init() {
@@ -25,15 +25,10 @@ func (c *CheckCmd) Execute(args []string) error {
 		return err
 	}
 
-	var t trie.Trie[struct{}]
-	for _, rule := range rs.Rules {
-		for _, host := range rule.Hosts {
-			t.Insert(host, struct{}{})
-		}
-	}
+	t := app.BuildTrie(rs, func(string, []string) struct{} { return struct{}{} })
 
 	for _, host := range args {
-		if _, ok := t.Match(host); ok {
+		if _, ok := t.Match(strings.ToLower(host)); ok {
 			return nil
 		}
 	}

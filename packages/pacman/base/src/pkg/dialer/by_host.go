@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"sync/atomic"
 
 	"golang.org/x/net/proxy"
@@ -32,9 +33,10 @@ func (d *ByHost) DialContext(ctx context.Context, network, address string) (net.
 	if err != nil {
 		return nil, err
 	}
-
 	rs := d.rs.Load()
-	pd, ok := rs.Match(host)
+	// Factories use this same router to reach upstream proxies. Endpoint rules
+	// must not route setup back into the Lazy whose factory is still running.
+	pd, ok := rs.Match(strings.ToLower(host))
 	// Check local resolver in case of /etc/hosts ip override
 	if ips, err := resolver.LookupIP(ctx, "ip", host); err == nil && len(ips) > 0 {
 		ip := ips[0].String()

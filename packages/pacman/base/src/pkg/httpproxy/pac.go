@@ -26,10 +26,12 @@ func (h *PacHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var checks []string
 
 	fmt.Fprintln(w, "function FindProxyForURL(url, host) {")
+	fmt.Fprintln(w, "\thost = host.toLowerCase();")
 	fmt.Fprintln(w, "\tswitch (host) {")
 	fmt.Fprintln(w, "\tdefault:")
 	fmt.Fprintln(w, "\t\tbreak;")
 	for host := range h.Hosts {
+		host = strings.ToLower(host)
 		if strings.HasPrefix(host, "*.") {
 			host = strings.TrimPrefix(host, "*")
 			checks = append(checks, fmt.Sprintf("host.substring(host.length - %d) === %s", len(host), jsString(host)))

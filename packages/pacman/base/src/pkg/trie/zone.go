@@ -16,8 +16,6 @@ type Zone[V any] struct {
 
 // Insert adds a wildcard rule (*.example.com → example.com)
 func (w *Zone[V]) Insert(zone string, value V) {
-	zone = canonocalizeHost(zone)
-
 	if w.values == nil {
 		w.values = make(map[string]V)
 		w.root = make(node)
@@ -45,8 +43,6 @@ func (w *Zone[V]) Insert(zone string, value V) {
 
 // Match finds the most specific match for the given hostname.
 func (w *Zone[V]) Match(host string) (V, bool) {
-	host = canonocalizeHost(host)
-
 	labels := splitHost(host)
 
 	var j int
@@ -88,8 +84,4 @@ func (w *Zone[V]) Match(host string) (V, bool) {
 
 func splitHost(host string) []string {
 	return strings.Split(host, ".")
-}
-
-func canonocalizeHost(host string) string {
-	return strings.ToLower(strings.TrimSpace(host))
 }
