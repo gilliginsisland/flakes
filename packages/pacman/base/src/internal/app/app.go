@@ -17,7 +17,6 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
-	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
@@ -27,7 +26,7 @@ type PACMan struct {
 	pool     DialerPool
 	dialer   dialer.ByHost
 	listener net.Listener
-	server   netutil.Server
+	server   *ProxyServer
 	menu     menuet.StatusItem
 	mu       sync.Mutex
 }
