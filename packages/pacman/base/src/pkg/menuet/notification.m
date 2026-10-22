@@ -142,6 +142,12 @@ void set_notification_categories(NotificationCategory* categoryNode) {
 	}
 }
 
+void register_notifications(void) {
+	@autoreleasepool {
+		[[NotificationDelegate sharedInstance] register];
+	}
+}
+
 void show_notification(Notification* notification) {
 	@autoreleasepool {
 		UNMutableNotificationContent *content = [UNMutableNotificationContent new];

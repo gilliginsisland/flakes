@@ -16,9 +16,6 @@ void menuet_on_main(void (^block)(void)) {
 	}
 }
 
-@interface MenuetCallback : NSObject
-@end
-
 @implementation MenuetCallback
 
 - (void)invoke:(NSObject *)sender {
