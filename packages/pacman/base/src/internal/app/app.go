@@ -149,8 +149,6 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 		}
 	}
 
-	var rs dialer.RuleSet
-
 	for k, u := range cfg.Proxies {
 		pd := pacman.pool.dialers[k]
 		if pd == nil || pd.URL.String() != u.String() {
@@ -162,36 +160,31 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 			pd = pacman.pool.NewPooledDialer(k, &u.URL)
 			pacman.pool.dialers[k] = pd
 		}
-
-		// add the wildcard *.label.pacman
-		subdomain := strings.ToLower(k) + ".pacman"
-		rs.Add("."+subdomain, &dialer.RewritingDialer{
-			Dialer: pd.dialer,
-			Suffix: subdomain,
-		})
 	}
 
-	for _, r := range cfg.Rules {
-		chain := make([]proxy.ContextDialer, len(r.Proxies))
-		for i, proxy := range r.Proxies {
+	rs := dialer.RuleSet(BuildTrie(cfg, func(host string, proxies []string) proxy.ContextDialer {
+		chain := make([]proxy.ContextDialer, len(proxies))
+		for i, proxy := range proxies {
 			pd := pacman.pool.dialers[proxy]
 			chain[i] = pd.dialer
 		}
 
-		var xd proxy.ContextDialer
 		switch len(chain) {
 		case 0:
-			xd = nil
+			return nil
 		case 1:
-			xd = chain[0]
+			suffix := strings.ToLower(proxies[0]) + ".pacman"
+			if host == "."+suffix {
+				return &dialer.RewritingDialer{
+					Dialer: chain[0],
+					Suffix: suffix,
+				}
+			}
+			return chain[0]
 		default:
-			xd = dialer.Chain(chain)
+			return dialer.Chain(chain)
 		}
-
-		for _, h := range r.Hosts {
-			rs.Add(strings.ToLower(h), xd)
-		}
-	}
+	}))
 
 	pacman.dialer.Swap(&rs)
 

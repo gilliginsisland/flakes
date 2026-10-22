@@ -14,6 +14,7 @@ import (
 
 	"github.com/gilliginsisland/pacman/docs"
 	"github.com/gilliginsisland/pacman/pkg/netutil"
+	"github.com/gilliginsisland/pacman/pkg/trie"
 	"sigs.k8s.io/yaml"
 )
 
@@ -29,6 +30,23 @@ type Config struct {
 type Rule struct {
 	Hosts   []string `json:"hosts"`
 	Proxies []string `json:"proxies"`
+}
+
+// BuildTrie inserts generated proxy aliases followed by explicit rules, so
+// explicit rules take precedence. Both paths use lowercase host patterns.
+func BuildTrie[V any](cfg *Config, mapper func(host string, proxies []string) V) trie.Trie[V] {
+	var t trie.Trie[V]
+	for label := range cfg.Proxies {
+		host := "." + strings.ToLower(label) + ".pacman"
+		t.Insert(host, mapper(host, []string{label}))
+	}
+	for _, rule := range cfg.Rules {
+		for _, host := range rule.Hosts {
+			host = strings.ToLower(host)
+			t.Insert(host, mapper(host, rule.Proxies))
+		}
+	}
+	return t
 }
 
 type URL struct {

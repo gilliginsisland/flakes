@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/gilliginsisland/pacman/pkg/netutil"
 	"golang.org/x/crypto/ssh"
@@ -132,7 +133,7 @@ func (s *Server) handleDirectTCPIP(newChan ssh.NewChannel) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Ensure context is cancelled when function returns
 
-	targetAddr := fmt.Sprintf("%s:%d", payload.HostToConnect, payload.PortToConnect)
+	targetAddr := fmt.Sprintf("%s:%d", strings.ToLower(payload.HostToConnect), payload.PortToConnect)
 	conn, err := s.Dialer(ctx, "tcp", targetAddr)
 	if err != nil {
 		return
