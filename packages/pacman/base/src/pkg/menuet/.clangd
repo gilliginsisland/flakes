@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-x, objective-c, -fobjc-arc]

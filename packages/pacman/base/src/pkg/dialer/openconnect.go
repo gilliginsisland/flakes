@@ -14,6 +14,10 @@ func init() {
 	RegisterContextDialerType("gp", Openconnect)
 }
 
-func Openconnect(ctx context.Context, u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
-	return oc.NewDialer(ctx, u)
+func Openconnect(ctx context.Context, u *url.URL, fwd proxy.Dialer) (Dialer, error) {
+	d, err := oc.NewDialer(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
 }

@@ -2,41 +2,57 @@ package app
 
 import (
 	"context"
+	"maps"
 	"net/url"
+	"slices"
 	"strconv"
 	"time"
+	"unsafe"
 
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
-	"github.com/gilliginsisland/pacman/pkg/iterutil"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
+	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
+	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 )
 
-type DialerPool map[string]*PooledDialer
+type DialerPool struct {
+	dialers  map[string]*PooledDialer
+	fwd      proxy.Dialer
+	callback *core.Callback
+}
 
-func (dp DialerPool) MenuItems() menuet.Itemer {
-	items := make(menuet.MenuItems, len(dp))
-	var idx int
-	for _, pd := range iterutil.SortedMapIter(dp) {
-		items[idx] = &pd.menu
-		idx++
+func (pool *DialerPool) MenuItems() []*appkit.MenuItem {
+	if len(pool.dialers) == 0 {
+		return []*appkit.MenuItem{
+			appkit.NewMenuItem().SetTitle("No Proxies Configured"),
+		}
+	}
+	items := make([]*appkit.MenuItem, 0, len(pool.dialers))
+	for _, label := range slices.Sorted(maps.Keys(pool.dialers)) {
+		items = append(items, pool.dialers[label].menu.MenuItem)
 	}
 	return items
 }
 
 type PooledDialer struct {
-	Label  string
-	URL    *url.URL
-	ctx    context.Context
-	cancel func()
+	Label   string
+	URL     *url.URL
+	updates chan dialer.StateUpdate
+
 	dialer *dialer.Lazy
-	menu   menuet.MenuItem
-	child  menuet.MenuItem
+	menu   struct {
+		*appkit.MenuItem
+		connect    *appkit.MenuItem
+		cancel     *appkit.MenuItem
+		disconnect *appkit.MenuItem
+		reset      *appkit.MenuItem
+	}
 }
 
-func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
+func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 	var timeout time.Duration = 1 * time.Hour
 	if t := u.Query().Get("timeout"); t != "" {
 		if i, err := strconv.Atoi(t); err == nil {
@@ -44,51 +60,78 @@ func NewPooledDialer(l string, u *url.URL, fwd proxy.Dialer) *PooledDialer {
 		}
 	}
 
-	ld := dialer.NewLazy(func(ctx context.Context) (proxy.Dialer, error) {
-		ctx, cancel := context.WithCancelCause(
-			context.WithValue(ctx, "label", l),
-		)
-		defer time.AfterFunc(2*time.Minute, func() {
-			cancel(context.DeadlineExceeded)
-		}).Stop()
-		return dialer.FromURLContext(ctx, u, fwd)
-	}, timeout)
-
 	pd := PooledDialer{
-		Label:  l,
-		URL:    u,
-		dialer: ld,
+		Label:   l,
+		URL:     u,
+		updates: make(chan dialer.StateUpdate),
 	}
-	pd.ctx, pd.cancel = context.WithCancel(context.Background())
+	core.NewString(l).WithPointer(func(obj unsafe.Pointer) {
+		pd.menu.MenuItem = appkit.NewMenuItem().
+			SetTag(int(actionDialer)).
+			SetRepresentedObject(obj)
+		// Keep each action's identity fixed, including for queued clicks.
+		pd.menu.connect = appkit.NewMenuItem().
+			SetTitle("Connect").
+			SetTag(int(actionConnect)).
+			SetRepresentedObject(obj).
+			SetCallback(pool.callback)
+		pd.menu.cancel = appkit.NewMenuItem().
+			SetTitle("Cancel").
+			SetTag(int(actionCancel)).
+			SetRepresentedObject(obj).
+			SetCallback(pool.callback)
+		pd.menu.disconnect = appkit.NewMenuItem().
+			SetTitle("Disconnect").
+			SetTag(int(actionDisconnect)).
+			SetRepresentedObject(obj).
+			SetCallback(pool.callback)
+		pd.menu.reset = appkit.NewMenuItem().
+			SetTitle("Reset").
+			SetTag(int(actionReset)).
+			SetRepresentedObject(obj).
+			SetCallback(pool.callback)
+	})
+	pd.menu.SetSubmenu(appkit.NewMenu().Append(pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset))
 	pd.updateMenu(dialer.Offline)
+	pd.dialer = dialer.NewLazy(
+		func(ctx context.Context) (dialer.Dialer, error) {
+			// This bounds shared tunnel setup, not the returned tunnel's lifetime.
+			ctx, cancel := context.WithTimeout(context.WithValue(ctx, "label", l), 2*time.Minute)
+			defer cancel()
+			return dialer.FromURLContext(ctx, u, pool.fwd)
+		},
+		dialer.LazyOptions{
+			IdleTimeout: timeout,
+			Updates:     pd.updates,
+		},
+	)
+	go pd.run()
 	return &pd
 }
 
-func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
-	pd.menu.Text = pd.icon(state) + " " + pd.Label
-	pd.menu.Badge = state.String()
-	if state == dialer.Offline {
-		pd.menu.Submenu = nil
-	} else {
-		pd.menu.Submenu = &pd.child
-		pd.child.Text, pd.child.Clicked = pd.action(state)
+func (pd *PooledDialer) run() {
+	for {
+		select {
+		case update := <-pd.updates:
+			pd.updateMenu(update.State)
+			pd.notification(update.State, update.Err)
+		case <-pd.dialer.Done():
+			return
+		}
 	}
+}
+
+func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
+	pd.menu.SetTitle(pd.icon(state) + " " + pd.Label).
+		SetBadge(state.String())
+	pd.menu.connect.SetHidden(state != dialer.Offline)
+	pd.menu.cancel.SetHidden(state != dialer.Connecting)
+	pd.menu.disconnect.SetHidden(state != dialer.Online)
+	pd.menu.reset.SetHidden(state != dialer.Failed)
 }
 
 func (pd *PooledDialer) Close() {
-	pd.cancel()
 	pd.dialer.Close()
-}
-
-func (pd *PooledDialer) Track(cb func()) {
-	for state, err := range pd.dialer.Subscribe {
-		pd.updateMenu(state)
-		cb()
-		pd.notification(state, err)
-		if pd.ctx.Err() != nil {
-			break
-		}
-	}
 }
 
 func (pd *PooledDialer) icon(state dialer.ConnectionState) string {
@@ -103,18 +146,6 @@ func (pd *PooledDialer) icon(state dialer.ConnectionState) string {
 		return "🟡"
 	}
 	return ""
-}
-
-func (pd *PooledDialer) action(state dialer.ConnectionState) (string, func()) {
-	switch state {
-	case dialer.Offline:
-		return "Offline", nil
-	case dialer.Failed:
-		return "Reset", pd.dialer.Reset
-	case dialer.Online, dialer.Connecting:
-		return "Disconnect", pd.dialer.Close
-	}
-	return "", nil
 }
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {

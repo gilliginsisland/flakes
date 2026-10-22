@@ -15,7 +15,7 @@ func init() {
 	RegisterContextDialerType("ssh", SSH)
 }
 
-func SSH(ctx context.Context, u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error) {
+func SSH(ctx context.Context, u *url.URL, fwd proxy.Dialer) (Dialer, error) {
 	config := ssh.ClientConfig{
 		User:            u.User.Username(),
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -46,24 +46,22 @@ func SSH(ctx context.Context, u *url.URL, fwd proxy.Dialer) (proxy.Dialer, error
 		config.Auth = append(config.Auth, ssh.PublicKeys(signer))
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-
-	conn, err := dialContext(ctx, fwd, "tcp", addr)
+	conn, err := DialContext(ctx, fwd, "tcp", addr)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
+	stop := context.AfterFunc(ctx, func() { conn.Close() })
 
 	clientConn, chans, reqs, err := ssh.NewClientConn(conn, addr, &config)
+	// The factory cancels ctx after returning. Detach its handshake-only close
+	// hook before handing ownership of conn to the long-lived SSH client.
+	if !stop() {
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		conn.Close()
-		cancel()
 		return nil, err
 	}
-	go func() {
-		clientConn.Wait()
-		cancel()
-	}()
 
 	return ssh.NewClient(clientConn, chans, reqs), nil
 }
