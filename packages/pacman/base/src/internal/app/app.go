@@ -16,11 +16,11 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"github.com/gilliginsisland/pacman/internal/app/plugin"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
-	"github.com/gilliginsisland/pacman/pkg/menuet/plugin"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )

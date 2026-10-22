@@ -10,6 +10,15 @@
 	NSArray<NSMenuItem *> *_menuItems;
 }
 
++ (instancetype)new {
+	static PACmanUpdaterPlugin *plugin;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		plugin = [super new];
+	});
+	return plugin;
+}
+
 - (instancetype)init {
 	self = [super init];
 	if (self) {

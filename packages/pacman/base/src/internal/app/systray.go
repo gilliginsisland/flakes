@@ -4,11 +4,11 @@ import (
 	"slices"
 
 	"github.com/gilliginsisland/pacman/docs"
+	"github.com/gilliginsisland/pacman/internal/app/plugin"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
-	"github.com/gilliginsisland/pacman/pkg/menuet/plugin"
 )
 
 type appkitAction int
@@ -27,27 +27,24 @@ const (
 )
 
 type systray struct {
-	pacman *PACMan
-	// Plugins own the native targets used by their menu items.
-	plugins  []plugin.Plugin
+	pacman   *PACMan
 	callback *core.Callback
 	status   *appkit.StatusItem
 	menu     *appkit.Menu
 	dialers  []*appkit.MenuItem
 }
 
-func newAppKitMenu(pacman *PACMan, plugins []plugin.Plugin) *systray {
+func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
 	menu := &systray{
-		pacman:  pacman,
-		plugins: plugins,
-		status:  appkit.NewStatusItem(),
-		menu:    appkit.NewMenu(),
+		pacman: pacman,
+		status: appkit.NewStatusItem(),
+		menu:   appkit.NewMenu(),
 	}
 
 	menu.callback = appkit.NewMenuItemCallback(menu.onAction)
 	menu.dialers = pacman.pool.MenuItems()
 	var pluginItems []*appkit.MenuItem
-	for _, plugin := range menu.plugins {
+	for _, plugin := range plugins {
 		pluginItems = append(pluginItems, plugin.MenuItems()...)
 	}
 	if len(pluginItems) > 0 {

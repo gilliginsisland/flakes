@@ -56,7 +56,7 @@ let
     nativeBuildInputs = [ cctools ];
     buildInputs = [ sparkle-slim ];
     buildPhase = ''
-      cp ${../../base/src/pkg/menuet/plugin/PACmanPlugin.h} PACmanPlugin.h
+      cp ${../../base/src/internal/app/plugin/PACmanPlugin.h} PACmanPlugin.h
       clang -bundle updater_plugin.m -o updater_plugin \
         -fobjc-arc \
         -framework Cocoa \
