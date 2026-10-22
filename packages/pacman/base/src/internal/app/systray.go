@@ -99,7 +99,7 @@ func (menu *systray) onAction(item *appkit.MenuItem) {
 	case actionHelp:
 		menuet.WebView(docs.HTML)
 	case actionQuit:
-		menuet.App().Terminate()
+		appkit.SharedApplication().Terminate()
 	case actionDisconnect, actionReset, actionCancel, actionConnect:
 		label := core.StringFromPointer(item.RepresentedObject()).String()
 		menu.pacman.mu.Lock()

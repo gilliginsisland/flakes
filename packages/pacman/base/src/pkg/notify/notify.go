@@ -19,7 +19,7 @@ var (
 )
 
 func init() {
-	menuet.App().NotificationResponder = ResponseHandler
+	menuet.NotificationResponder = ResponseHandler
 }
 
 // Notify displays a notification.
@@ -92,7 +92,7 @@ func notify(n Notification, ch chan<- menuet.NotificationResponse) (string, func
 	}
 
 	// Dispatch notification
-	menuet.App().Notification(n)
+	menuet.ShowNotification(n)
 
 	return n.Identifier, cleanup
 }
@@ -119,6 +119,6 @@ func Remove(identifiers ...string) {
 		if identifier == "" {
 			continue
 		}
-		menuet.App().RemoveNotification(identifier)
+		menuet.RemoveNotification(identifier)
 	}
 }

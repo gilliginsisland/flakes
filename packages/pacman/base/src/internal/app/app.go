@@ -7,16 +7,19 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
+	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/plugin"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
@@ -34,9 +37,24 @@ type PACMan struct {
 
 func Run(config Path, l net.Listener) error {
 	var err error
-	app := menuet.App()
-	app.SetNotificationCategories(oc.NotificationCategories)
-	app.Run(func() {
+	app := appkit.SharedApplication()
+	launched := make(chan struct{})
+	delegate := appkit.NewAppDelegate().
+		SetWillFinishLaunching(func() {
+			menuet.SetNotificationCategories(oc.NotificationCategories)
+			menuet.RegisterNotifications()
+		}).
+		SetDidFinishLaunching(func() {
+			close(launched)
+		})
+	// NSApplication keeps only a weak reference to its delegate.
+	defer runtime.KeepAlive(delegate)
+	delegate.WithPointer(func(obj unsafe.Pointer) {
+		app.SetDelegate(obj)
+	})
+	app.SetActivationPolicy(appkit.ActivationPolicyAccessory)
+	go func() {
+		<-launched
 		defer app.Terminate()
 		err = run(config, l)
 		if err == nil {
@@ -47,8 +65,8 @@ func Run(config Path, l net.Listener) error {
 			Subtitle: "Application Terminated",
 			Body:     err.Error(),
 		})
-		app.Terminate()
-	})
+	}()
+	app.Run()
 	return err
 }
 
