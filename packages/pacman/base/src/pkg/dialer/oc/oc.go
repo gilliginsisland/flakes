@@ -167,6 +167,8 @@ func (cb *callbacks) ProcessCSD(info openconnect.CSDInfo) error {
 		return fmt.Errorf("invalid CSD SHA256: %w", err)
 	}
 
+	// Native authentication waits synchronously for this callback. Its HTTP
+	// requests must observe setup cancellation so Reset can finish the factory.
 	client := hostscan.NewClient(info.Hostname, hash)
 	token := info.Token
 	if info.Ticket != "" {
@@ -174,18 +176,18 @@ func (cb *callbacks) ProcessCSD(info openconnect.CSDInfo) error {
 		if stub == "" {
 			stub = "0"
 		}
-		token, err = client.GetToken(info.Ticket, stub)
+		token, err = client.GetToken(cb.ctx, info.Ticket, stub)
 		if err != nil {
 			return fmt.Errorf("fetch hostscan token: %w", err)
 		}
 	}
 
-	manifest, err := client.GetManifest()
+	manifest, err := client.GetManifest(cb.ctx)
 	if err != nil {
 		return fmt.Errorf("get hostscan policy: %w", err)
 	}
 
-	res, err := client.PostReport(hostscan.NewMockScanner(manifest).Scan(), token)
+	res, err := client.PostReport(cb.ctx, hostscan.NewMockScanner(manifest).Scan(), token)
 	if err != nil {
 		return fmt.Errorf("post hostscan report: %w", err)
 	}
@@ -295,6 +297,8 @@ func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 	}
 
 	go func() {
+		// Conn owns VPN lifetime. Closing rwc after death ends the packet-copy
+		// workers, whose cleanup closes netstack and unblocks its connections.
 		defer rwc.Close()
 		conn.Wait()
 	}()
