@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"golang.org/x/net/proxy"
 
-	"github.com/gilliginsisland/pacman/docs"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
@@ -27,7 +27,7 @@ type PACMan struct {
 	dialer   dialer.ByHost
 	listener net.Listener
 	server   *ProxyServer
-	menu     menuet.StatusItem
+	menu     *systray
 	mu       sync.Mutex
 }
 
@@ -77,70 +77,13 @@ func run(config Path, l net.Listener) error {
 				Timeout: 5 * time.Second,
 			},
 		},
-		pool: make(DialerPool),
-	}
-	pacman.menu = menuet.StatusItem{
-		Title: "PACman",
-		Image: "menuicon.pdf",
-		Submenu: menuet.Sections{
-			&menuet.Section{
-				Title: "Server Address",
-				Content: menuet.DynamicItem(func() menuet.Itemer {
-					return &menuet.MenuItem{
-						Text: pacman.listener.Addr().String(),
-					}
-				}),
-			},
-			menuet.DynamicItem(func() menuet.Itemer {
-				if len(pacman.pool) == 0 {
-					return &menuet.MenuItem{
-						Text: "No Proxies Configured",
-					}
-				}
-				return &menuet.Section{
-					Title:   "Proxies",
-					Content: pacman.pool.MenuItems(),
-				}
-			}),
-			&menuet.MenuItem{
-				Text: "Settings",
-				Submenu: (menuet.MenuItems{
-					&menuet.MenuItem{
-						Text:    "Edit",
-						Clicked: pacman.OpenConfig,
-					},
-					&menuet.MenuItem{
-						Text:    "Reload",
-						Clicked: pacman.ReloadConfig,
-					},
-					&menuet.MenuItemSeparator{},
-					&menuet.MenuItem{
-						Text: "Help",
-						Clicked: func() {
-							menuet.WebView(docs.HTML)
-						},
-					},
-					menuet.DynamicItem(func() menuet.Itemer {
-						action := &SparkleUpdateAction{}
-						if !app.HasAction(action) {
-							return nil
-						}
-						return &menuet.MenuItems{
-							&menuet.MenuItemSeparator{},
-							&menuet.MenuItem{
-								Text:    "Check for Updates...",
-								Clicked: func() { app.InvokeAction(action) },
-							},
-						}
-					}),
-				}),
-			},
-			&menuet.MenuItem{
-				Text:    "Quit",
-				Clicked: app.Terminate,
-			},
+		pool: DialerPool{
+			dialers: make(map[string]*PooledDialer),
 		},
 	}
+	pacman.pool.fwd = &pacman.dialer
+	pacman.menu = newAppKitMenu(&pacman, app)
+	pacman.pool.callback = pacman.menu.callback
 	pacman.server = NewProxyServer(&pacman.dialer)
 	if err = pacman.LoadConfig(cfg); err != nil {
 		return err
@@ -197,22 +140,31 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 	pacman.mu.Lock()
 	defer pacman.mu.Unlock()
 
+	// Validate against the incoming config before changing any live dialers.
+	for _, r := range cfg.Rules {
+		for _, proxy := range r.Proxies {
+			if _, ok := cfg.Proxies[proxy]; !ok {
+				return errors.New("proxy not found: " + proxy)
+			}
+		}
+	}
+
 	var rs dialer.RuleSet
 
 	for k, u := range cfg.Proxies {
-		pd := pacman.pool[k]
+		pd := pacman.pool.dialers[k]
 		if pd == nil || pd.URL.String() != u.String() {
-			// close existing dialer after we update the dialer ruleset
+			// Installed rules hold this exact Lazy. Keep it alive until the
+			// replacement rules and menu are installed.
 			if pd != nil {
 				defer pd.Close()
 			}
-			pd = NewPooledDialer(k, &u.URL, &pacman.dialer)
-			pacman.pool[k] = pd
-			go pd.Track(pacman.UpdateMenu)
+			pd = pacman.pool.NewPooledDialer(k, &u.URL)
+			pacman.pool.dialers[k] = pd
 		}
 
 		// add the wildcard *.label.pacman
-		subdomain := k + ".pacman"
+		subdomain := strings.ToLower(k) + ".pacman"
 		rs.Add("."+subdomain, &dialer.RewritingDialer{
 			Dialer: pd.dialer,
 			Suffix: subdomain,
@@ -222,10 +174,7 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 	for _, r := range cfg.Rules {
 		chain := make([]proxy.ContextDialer, len(r.Proxies))
 		for i, proxy := range r.Proxies {
-			pd, ok := pacman.pool[proxy]
-			if !ok {
-				return errors.New("proxy not found: " + proxy)
-			}
+			pd := pacman.pool.dialers[proxy]
 			chain[i] = pd.dialer
 		}
 
@@ -240,26 +189,20 @@ func (pacman *PACMan) LoadConfig(cfg *Config) error {
 		}
 
 		for _, h := range r.Hosts {
-			rs.Add(h, xd)
+			rs.Add(strings.ToLower(h), xd)
 		}
 	}
 
 	pacman.dialer.Swap(&rs)
 
-	for k, pd := range pacman.pool {
+	for k, pd := range pacman.pool.dialers {
 		if _, ok := cfg.Proxies[k]; ok {
 			continue
 		}
-		delete(pacman.pool, k)
+		delete(pacman.pool.dialers, k)
 		defer pd.Close()
 	}
-	go pacman.UpdateMenu()
+	pacman.menu.updateDialers(&pacman.pool)
 
 	return nil
-}
-
-func (pacman *PACMan) UpdateMenu() {
-	pacman.mu.Lock()
-	defer pacman.mu.Unlock()
-	menuet.App().UpdateStatusItem(&pacman.menu)
 }
