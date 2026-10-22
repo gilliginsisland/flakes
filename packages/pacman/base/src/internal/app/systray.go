@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/gilliginsisland/pacman/docs"
+	"github.com/gilliginsisland/pacman/internal/app/plugin"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
@@ -16,7 +17,6 @@ const (
 	actionEdit appkitAction = iota + 1
 	actionReload
 	actionHelp
-	actionCheckUpdates
 	actionQuit
 	actionDialer
 	// Dialer actions follow the static tags and preserve their ResetAction values.
@@ -27,33 +27,28 @@ const (
 )
 
 type systray struct {
-	pacman      *PACMan
-	application *menuet.Application
-	callback    *core.Callback
-	status      *appkit.StatusItem
-	menu        *appkit.Menu
-	dialers     []*appkit.MenuItem
+	pacman   *PACMan
+	callback *core.Callback
+	status   *appkit.StatusItem
+	menu     *appkit.Menu
+	dialers  []*appkit.MenuItem
 }
 
-func newAppKitMenu(pacman *PACMan, application *menuet.Application) *systray {
+func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
 	menu := &systray{
-		pacman:      pacman,
-		application: application,
-		status:      appkit.NewStatusItem(),
-		menu:        appkit.NewMenu(),
+		pacman: pacman,
+		status: appkit.NewStatusItem(),
+		menu:   appkit.NewMenu(),
 	}
 
 	menu.callback = appkit.NewMenuItemCallback(menu.onAction)
 	menu.dialers = pacman.pool.MenuItems()
-	var updates []*appkit.MenuItem
-	if menu.application.HasAction(&SparkleUpdateAction{}) {
-		updates = []*appkit.MenuItem{
-			appkit.NewMenuItemSeparator(),
-			appkit.NewMenuItem().
-				SetTitle("Check for Updates...").
-				SetTag(int(actionCheckUpdates)).
-				SetCallback(menu.callback),
-		}
+	var pluginItems []*appkit.MenuItem
+	for _, plugin := range plugins {
+		pluginItems = append(pluginItems, plugin.MenuItems()...)
+	}
+	if len(pluginItems) > 0 {
+		pluginItems = append([]*appkit.MenuItem{appkit.NewMenuItemSeparator()}, pluginItems...)
 	}
 
 	menu.status.SetTitle("PACman").
@@ -82,7 +77,7 @@ func newAppKitMenu(pacman *PACMan, application *menuet.Application) *systray {
 						SetTitle("Help").
 						SetTag(int(actionHelp)).
 						SetCallback(menu.callback)).
-					Append(updates...))).
+					Append(pluginItems...))).
 			Append(appkit.NewMenuItem().
 				SetTitle("Quit").
 				SetTag(int(actionQuit)).
@@ -100,10 +95,8 @@ func (menu *systray) onAction(item *appkit.MenuItem) {
 		menu.pacman.ReloadConfig()
 	case actionHelp:
 		menuet.WebView(docs.HTML)
-	case actionCheckUpdates:
-		menu.application.InvokeAction(&SparkleUpdateAction{})
 	case actionQuit:
-		menu.application.Terminate()
+		appkit.SharedApplication().Terminate()
 	case actionDisconnect, actionReset, actionCancel, actionConnect:
 		label := core.StringFromPointer(item.RepresentedObject()).String()
 		menu.pacman.mu.Lock()

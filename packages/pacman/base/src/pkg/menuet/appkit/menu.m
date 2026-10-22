@@ -32,10 +32,9 @@ menuet_ns_menu_item_array menuet_ns_menu_items(struct NSMenu *menu) {
 	menuet_on_main(^{
 		NSArray<NSMenuItem *> *itemArray = ((__bridge NSMenu *)menu).itemArray;
 		result.count = itemArray.count;
-		NSMenuItem * __strong *items = (NSMenuItem * __strong *)calloc(result.count, sizeof(*result.items));
-		result.items = (struct NSMenuItem **)(void *)items;
+		result.items = calloc(result.count, sizeof(*result.items));
 		for (NSUInteger index = 0; index < result.count; index++) {
-			items[index] = itemArray[index];
+			result.items[index] = (__bridge_retained struct NSMenuItem *)itemArray[index];
 		}
 	});
 	return result;

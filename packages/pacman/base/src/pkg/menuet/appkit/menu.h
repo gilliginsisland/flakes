@@ -9,6 +9,7 @@ struct NSMenuItem;
 struct NSStatusItem;
 struct NSImage;
 
+// The caller owns each retained item and must free the raw array separately.
 typedef struct menuet_ns_menu_item_array {
 	struct NSMenuItem **items;
 	size_t count;

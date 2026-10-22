@@ -55,6 +55,11 @@ func newMenuItem(obj *C.struct_NSMenuItem) *MenuItem {
 	return item
 }
 
+// MenuItemFromPointer takes ownership of a retained Objective-C menu item.
+func MenuItemFromPointer(obj unsafe.Pointer) *MenuItem {
+	return newMenuItem((*C.struct_NSMenuItem)(obj))
+}
+
 func NewStatusItem() *StatusItem {
 	item := &StatusItem{obj: C.menuet_ns_status_item_new()}
 	runtime.AddCleanup(item, core.Release, unsafe.Pointer(item.obj))

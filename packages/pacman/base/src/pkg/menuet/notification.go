@@ -8,6 +8,7 @@ package menuet
 #cgo nocallback destroy_notification_category_nodes
 #cgo nocallback make_notification_category_node
 #cgo nocallback set_notification_categories
+#cgo nocallback register_notifications
 #cgo nocallback make_notification
 #cgo nocallback destroy_notification
 #cgo nocallback show_notification
@@ -26,6 +27,7 @@ import "unsafe"
 var (
 	DefaultActionIdentifier = fromNSString(C.UNNotificationDefaultActionIdentifier)
 	DismissActionIdentifier = fromNSString(C.UNNotificationDismissActionIdentifier)
+	NotificationResponder   func(NotificationResponse)
 )
 
 // NotificationCategoryOptions represents UNNotificationCategoryOptions
@@ -124,7 +126,7 @@ type NotificationResponse struct {
 }
 
 // SetNotificationCategories registers all added notification categories
-func (a *Application) SetNotificationCategories(categories []NotificationCategory) {
+func SetNotificationCategories(categories []NotificationCategory) {
 	if len(categories) == 0 {
 		return
 	}
@@ -144,8 +146,13 @@ func (a *Application) SetNotificationCategories(categories []NotificationCategor
 	C.set_notification_categories(head)
 }
 
-// Notification shows a notification to the user, tied to a registered category
-func (a *Application) Notification(notif Notification) {
+// RegisterNotifications installs the notification delegate before the app finishes launching.
+func RegisterNotifications() {
+	C.register_notifications()
+}
+
+// ShowNotification shows a notification to the user, tied to a registered category.
+func ShowNotification(notif Notification) {
 	cnotif := C.make_notification()
 	defer C.destroy_notification(cnotif)
 	*cnotif = C.Notification{
@@ -161,7 +168,7 @@ func (a *Application) Notification(notif Notification) {
 }
 
 // RemoveNotification removes a pending or delivered notification by identifier.
-func (a *Application) RemoveNotification(identifier string) {
+func RemoveNotification(identifier string) {
 	if identifier == "" {
 		return
 	}
@@ -173,7 +180,7 @@ func (a *Application) RemoveNotification(identifier string) {
 //export go_notification_response_received
 func go_notification_response_received(resp *C.NotificationResponse) {
 	defer C.destroy_notification_response(resp)
-	go App().NotificationResponder(NotificationResponse{
+	go NotificationResponder(NotificationResponse{
 		NotificationIdentifier: C.GoString(resp.notificationIdentifier),
 		ActionIdentifier:       C.GoString(resp.actionIdentifier),
 		Text:                   C.GoString(resp.text),

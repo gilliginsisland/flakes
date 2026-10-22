@@ -4,6 +4,10 @@
 struct NSObject;
 struct NSString;
 
+@interface MenuetCallback : NSObject
+- (void)invoke:(NSObject *)sender;
+@end
+
 void *objc_retain(void *object);
 void objc_release(void *object);
 

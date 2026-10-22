@@ -56,6 +56,7 @@ NotificationResponse* make_notification_response();
 void destroy_notification_response(NotificationResponse* response);
 
 void set_notification_categories(NotificationCategory* category);
+void register_notifications(void);
 void show_notification(Notification* notification);
 void remove_notification(const char* identifier);
 
