@@ -21,8 +21,11 @@ type Server struct {
 
 func (s *Server) Serve(l net.Listener) error {
 	if s.Client.Transport == nil {
+		// Closing each response must eventually close its upstream connection:
+		// Lazy releases tunnel references on Conn.Close, not request cancellation.
 		s.Client.Transport = &http.Transport{
-			DialContext: s.Dialer,
+			DialContext:       s.Dialer,
+			DisableKeepAlives: true,
 		}
 	}
 
@@ -92,15 +95,20 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("failed to hijack the connection: %w", err)
 	}
 	defer clientConn.Close()
+	if err := bufClientConn.Flush(); err != nil {
+		return fmt.Errorf("failed to flush hijacked connection: %w", err)
+	}
 
 	if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
 		return fmt.Errorf("failed to write CONNECT response: %w", err)
 	}
 
-	netutil.Join(destConn, &netutil.BuffConn{
-		Conn:       clientConn,
-		ReadWriter: bufClientConn,
-	})
+	if n := bufClientConn.Reader.Buffered(); n > 0 {
+		if _, err := io.CopyN(destConn, bufClientConn.Reader, int64(n)); err != nil {
+			return fmt.Errorf("failed to forward buffered tunnel data: %w", err)
+		}
+	}
+	netutil.Join(destConn, clientConn)
 	return nil
 }
 
