@@ -27,6 +27,7 @@ func (fp Fingerprint) VerifyPeerCertificate(rawCerts [][]byte, verifiedChains []
 func NewHPKPClient(fp Fingerprint) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
+			DisableKeepAlives: true,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify:    true,
 				VerifyPeerCertificate: fp.VerifyPeerCertificate,

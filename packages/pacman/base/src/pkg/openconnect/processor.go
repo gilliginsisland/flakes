@@ -55,20 +55,23 @@ type LoggerFunc func(msg string, attrs ...slog.Attr)
 
 // ProcessForm implements the FormProcessor interface to log form details.
 func (lf LoggerFunc) ProcessForm(form *AuthForm) error {
-	lf("Processing Auth Form",
+	lf(
+		"Processing Auth Form",
 		slog.String("banner", form.Banner),
 		slog.String("message", form.Message),
 		slog.String("error", form.Error),
 	)
 
 	for _, opt := range form.Options {
-		lf("option",
+		lf(
+			"option",
 			slog.String("name", opt.Name),
 			slog.String("label", opt.Label),
 			slog.String("type", opt.Type.String()),
 		)
 		for _, choice := range opt.Choices {
-			lf("choice",
+			lf(
+				"choice",
 				slog.String("name", choice.Name),
 				slog.String("label", choice.Label),
 			)
