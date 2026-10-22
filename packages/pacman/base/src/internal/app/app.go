@@ -17,6 +17,7 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet"
+	"github.com/gilliginsisland/pacman/pkg/menuet/plugin"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
@@ -52,9 +53,12 @@ func Run(config Path, l net.Listener) error {
 }
 
 func run(config Path, l net.Listener) error {
-	app := menuet.App()
-
 	cfg, err := ParseConfigFile(config)
+	if err != nil {
+		return err
+	}
+
+	plugins, err := plugin.Load()
 	if err != nil {
 		return err
 	}
@@ -82,7 +86,7 @@ func run(config Path, l net.Listener) error {
 		},
 	}
 	pacman.pool.fwd = &pacman.dialer
-	pacman.menu = newAppKitMenu(&pacman, app)
+	pacman.menu = newAppKitMenu(&pacman, plugins)
 	pacman.pool.callback = pacman.menu.callback
 	pacman.server = NewProxyServer(&pacman.dialer)
 	if err = pacman.LoadConfig(cfg); err != nil {

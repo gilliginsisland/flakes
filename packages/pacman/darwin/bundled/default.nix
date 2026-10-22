@@ -44,32 +44,36 @@ let
       "$out/Library/Frameworks/Sparkle.framework/Sparkle"
   '';
 
-  sparkle-sidecar = stdenv.mkDerivation {
-    name = "sparkle-sidecar";
+  updater-bundle = stdenv.mkDerivation {
+    name = "updater-bundle";
     src = lib.fileset.toSource {
       root = ./src;
-      fileset = ./src/sparkle_sidecar.m;
+      fileset = lib.fileset.unions [
+        ./src/updater_plugin.m
+        ./src/updater_plugin-Info.plist
+      ];
     };
     nativeBuildInputs = [ cctools ];
     buildInputs = [ sparkle-slim ];
     buildPhase = ''
-      clang -dynamiclib sparkle_sidecar.m -o libsparkle_sidecar.dylib \
+      cp ${../../base/src/pkg/menuet/plugin/PACmanPlugin.h} PACmanPlugin.h
+      clang -bundle updater_plugin.m -o updater_plugin \
         -fobjc-arc \
         -framework Cocoa \
         -framework Sparkle \
-        -F"${sparkle-slim}/Library/Frameworks" \
-        -install_name "$out/lib/libsparkle_sidecar.dylib"
+        -F"${sparkle-slim}/Library/Frameworks"
     '';
     installPhase = ''
-      mkdir -p $out/lib
-      cp libsparkle_sidecar.dylib $out/lib/
+      mkdir -p "$out/updater_plugin.bundle/Contents/MacOS"
+      cp updater_plugin "$out/updater_plugin.bundle/Contents/MacOS/"
+      cp updater_plugin-Info.plist "$out/updater_plugin.bundle/Contents/Info.plist"
     '';
   };
 
   attrs = {
     inherit (pacman) pname version meta;
     nativeBuildInputs = [ macdylibbundler cctools insert-dylib rcodesign ];
-    buildInputs = [ pacman openssl.out ossl-conf-sidecar sparkle-sidecar ];
+    buildInputs = [ pacman openssl.out ossl-conf-sidecar updater-bundle ];
   };
 in
 
@@ -80,17 +84,12 @@ runCommand "pacman-bundled" attrs ''
   cp -Tr "${openssl.out}/etc/ssl" "$app/Contents/Resources/ssl"
   cp -Tr "${openssl.out}/lib/engines-3" "$app/Contents/PlugIns/engines-3"
   cp -Tr "${openssl.out}/lib/ossl-modules" "$app/Contents/PlugIns/ossl-modules"
+  cp -Tr "${updater-bundle}/updater_plugin.bundle" "$app/Contents/PlugIns/updater_plugin.bundle"
   cp -Tr "${pacman}/Applications/PACman.app" "$app"
   chmod -R u+w "$app"
 
   insert_dylib \
     "${ossl-conf-sidecar}/lib/libossl_conf_sidecar.dylib" \
-    "$app/Contents/MacOS/PACman" \
-    --inplace --overwrite \
-    --all-yes --no-strip-codesig
-
-  insert_dylib \
-    "${sparkle-sidecar}/lib/libsparkle_sidecar.dylib" \
     "$app/Contents/MacOS/PACman" \
     --inplace --overwrite \
     --all-yes --no-strip-codesig
@@ -101,6 +100,7 @@ runCommand "pacman-bundled" attrs ''
 
   dylibs=(
     "$app/Contents/MacOS/PACman"
+    "$app/Contents/PlugIns/updater_plugin.bundle/Contents/MacOS/updater_plugin"
     "$app/Contents/PlugIns/engines-3/"*.dylib
     "$app/Contents/PlugIns/ossl-modules/"*.dylib
   )
