@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, options, pkgs, ... }:
 
 with lib;
 
@@ -21,8 +21,8 @@ let
       inherit password;
     } // optionalAttrs (path != null) {
       inherit path;
-    } // optionalAttrs (options != {}) {
-      inherit options;
+    } // optionalAttrs (proxy.options != {}) {
+      inherit (proxy) options;
     };
 
     rulefile = (pkgs.formats.yaml {}).generate "ruleset" {
@@ -211,10 +211,19 @@ in {
       };
     };
 
-    programs.ssh.matchBlocks.pacman = mkIf cfg.ssh_config {
-      match = ''exec "'${app}' check '%h'"'';
-      proxyJump = "${address}:${builtins.toString port}";
-    };
+    programs.ssh = mkIf cfg.ssh_config (
+      let
+        match = ''exec "'${app}' check '%h'"'';
+        proxyJump = "${address}:${builtins.toString port}";
+      in if options.programs.ssh ? settings then {
+        settings.pacman = {
+          header = "Match ${match}";
+          ProxyJump = proxyJump;
+        };
+      } else {
+        matchBlocks.pacman = { inherit match proxyJump; };
+      }
+    );
 
     home.packages = [cfg.package];
   });
