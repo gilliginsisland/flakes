@@ -27,6 +27,12 @@ void menuet_ns_menu_remove(struct NSMenu *menu, struct NSMenuItem *item) {
 	});
 }
 
+void menuet_ns_menu_cancel_tracking(struct NSMenu *menu) {
+	menuet_on_main(^{
+		[(__bridge NSMenu *)menu cancelTracking];
+	});
+}
+
 menuet_ns_menu_item_array menuet_ns_menu_items(struct NSMenu *menu) {
 	__block menuet_ns_menu_item_array result;
 	menuet_on_main(^{
@@ -87,6 +93,28 @@ void menuet_ns_menu_item_set_hidden(struct NSMenuItem *item, bool hidden) {
 	});
 }
 
+void menuet_ns_menu_item_set_view(struct NSMenuItem *item, void *view) {
+	menuet_on_main(^{
+		((__bridge NSMenuItem *)item).view = (__bridge NSView *)view;
+	});
+}
+
+void menuet_ns_menu_item_pop_up_menu(struct NSMenuItem *item, struct NSStatusItem *status) {
+	menuet_on_main(^{
+		NSMenuItem *value = (__bridge NSMenuItem *)item;
+		NSView *view = value.view;
+		NSStatusBarButton *button = ((__bridge NSStatusItem *)status).button;
+		// Wait for previous menu tracking to unwind. Run outside the main dispatch
+		// queue so Go callbacks can synchronously read input and dismiss the menu.
+		[[NSRunLoop mainRunLoop] performInModes:@[NSDefaultRunLoopMode] block:^{
+			if (!value.hidden && value.menu && value.view == view && !view.window) {
+				[NSApp activateIgnoringOtherApps:YES];
+				[value.menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, 0) inView:button];
+			}
+		}];
+	});
+}
+
 void *menuet_ns_menu_item_represented_object(struct NSMenuItem *item) {
 	__block id result;
 	menuet_on_main(^{
@@ -113,6 +141,14 @@ void menuet_ns_menu_item_set_tag(struct NSMenuItem *item, NSInteger tag) {
 	menuet_on_main(^{
 		((__bridge NSMenuItem *)item).tag = tag;
 	});
+}
+
+struct NSMenu *menuet_ns_menu_item_submenu(struct NSMenuItem *item) {
+	__block NSMenu *result;
+	menuet_on_main(^{
+		result = ((__bridge NSMenuItem *)item).submenu;
+	});
+	return (__bridge_retained struct NSMenu *)result;
 }
 
 void menuet_ns_menu_item_set_submenu(struct NSMenuItem *item, struct NSMenu *menu) {
