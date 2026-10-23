@@ -7,25 +7,23 @@ import (
 	"net/url"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
-	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
+	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 )
 
-var inputNotificationCategory = menuet.NotificationCategory{
+var inputNotificationCategory = notifications.NewCategory(notifications.CategoryContent{
 	Identifier: "yubi-auth",
-	Actions: []menuet.Actioner{
-		menuet.NotificationActionText{
-			NotificationAction: menuet.NotificationAction{
-				Identifier: "yubi-auth-token",
-				Title:      "Reply",
-			},
+	Actions: []*notifications.Action{
+		notifications.NewTextInputAction(notifications.TextInputActionContent{
+			Identifier:           "yubi-auth-token",
+			Title:                "Reply",
 			TextInputButtonTitle: "Submit",
 			TextInputPlaceholder: "Enter YubiKey OTP",
-		},
+		}),
 	},
-	Options: menuet.CategoryOptionCustomDismiss,
-}
+	Options: notifications.CategoryOptionCustomDismiss,
+})
 
 func (pacman *PACMan) Input(ctx context.Context, u *url.URL, input oc.InputType) (string, error) {
 	if err := ctx.Err(); err != nil {
@@ -74,7 +72,7 @@ func (pd *PooledDialer) input(ctx context.Context, status *appkit.StatusItem, pr
 		Title:              pd.Label,
 		Subtitle:           "Authentication Required",
 		Body:               "Enter " + prompt,
-		InterruptionLevel:  menuet.NotificationInterruptionLevelTimeSensitive,
+		InterruptionLevel:  notifications.InterruptionLevelTimeSensitive,
 	})
 	defer cleanup()
 	for {
@@ -94,9 +92,9 @@ func (pd *PooledDialer) input(ctx context.Context, status *appkit.StatusItem, pr
 				return "", errors.New("authentication notification was replaced")
 			}
 			switch response.ActionIdentifier {
-			case menuet.DefaultActionIdentifier:
+			case notifications.DefaultActionIdentifier:
 				pd.menu.input.PopUpMenu(status)
-			case menuet.DismissActionIdentifier:
+			case notifications.DismissActionIdentifier:
 				return "", errors.New("auth form user cancelled")
 			case "yubi-auth-token":
 				return response.Text, nil

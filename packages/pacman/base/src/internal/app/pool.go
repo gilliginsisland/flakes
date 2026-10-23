@@ -12,9 +12,9 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
-	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
+	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 )
 
@@ -165,7 +165,7 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	notif := notify.Notification{
 		Identifier:          "status:" + pd.Label,
 		Title:               pd.Label,
-		PresentationOptions: menuet.NotificationPresentationOptionBanner,
+		PresentationOptions: notifications.PresentationOptionBanner,
 	}
 	switch state {
 	case dialer.Offline:

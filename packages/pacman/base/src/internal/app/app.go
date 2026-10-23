@@ -19,8 +19,8 @@ import (
 	"github.com/gilliginsisland/pacman/internal/app/plugin"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
-	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
+	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
@@ -39,10 +39,20 @@ func Run(config Path, l net.Listener) error {
 	var err error
 	app := appkit.SharedApplication()
 	launched := make(chan struct{})
+	notificationDelegate := notifications.NewDelegate().
+		SetDidReceiveResponse(notify.ResponseHandler)
+	// UNUserNotificationCenter keeps only a weak reference to its delegate.
+	defer runtime.KeepAlive(notificationDelegate)
 	delegate := appkit.NewAppDelegate().
 		SetWillFinishLaunching(func() {
-			menuet.SetNotificationCategories(append(oc.NotificationCategories, inputNotificationCategory))
-			menuet.RegisterNotifications()
+			center := notifications.CurrentCenter()
+			notificationDelegate.WithPointer(func(obj unsafe.Pointer) {
+				center.SetDelegate(obj)
+			})
+			center.SetCategories(append(oc.NotificationCategories, inputNotificationCategory))
+			center.RequestAuthorization(notifications.AuthorizationOptionAlert |
+				notifications.AuthorizationOptionSound |
+				notifications.AuthorizationOptionBadge)
 		}).
 		SetDidFinishLaunching(func() {
 			close(launched)

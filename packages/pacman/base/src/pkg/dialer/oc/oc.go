@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gilliginsisland/pacman/pkg/menuet"
+	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/openconnect/hostscan"
@@ -18,17 +18,18 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
 
-var NotificationCategories = []menuet.NotificationCategory{
-	{
+var NotificationCategories = []*notifications.Category{
+	notifications.NewCategory(notifications.CategoryContent{
 		Identifier: "external-browser-auth",
-		Actions: []menuet.Actioner{
-			menuet.NotificationAction{
+		Actions: []*notifications.Action{
+			notifications.NewAction(notifications.ActionContent{
 				Identifier: "external-browser-auth-open",
 				Title:      "Open",
-			},
+				Options:    notifications.ActionOptionForeground,
+			}),
 		},
-		Options: menuet.CategoryOptionCustomDismiss,
-	},
+		Options: notifications.CategoryOptionCustomDismiss,
+	}),
 }
 
 type callbacks struct {
@@ -67,13 +68,13 @@ func (cb *callbacks) ExternalBrowser(uri string) error {
 		Title:              cb.label,
 		Subtitle:           "Authentication Required",
 		Body:               "Click to complete authentication in browser",
-		InterruptionLevel:  menuet.NotificationInterruptionLevelTimeSensitive,
+		InterruptionLevel:  notifications.InterruptionLevelTimeSensitive,
 	})
 	if err != nil {
 		cb.DebugLog("ExternalBrowser ctx cancelled", slog.Any("error", err))
 		return err
 	}
-	if resp.ActionIdentifier == menuet.DismissActionIdentifier {
+	if resp.ActionIdentifier == notifications.DismissActionIdentifier {
 		err = errors.New("ExternalBrowser user cancelled")
 		cb.DebugLog("ExternalBrowser user cancelled", slog.Any("error", err))
 		return err
