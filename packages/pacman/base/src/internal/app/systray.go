@@ -2,13 +2,15 @@ package app
 
 import (
 	"slices"
+	"sync"
+	"unsafe"
 
 	"github.com/gilliginsisland/pacman/docs"
 	"github.com/gilliginsisland/pacman/internal/app/plugin"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
-	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
+	"github.com/gilliginsisland/pacman/pkg/menuet/webkit"
 )
 
 type appkitAction int
@@ -31,6 +33,7 @@ type systray struct {
 	callback *core.Callback
 	status   *appkit.StatusItem
 	menu     *appkit.Menu
+	help     func() *appkit.Window
 	dialers  []*appkit.MenuItem
 }
 
@@ -42,6 +45,25 @@ func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
 	}
 
 	menu.callback = appkit.NewMenuItemCallback(menu.onAction)
+	menu.help = sync.OnceValue(func() *appkit.Window {
+		window := appkit.NewWindow(appkit.WindowOptions{
+			ContentRect: appkit.Rect{Width: 600, Height: 400},
+			StyleMask:   appkit.WindowStyleMaskTitled | appkit.WindowStyleMaskClosable | appkit.WindowStyleMaskResizable,
+			Backing:     appkit.BackingStoreBuffered,
+		}).SetTitle("Help")
+		view := webkit.NewWebView().
+			SetAutoresizingMask(appkit.ViewWidthSizable | appkit.ViewHeightSizable)
+		appkit.ClearColor().WithPointer(func(obj unsafe.Pointer) {
+			view.SetUnderPageBackgroundColor(obj)
+		})
+		view.WithPointer(func(obj unsafe.Pointer) {
+			window.SetContentView(obj)
+		})
+		view.LoadHTMLString(docs.HTML, nil)
+		window.Center()
+		// NSWindow retains its content view; only the reusable window needs a Go owner.
+		return window
+	})
 	menu.dialers = pacman.pool.MenuItems()
 	var pluginItems []*appkit.MenuItem
 	for _, plugin := range plugins {
@@ -94,7 +116,8 @@ func (menu *systray) onAction(item *appkit.MenuItem) {
 	case actionReload:
 		menu.pacman.ReloadConfig()
 	case actionHelp:
-		menuet.WebView(docs.HTML)
+		menu.help().MakeKeyAndOrderFront()
+		appkit.SharedApplication().ActivateIgnoringOtherApps(true)
 	case actionQuit:
 		appkit.SharedApplication().Terminate()
 	case actionDisconnect, actionReset, actionCancel, actionConnect:

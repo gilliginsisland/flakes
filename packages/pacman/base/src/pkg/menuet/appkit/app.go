@@ -75,6 +75,12 @@ func (application *Application) SetActivationPolicy(policy ActivationPolicy) *Ap
 	return application
 }
 
+func (application *Application) ActivateIgnoringOtherApps(flag bool) {
+	application.WithPointer(func(obj unsafe.Pointer) {
+		C.menuet_ns_application_activate_ignoring_other_apps((*C.struct_NSApplication)(obj), C.bool(flag))
+	})
+}
+
 // WithPointer calls fn synchronously while keeping the application alive.
 // A nil application passes a nil pointer to fn.
 func (application *Application) WithPointer(fn func(unsafe.Pointer)) {

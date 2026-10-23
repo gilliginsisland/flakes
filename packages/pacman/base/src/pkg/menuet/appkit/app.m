@@ -33,3 +33,9 @@ void menuet_ns_application_set_activation_policy(struct NSApplication *applicati
 		[(__bridge NSApplication *)application setActivationPolicy:policy];
 	});
 }
+
+void menuet_ns_application_activate_ignoring_other_apps(struct NSApplication *application, bool flag) {
+	menuet_on_main(^{
+		[(__bridge NSApplication *)application activateIgnoringOtherApps:flag];
+	});
+}
