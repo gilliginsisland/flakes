@@ -41,7 +41,7 @@ func Run(config Path, l net.Listener) error {
 	launched := make(chan struct{})
 	delegate := appkit.NewAppDelegate().
 		SetWillFinishLaunching(func() {
-			menuet.SetNotificationCategories(oc.NotificationCategories)
+			menuet.SetNotificationCategories(append(oc.NotificationCategories, inputNotificationCategory))
 			menuet.RegisterNotifications()
 		}).
 		SetDidFinishLaunching(func() {
@@ -104,6 +104,7 @@ func run(config Path, l net.Listener) error {
 		},
 	}
 	pacman.pool.fwd = &pacman.dialer
+	oc.DefaultInputProvider = &pacman
 	pacman.menu = newAppKitMenu(&pacman, plugins)
 	pacman.pool.callback = pacman.menu.callback
 	pacman.server = NewProxyServer(&pacman.dialer)

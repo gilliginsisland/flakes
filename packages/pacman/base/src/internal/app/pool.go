@@ -45,6 +45,11 @@ type PooledDialer struct {
 	dialer *dialer.Lazy
 	menu   struct {
 		*appkit.MenuItem
+		*appkit.Menu
+		input struct {
+			*appkit.MenuItem
+			view *appkit.InputView
+		}
 		connect    *appkit.MenuItem
 		cancel     *appkit.MenuItem
 		disconnect *appkit.MenuItem
@@ -91,7 +96,15 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 			SetRepresentedObject(obj).
 			SetCallback(pool.callback)
 	})
-	pd.menu.SetSubmenu(appkit.NewMenu().Append(pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset))
+	pd.menu.input.view = appkit.NewInputView("", "Enter authentication input")
+	pd.menu.input.MenuItem = appkit.NewMenuItem().
+		SetHidden(true)
+	pd.menu.input.view.WithPointer(func(obj unsafe.Pointer) {
+		pd.menu.input.SetView(obj)
+	})
+	pd.menu.Menu = appkit.NewMenu().
+		Append(pd.menu.input.MenuItem, pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset)
+	pd.menu.SetSubmenu(pd.menu.Menu)
 	pd.updateMenu(dialer.Offline)
 	pd.dialer = dialer.NewLazy(
 		func(ctx context.Context) (dialer.Dialer, error) {

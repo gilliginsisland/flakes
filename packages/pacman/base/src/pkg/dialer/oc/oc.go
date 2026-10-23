@@ -20,20 +20,6 @@ import (
 
 var NotificationCategories = []menuet.NotificationCategory{
 	{
-		Identifier: "yubi-auth",
-		Actions: []menuet.Actioner{
-			menuet.NotificationActionText{
-				NotificationAction: menuet.NotificationAction{
-					Identifier: "yubi-auth-token",
-					Title:      "Reply",
-				},
-				TextInputButtonTitle: "Submit",
-				TextInputPlaceholder: "Enter YubiKey OTP",
-			},
-		},
-		Options: menuet.CategoryOptionCustomDismiss,
-	},
-	{
 		Identifier: "external-browser-auth",
 		Actions: []menuet.Actioner{
 			menuet.NotificationAction{
@@ -101,52 +87,17 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) error {
 	}
 
 	cb.cp.Username = cb.url.User.Username()
-	cb.cp.Password, _ = cb.url.User.Password()
-
-	if cb.url.Query().Get("token") == "otp" {
-		resp, err := notify.NotifyCtx(cb.ctx, notify.Notification{
-			CategoryIdentifier: "yubi-auth",
-			Title:              cb.label,
-			Subtitle:           "Authentication Required",
-			Body:               "Enter YubiKey OTP",
-			InterruptionLevel:  menuet.NotificationInterruptionLevelTimeSensitive,
-		})
-		if err != nil {
-			cb.DebugLog("AuthForm ctx cancelled", slog.Any("error", err))
-			return err
-		}
-		switch resp.ActionIdentifier {
-		case menuet.DismissActionIdentifier:
-			err := errors.New("auth form user cancelled")
-			cb.DebugLog("Auth form user cancelled", slog.Any("error", err))
-			return err
-		case menuet.DefaultActionIdentifier:
-			resp, err := menuet.DisplayCtx(cb.ctx, menuet.Alert{
-				MessageText:     "YubiKey OTP Authentication Required",
-				InformativeText: fmt.Sprintf("The proxy %s requires YubiKey OTP", cb.label),
-				Inputs: []string{
-					"Enter YubiKey OTP",
-				},
-				Buttons: []string{
-					"Submit",
-					"Cancel",
-				},
-			})
-			if err != nil || resp.Button == 1 {
-				cb.DebugLog("AuthForm ctx cancelled", slog.Any("error", err))
-				if err != nil {
-					return err
-				}
-				return errors.New("auth form user cancelled")
-			}
-			cb.cp.Password += resp.Inputs[0]
-		case "yubi-auth-token":
-			cb.cp.Password += resp.Text
-		}
-		cb.DebugLog("AuthForm YOTP received")
+	if DefaultInputProvider == nil {
+		return errors.New("authentication input provider is not configured")
 	}
+	password, err := DefaultInputProvider.Input(cb.ctx, cb.url, InputPassword)
+	if err != nil {
+		cb.DebugLog("Auth form input failed", slog.Any("error", err))
+		return err
+	}
+	cb.cp.Password = password
 
-	err := cb.cp.ProcessForm(form)
+	err = cb.cp.ProcessForm(form)
 	if err != nil {
 		cb.DebugLog("CredentialsProcessor", slog.Any("error", err))
 		return err
