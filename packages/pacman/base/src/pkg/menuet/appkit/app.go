@@ -59,6 +59,12 @@ func (application *Application) Terminate() {
 	})
 }
 
+func (application *Application) ShowHelp() {
+	application.WithPointer(func(obj unsafe.Pointer) {
+		C.menuet_ns_application_show_help((*C.struct_NSApplication)(obj))
+	})
+}
+
 // SetDelegate assigns a weak Objective-C reference. The caller must keep its
 // Go delegate wrapper alive while the application uses it.
 func (application *Application) SetDelegate(delegate unsafe.Pointer) *Application {
@@ -73,6 +79,12 @@ func (application *Application) SetActivationPolicy(policy ActivationPolicy) *Ap
 		C.menuet_ns_application_set_activation_policy((*C.struct_NSApplication)(obj), C.NSApplicationActivationPolicy(policy))
 	})
 	return application
+}
+
+func (application *Application) ActivateIgnoringOtherApps(flag bool) {
+	application.WithPointer(func(obj unsafe.Pointer) {
+		C.menuet_ns_application_activate_ignoring_other_apps((*C.struct_NSApplication)(obj), C.bool(flag))
+	})
 }
 
 // WithPointer calls fn synchronously while keeping the application alive.
