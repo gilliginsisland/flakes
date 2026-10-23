@@ -5,6 +5,7 @@
   runCommand,
   callPackage,
   rcodesign,
+  help-book,
 }:
 
 let
@@ -26,6 +27,20 @@ let
   };
 
   resources = lib.cleanSource ./resources;
+
+  docs = lib.cleanSource ../base/src/docs;
+
+  pacman-help = runCommand "pacman-help" {
+    nativeBuildInputs = [ help-book ];
+  } ''
+    pages="$out/Contents/Resources/en.lproj"
+    mkdir -p "$pages"
+    substitute ${resources}/help-Info.plist "$out/Contents/Info.plist" \
+      --replace-fail "@VERSION@" "${pacman.version}"
+    help-book --title "PACman Help" \
+      --book-id "io.github.gilliginsisland.pacman.help" \
+      ${docs}/README.md "$pages"
+  '';
 
   attrs = {
     inherit (pacman) pname version;
@@ -65,6 +80,7 @@ let
     # Copy assets
     cp icon.icns "$app/Contents/Resources/icon.icns"
     cp ${resources}/menuicon.pdf "$app/Contents/Resources/menuicon.pdf"
+    cp -R ${pacman-help} "$app/Contents/Resources/PACman.help"
     substitute ${resources}/Info.plist "$app/Contents/Info.plist" \
       --replace "@VERSION@" "${attrs.version}"
 

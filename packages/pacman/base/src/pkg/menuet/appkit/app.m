@@ -22,6 +22,13 @@ void menuet_ns_application_terminate(struct NSApplication *application) {
 	});
 }
 
+void menuet_ns_application_show_help(struct NSApplication *application) {
+	NSApplication *app = (__bridge NSApplication *)application;
+	menuet_on_main(^{
+		[app showHelp:nil];
+	});
+}
+
 void menuet_ns_application_set_delegate(struct NSApplication *application, void *delegate) {
 	menuet_on_main(^{
 		((__bridge NSApplication *)application).delegate = (__bridge id<NSApplicationDelegate>)delegate;
@@ -31,5 +38,11 @@ void menuet_ns_application_set_delegate(struct NSApplication *application, void 
 void menuet_ns_application_set_activation_policy(struct NSApplication *application, NSApplicationActivationPolicy policy) {
 	menuet_on_main(^{
 		[(__bridge NSApplication *)application setActivationPolicy:policy];
+	});
+}
+
+void menuet_ns_application_activate_ignoring_other_apps(struct NSApplication *application, bool flag) {
+	menuet_on_main(^{
+		[(__bridge NSApplication *)application activateIgnoringOtherApps:flag];
 	});
 }

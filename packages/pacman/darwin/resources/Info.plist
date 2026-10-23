@@ -10,6 +10,10 @@
     <string>PACman</string>
     <key>CFBundleExecutable</key>
     <string>PACman</string>
+    <key>CFBundleHelpBookFolder</key>
+    <string>PACman.help</string>
+    <key>CFBundleHelpBookName</key>
+    <string>io.github.gilliginsisland.pacman.help</string>
     <key>CFBundleIconFile</key>
     <string>icon.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
