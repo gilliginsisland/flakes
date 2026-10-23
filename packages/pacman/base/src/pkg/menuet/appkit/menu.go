@@ -30,7 +30,14 @@ type StatusItem struct {
 }
 
 func NewMenu() *Menu {
-	menu := &Menu{obj: C.menuet_ns_menu_new()}
+	return newMenu(C.menuet_ns_menu_new())
+}
+
+func newMenu(obj *C.struct_NSMenu) *Menu {
+	if obj == nil {
+		return nil
+	}
+	menu := &Menu{obj: obj}
 	runtime.AddCleanup(menu, core.Release, unsafe.Pointer(menu.obj))
 	return menu
 }
@@ -126,6 +133,11 @@ func (menu *Menu) Remove(item *MenuItem) {
 	})
 }
 
+func (menu *Menu) CancelTracking() {
+	defer runtime.KeepAlive(menu)
+	C.menuet_ns_menu_cancel_tracking(menu.obj)
+}
+
 func (menu *Menu) Items() []*MenuItem {
 	var values C.menuet_ns_menu_item_array
 	menu.WithPointer(func(obj unsafe.Pointer) {
@@ -164,6 +176,22 @@ func (item *MenuItem) SetHidden(hidden bool) *MenuItem {
 	return item
 }
 
+// SetView assigns a custom NSView retained by the menu item.
+// view must be an Objective-C view pointer or nil, not a Go pointer.
+func (item *MenuItem) SetView(view unsafe.Pointer) *MenuItem {
+	defer runtime.KeepAlive(item)
+	C.menuet_ns_menu_item_set_view(item.obj, view)
+	return item
+}
+
+// PopUpMenu queues presentation of the item's menu below status. It skips the
+// presentation if the item is hidden before the main run loop handles it.
+func (item *MenuItem) PopUpMenu(status *StatusItem) {
+	defer runtime.KeepAlive(item)
+	defer runtime.KeepAlive(status)
+	C.menuet_ns_menu_item_pop_up_menu(item.obj, status.obj)
+}
+
 // RepresentedObject returns an owned Objective-C reference. The caller must
 // release it or transfer it to a wrapper with cleanup.
 func (item *MenuItem) RepresentedObject() unsafe.Pointer {
@@ -196,6 +224,12 @@ func (item *MenuItem) SetTag(tag int) *MenuItem {
 		C.menuet_ns_menu_item_set_tag((*C.struct_NSMenuItem)(obj), C.NSInteger(tag))
 	})
 	return item
+}
+
+// Submenu returns an owned wrapper, or nil if the item has no submenu.
+func (item *MenuItem) Submenu() *Menu {
+	defer runtime.KeepAlive(item)
+	return newMenu(C.menuet_ns_menu_item_submenu(item.obj))
 }
 
 func (item *MenuItem) SetSubmenu(menu *Menu) *MenuItem {

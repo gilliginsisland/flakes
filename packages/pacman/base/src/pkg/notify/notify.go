@@ -5,22 +5,34 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/gilliginsisland/pacman/pkg/menuet"
+	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
 
-type Notification = menuet.Notification
+// Notification is the Go convenience input used to build native notification
+// content and an immediate delivery request.
+type Notification struct {
+	CategoryIdentifier  string
+	Identifier          string
+	Title               string
+	Subtitle            string
+	Body                string
+	PresentationOptions notifications.PresentationOptions
+	InterruptionLevel   notifications.InterruptionLevel
+}
+
+type Response struct {
+	NotificationIdentifier string
+	ActionIdentifier       string
+	Text                   string
+}
 
 var (
-	// Map of notification ID → weak pointer to response channel
-	chans syncutil.Map[string, chan<- menuet.NotificationResponse]
+	// Map of notification ID → response channel
+	chans syncutil.Map[string, chan<- Response]
 	// Atomic counter for auto-generated IDs
 	counter atomic.Uint64
 )
-
-func init() {
-	menuet.NotificationResponder = ResponseHandler
-}
 
 // Notify displays a notification.
 // If Identifier is empty, a unique one is generated automatically.
@@ -38,41 +50,41 @@ func Notify(n Notification) string {
 // If Identifier is set, any pending or delivered notification with that ID is removed before display.
 // If another response channel has the same Identifier, it is closed.
 // A cleanup function is provided to discard the channel and remove the notification.
-func NotifyCh(n Notification) (<-chan menuet.NotificationResponse, func()) {
-	ch := make(chan menuet.NotificationResponse, 1)
+func NotifyCh(n Notification) (<-chan Response, func()) {
+	ch := make(chan Response, 1)
 	_, cleanup := notify(n, ch)
 	return ch, cleanup
 }
 
-func NotifyCtx(ctx context.Context, n Notification) (menuet.NotificationResponse, error) {
+func NotifyCtx(ctx context.Context, n Notification) (Response, error) {
 	ch, cleanup := NotifyCh(n)
 	select {
 	case <-ctx.Done():
 		defer cleanup()
-		return menuet.NotificationResponse{}, ctx.Err()
+		return Response{}, ctx.Err()
 	case resp := <-ch:
 		return resp, nil
 	}
 }
 
-func notify(n Notification, ch chan<- menuet.NotificationResponse) (string, func()) {
+func notify(n Notification, ch chan<- Response) (string, func()) {
 	// Ensure a unique or provided identifier
 	if n.Identifier == "" {
 		n.Identifier = fmt.Sprintf("auto-%d", counter.Add(1))
 	} else {
 		Remove(n.Identifier)
 	}
-	if n.PresentationOptions == menuet.NotificationPresentationOptionNone {
+	if n.PresentationOptions == notifications.PresentationOptionNone {
 		n.PresentationOptions =
-			menuet.NotificationPresentationOptionBadge |
-				menuet.NotificationPresentationOptionSound |
-				menuet.NotificationPresentationOptionList |
-				menuet.NotificationPresentationOptionBanner
+			notifications.PresentationOptionBadge |
+				notifications.PresentationOptionSound |
+				notifications.PresentationOptionList |
+				notifications.PresentationOptionBanner
 	}
 
 	// Atomically swap out any previous entry
 	var (
-		prev    chan<- menuet.NotificationResponse
+		prev    chan<- Response
 		loaded  bool
 		cleanup func()
 	)
@@ -92,12 +104,27 @@ func notify(n Notification, ch chan<- menuet.NotificationResponse) (string, func
 	}
 
 	// Dispatch notification
-	menuet.ShowNotification(n)
+	content := notifications.NewContent().
+		SetCategoryIdentifier(n.CategoryIdentifier).
+		SetTitle(n.Title).
+		SetSubtitle(n.Subtitle).
+		SetBody(n.Body).
+		SetPresentationOptions(n.PresentationOptions).
+		SetInterruptionLevel(n.InterruptionLevel)
+	notifications.CurrentCenter().AddRequest(notifications.NewRequest(notifications.RequestOptions{
+		Identifier: n.Identifier,
+		Content:    content,
+	}))
 
 	return n.Identifier, cleanup
 }
 
-func ResponseHandler(resp menuet.NotificationResponse) {
+func ResponseHandler(response *notifications.Response) {
+	resp := Response{
+		NotificationIdentifier: response.NotificationIdentifier(),
+		ActionIdentifier:       response.ActionIdentifier(),
+		Text:                   response.Text(),
+	}
 	defer Remove(resp.NotificationIdentifier)
 
 	ch, ok := chans.LoadAndDelete(resp.NotificationIdentifier)
@@ -119,6 +146,8 @@ func Remove(identifiers ...string) {
 		if identifier == "" {
 			continue
 		}
-		menuet.RemoveNotification(identifier)
+		center := notifications.CurrentCenter()
+		center.RemovePendingRequests(identifier)
+		center.RemoveDeliveredNotifications(identifier)
 	}
 }

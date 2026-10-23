@@ -12,11 +12,22 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
-	"github.com/gilliginsisland/pacman/pkg/menuet"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
+	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 )
+
+var failureNotificationCategory = notifications.NewCategory(notifications.CategoryContent{
+	Identifier: "proxy-failed",
+	Actions: []*notifications.Action{
+		notifications.NewAction(notifications.ActionContent{
+			Identifier: "proxy-reset",
+			Title:      "Reset",
+		}),
+	},
+	Options: notifications.CategoryOptionCustomDismiss,
+})
 
 type DialerPool struct {
 	dialers  map[string]*PooledDialer
@@ -45,6 +56,12 @@ type PooledDialer struct {
 	dialer *dialer.Lazy
 	menu   struct {
 		*appkit.MenuItem
+		*appkit.Menu
+		input struct {
+			*appkit.MenuItem
+			header *appkit.MenuItem
+			view   *appkit.InputView
+		}
 		connect    *appkit.MenuItem
 		cancel     *appkit.MenuItem
 		disconnect *appkit.MenuItem
@@ -91,7 +108,17 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 			SetRepresentedObject(obj).
 			SetCallback(pool.callback)
 	})
-	pd.menu.SetSubmenu(appkit.NewMenu().Append(pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset))
+	pd.menu.input.view = appkit.NewInputView("Enter authentication input")
+	pd.menu.input.header = appkit.NewMenuItemSectionHeader("").
+		SetHidden(true)
+	pd.menu.input.MenuItem = appkit.NewMenuItem().
+		SetHidden(true)
+	pd.menu.input.view.WithPointer(func(obj unsafe.Pointer) {
+		pd.menu.input.SetView(obj)
+	})
+	pd.menu.Menu = appkit.NewMenu().
+		Append(pd.menu.input.header, pd.menu.input.MenuItem, pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset)
+	pd.menu.SetSubmenu(pd.menu.Menu)
 	pd.updateMenu(dialer.Offline)
 	pd.dialer = dialer.NewLazy(
 		func(ctx context.Context) (dialer.Dialer, error) {
@@ -110,14 +137,22 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 }
 
 func (pd *PooledDialer) run() {
+	state := dialer.Offline
 	for {
+		var update dialer.StateUpdate
 		select {
-		case update := <-pd.updates:
-			pd.updateMenu(update.State)
-			pd.notification(update.State, update.Err)
+		case update = <-pd.updates:
 		case <-pd.dialer.Done():
 			return
 		}
+		if update.State == state {
+			continue
+		}
+		pd.updateMenu(update.State)
+		if update.State != dialer.Offline || state == dialer.Online {
+			pd.notification(update.State, update.Err)
+		}
+		state = update.State
 	}
 }
 
@@ -152,7 +187,7 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	notif := notify.Notification{
 		Identifier:          "status:" + pd.Label,
 		Title:               pd.Label,
-		PresentationOptions: menuet.NotificationPresentationOptionBanner,
+		PresentationOptions: notifications.PresentationOptionBanner,
 	}
 	switch state {
 	case dialer.Offline:
@@ -167,6 +202,9 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	case dialer.Failed:
 		notif.Subtitle = "Proxy connection failed"
 		notif.Body = ""
+		if err != nil {
+			notif.CategoryIdentifier = "proxy-failed"
+		}
 	default:
 		notif.Subtitle = "Unknown connection state"
 		notif.Body = "Dialer is in an unknown state."
@@ -177,5 +215,20 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 		}
 		notif.Body += err.Error()
 	}
-	notify.Notify(notif)
+	switch notif.CategoryIdentifier {
+	case "proxy-failed":
+		responses, cleanup := notify.NotifyCh(notif)
+		go func() {
+			defer cleanup()
+			select {
+			case response := <-responses:
+				if response.ActionIdentifier == "proxy-reset" {
+					pd.dialer.Reset(dialer.Reset)
+				}
+			case <-pd.dialer.Done():
+			}
+		}()
+	default:
+		notify.Notify(notif)
+	}
 }
