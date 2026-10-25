@@ -1,0 +1,18 @@
+diff --git a/auth-globalprotect.c b/auth-globalprotect.c
+--- a/auth-globalprotect.c
++++ b/auth-globalprotect.c
+@@ -773,6 +773,12 @@ static int gpst_login(struct openconnect_info *vpninfo, int portal, struct login_context *ctx)
+ 			nuke_opt_values(ctx->form->opts);
+-			if (!blind_retry)
++			if (!blind_retry) {
++				/* Report the rejection before asking for credentials again. */
++				free(ctx->form->error);
++				if (!(ctx->form->error = strdup(_("Authentication failed")))) {
++					result = -ENOMEM;
++					goto out;
++				}
+ 				goto got_form;
+-			else
++			} else
+ 				blind_retry = 0;
+ 		} else {
