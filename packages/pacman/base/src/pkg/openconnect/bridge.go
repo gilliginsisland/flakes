@@ -2,6 +2,7 @@ package openconnect
 
 /*
 #cgo pkg-config: openconnect
+#include <errno.h>
 #include <openconnect.h>
 */
 import "C"
@@ -174,24 +175,18 @@ func go_reconnected_handler(context unsafe.Pointer) {
 	v.ReconnectedHandler()
 }
 
-//export go_mainloop_result
-func go_mainloop_result(context unsafe.Pointer, result C.int) {
+//export go_setup_tun_handler
+func go_setup_tun_handler(context unsafe.Pointer) C.int {
 	v, ok := handles.Load(uintptr(context))
-	if !ok {
-		return
+	if !ok || v.SetupTunHandler == nil {
+		return 0
 	}
-
-	op := v.GetQuitReason()
-	if op == "" {
-		op = "main loop"
+	if err := v.SetupTunHandler(); err != nil {
+		select {
+		case v.errCh <- &OpError{Op: "setup tun", Err: err}:
+		default:
+		}
+		return C.int(-C.EINVAL)
 	}
-	err := ocErrno(op, result)
-	if err == nil {
-		return
-	}
-
-	select {
-	case v.errCh <- err:
-	default:
-	}
+	return 0
 }

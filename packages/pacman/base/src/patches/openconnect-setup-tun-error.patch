@@ -1,0 +1,77 @@
+diff --git a/openconnect.h b/openconnect.h
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -830,8 +830,9 @@
+ 					    const struct addrinfo *hints, struct addrinfo **res);
+ void openconnect_override_getaddrinfo(struct openconnect_info *vpninfo, openconnect_getaddrinfo_vfn gai_fn);
+ 
+-/* Callback for configuring the interface after tunnel is fully up. */
+-typedef void (*openconnect_setup_tun_vfn) (void *privdata);
++/* Callback for configuring the interface after tunnel is fully up.
++ * Return a negative errno to abort tunnel setup. */
++typedef int (*openconnect_setup_tun_vfn) (void *privdata);
+ void openconnect_set_setup_tun_handler(struct openconnect_info *vpninfo,
+ 				       openconnect_setup_tun_vfn setup_tun);
+ 
+diff --git a/mainloop.c b/mainloop.c
+--- a/mainloop.c
++++ b/mainloop.c
+@@ -109,7 +109,11 @@
+ 	int ret;
+ 
+ 	if (vpninfo->setup_tun) {
+-		vpninfo->setup_tun(vpninfo->cbdata);
++		ret = vpninfo->setup_tun(vpninfo->cbdata);
++		if (ret < 0) {
++			vpninfo->quit_reason = "Set up tun device failed";
++			return ret;
++		}
+ 		if (tun_is_up(vpninfo))
+ 			return 0;
+ 	}
+diff --git a/main.c b/main.c
+--- a/main.c
++++ b/main.c
+@@ -1753,7 +1753,7 @@
+ }
+ #endif /* _WIN32 */
+ 
+-static void fully_up_cb(void *_vpninfo)
++static int fully_up_cb(void *_vpninfo)
+ {
+ 	struct openconnect_info *vpninfo = _vpninfo;
+ 
+@@ -1769,6 +1769,7 @@
+ 	}
+ #endif /* !__native_client__ */
+ #endif /* !_WIN32 */
++	return 0;
+ }
+ 
+ int main(int argc, char *argv[])
+diff --git a/jni.c b/jni.c
+--- a/jni.c
++++ b/jni.c
+@@ -296,19 +296,20 @@
+ 	(*ctx->jenv)->PopLocalFrame(ctx->jenv, NULL);
+ }
+ 
+-static void setup_tun_cb(void *privdata)
++static int setup_tun_cb(void *privdata)
+ {
+ 	struct libctx *ctx = privdata;
+ 	jmethodID mid;
+ 
+ 	if ((*ctx->jenv)->PushLocalFrame(ctx->jenv, 256) < 0)
+-		return;
++		return -ENOMEM;
+ 
+ 	mid = get_obj_mid(ctx, ctx->jobj, "onSetupTun", "()V");
+ 	if (mid)
+ 		(*ctx->jenv)->CallVoidMethod(ctx->jenv, ctx->jobj, mid);
+ 
+ 	(*ctx->jenv)->PopLocalFrame(ctx->jenv, NULL);
++	return 0;
+ }
+ 
+ static void reconnected_cb(void *privdata)

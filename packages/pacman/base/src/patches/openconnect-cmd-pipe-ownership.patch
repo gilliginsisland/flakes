@@ -1,0 +1,29 @@
+diff --git a/library.c b/library.c
+--- a/library.c
++++ b/library.c
+@@ -196,4 +196,5 @@ struct openconnect_info *openconnect_vpninfo_new(const char *useragent,
+ 	vpninfo->dtls_fd = -1;
+ 	vpninfo->need_poll_cmd_fd = -1;
+ 	vpninfo->cmd_fd = -1;
++	vpninfo->cmd_fd_write = -1;
+ 	init_pkt_queue(&vpninfo->free_queue);
+@@ -776,7 +777,6 @@ void openconnect_vpninfo_free(struct openconnect_info *vpninfo)
+ 	if (vpninfo->tncc_fd >= 0)
+ 		closesocket(vpninfo->tncc_fd);
+ 	if (vpninfo->cmd_fd_write >= 0) {
+ 		closesocket(vpninfo->cmd_fd);
+-		closesocket(vpninfo->cmd_fd_write);
+ 	}
+ 
+diff --git a/openconnect.h b/openconnect.h
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -692,6 +692,7 @@ void openconnect_set_cancel_fd(struct openconnect_info *vpninfo, int fd);
+ /* Create a nonblocking pipe used to send cancellations and other commands
+    to the library. This returns a file descriptor to the write side of
+-   the pipe. Both sides will be closed by openconnect_vpninfo_free().
++   the pipe, owned by the caller. Close it after all native work has stopped.
++   Only the read side will be closed by openconnect_vpninfo_free().
+    This replaces openconnect_set_cancel_fd(). */
+ #ifdef _WIN32
+ SOCKET

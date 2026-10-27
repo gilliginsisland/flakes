@@ -70,9 +70,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
 	// ensure we can hijack the connection
 	hj, ok := w.(http.Hijacker)
 	if !ok {
@@ -81,7 +78,7 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// connect to the destination (e.g. example.com:443)
-	destConn, err := s.Dialer(ctx, "tcp", r.Host)
+	destConn, err := s.Dialer(r.Context(), "tcp", r.Host)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 		return fmt.Errorf("failed to connect to upstream %s: %w", r.Host, err)
@@ -113,10 +110,7 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *Server) forward(w http.ResponseWriter, r *http.Request) error {
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, r.Method, r.RequestURI, r.Body)
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, r.RequestURI, r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err

@@ -6,16 +6,15 @@ package openconnect
 */
 import "C"
 
-import (
-	"io"
-)
+import "io"
 
+// CMDPipe owns the command pipe's write end; OpenConnect owns the read end.
 type CMDPipe struct {
-	w io.Writer
+	io.WriteCloser
 }
 
 func (cp *CMDPipe) write(r rune) error {
-	_, err := cp.w.Write([]byte{byte(r)})
+	_, err := cp.Write([]byte{byte(r)})
 	return err
 }
 

@@ -1,0 +1,9 @@
+prefix=@out@
+libdir=${prefix}/lib
+includedir=@dev@/include
+
+Name: shmring
+Description: Shared-memory rings and bidirectional record transport
+Version: @version@
+Libs: -L${libdir} -lshmring
+Cflags: -I${includedir}

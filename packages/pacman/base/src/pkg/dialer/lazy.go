@@ -42,6 +42,8 @@ type LazyOptions struct {
 
 // Dialer owns its in-progress dials and returned connections: Close must stop
 // both and make Wait return. Close may be called again after Wait has returned.
+// DialContext's context only covers the call; returned connections live until
+// their own Close or the dialer's Close, independently of that request context.
 type Dialer interface {
 	proxy.Dialer
 	proxy.ContextDialer

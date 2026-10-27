@@ -108,7 +108,8 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) error {
 }
 
 func (cb *callbacks) ProcessCSD(info openconnect.CSDInfo) error {
-	cb.DebugLog("Processing CSD",
+	cb.DebugLog(
+		"Processing CSD",
 		slog.String("hostname", info.Hostname),
 		slog.String("ticket", info.Ticket),
 		slog.String("stub", info.Stub),
@@ -173,6 +174,14 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		cb.label = cb.url.Redacted()
 	}
 
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	var (
+		conn  *openconnect.Conn
+		d     *Dialer
+		setup = make(chan struct{})
+	)
 	callbacks := openconnect.Callbacks{
 		Progress: cb.Progress,
 		ProcessAuthForm: (&openconnect.AggregateProcessor{
@@ -181,6 +190,15 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		ExternalBrowser: cb.ExternalBrowser,
 		ValidatePeerCert: func(cert string) bool {
 			return true
+		},
+		SetupTunHandler: func() error {
+			// Native startup delays this callback until initial MTU detection ends.
+			var err error
+			if d, err = WithConn(conn); err != nil {
+				cancel(err)
+			}
+			close(setup)
+			return err
 		},
 	}
 	if u.Scheme == "anyconnect" {
@@ -209,28 +227,41 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		return nil, err
 	}
 
-	d, err := WithConn(conn)
-	if err != nil {
+	// Setup cancellation closes the native loop, but must be detached before
+	// returning a tunnel whose lifetime is independent of this request.
+	stop := context.AfterFunc(ctx, func() {
 		conn.Close()
+	})
+	defer stop()
+
+	if err = conn.Run(); err != nil {
 		return nil, err
 	}
 
+	select {
+	case <-setup:
+	case <-conn.Done():
+		cancel(conn.Wait())
+	case <-ctx.Done():
+	}
+	if !stop() {
+		return nil, context.Cause(ctx)
+	}
+	if err = context.Cause(ctx); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	return d, nil
 }
 
+// WithConn configures netstack from the synchronous native setup-tunnel callback.
 func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 	rwc, ipinfo, err := conn.TunClient()
 	if err != nil {
 		return nil, err
 	}
 
-	defer func() {
-		if err != nil {
-			rwc.Close()
-		}
-	}()
-
-	d, err := stackutil.NewTunDialer(rwc, &stackutil.NetOptions{
+	opts := stackutil.NetOptions{
 		Addr:     ipinfo.Addr,
 		Netmask:  ipinfo.Netmask,
 		Addr6:    ipinfo.Addr6,
@@ -238,22 +269,15 @@ func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 		DNS:      ipinfo.DNS,
 		Domain:   ipinfo.Domain,
 		MTU:      ipinfo.MTU,
-	})
+	}
+	// Match vpnc-script's fallback when OpenConnect supplies only an IPv6 address.
+	if opts.Netmask6 == "" && opts.Addr6 != "" {
+		opts.Netmask6 = opts.Addr6 + "/128"
+	}
+	d, err := stackutil.NewTunDialer(rwc, &opts)
 	if err != nil {
 		return nil, err
 	}
-
-	err = conn.Run()
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		// Conn owns VPN lifetime. Closing rwc after death ends the packet-copy
-		// workers, whose cleanup closes netstack and unblocks its connections.
-		defer rwc.Close()
-		conn.Wait()
-	}()
 
 	return &Dialer{
 		Conn:   conn,

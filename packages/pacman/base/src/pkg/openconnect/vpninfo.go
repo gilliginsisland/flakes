@@ -3,8 +3,6 @@ package openconnect
 /*
 #cgo pkg-config: openconnect
 
-#cgo nocallback go_mainloop
-
 #include <openconnect.h>
 #include <stdlib.h>
 #include "bridge.h"
@@ -39,6 +37,10 @@ type Callbacks struct {
 	Progress           func(level LogLevel, message string)
 	ExternalBrowser    func(uri string) error
 	ReconnectedHandler func()
+	// SetupTunHandler runs synchronously before native packet processing.
+	// Installing a tunnel fd here replaces the default device/script setup.
+	// An error aborts setup and is returned by MainLoop.
+	SetupTunHandler func() error
 }
 
 type CSDInfo struct {
@@ -61,7 +63,8 @@ type Options struct {
 	Callbacks
 }
 
-// VpnInfo represents a VPN session in Go.
+// VpnInfo represents a VPN session in Go. It must not be copied after creation,
+// and the owner must call Free after all native calls have returned.
 type VpnInfo struct {
 	vpninfo *C.struct_openconnect_info
 	errCh   chan error
@@ -84,7 +87,7 @@ func (e *OpError) Unwrap() error {
 	return e.Err
 }
 
-// NewVpnInfo initializes a new VPN session with callbacks.
+// New initializes a new VPN session with callbacks.
 func New(opts Options) (*VpnInfo, error) {
 	if opts.UserAgent == "" {
 		opts.UserAgent = DefaultUserAgent
@@ -114,13 +117,14 @@ func New(opts Options) (*VpnInfo, error) {
 	return &v, nil
 }
 
-// Free cleans up the VPN session.
+// Free releases the native session and removes only its callback mapping.
+// It must not race with other calls on VpnInfo, including Free.
 func (v *VpnInfo) Free() {
 	if v.vpninfo == nil {
 		return
 	}
 	C.openconnect_vpninfo_free(v.vpninfo)
-	handles.Delete(uintptr(unsafe.Pointer(v.vpninfo)))
+	handles.CompareAndDelete(uintptr(unsafe.Pointer(v.vpninfo)), v)
 	v.vpninfo = nil
 }
 
@@ -226,6 +230,16 @@ func (v *VpnInfo) SetupTunFd(fd int) error {
 	return ocErrno("setup tun fd", C.openconnect_setup_tun_fd(v.vpninfo, C.int(fd)))
 }
 
+// SetupTunFdRaw borrows a descriptor carrying raw IP packets. The caller owns it.
+func (v *VpnInfo) SetupTunFdRaw(fd int) error {
+	return ocErrno("setup tun fd raw", C.openconnect_setup_tun_fd_raw(v.vpninfo, C.int(fd)))
+}
+
+// SetupPacketBridge borrows an endpoint. Close it only after native calls stop.
+func (v *VpnInfo) SetupPacketBridge(bridge *C.struct_shm_bridge) error {
+	return ocErrno("setup packet bridge", C.openconnect_setup_packet_bridge(v.vpninfo, bridge))
+}
+
 func (v *VpnInfo) SetLogLevel(level LogLevel) {
 	C.openconnect_set_loglevel(v.vpninfo, C.int(level))
 }
@@ -287,8 +301,9 @@ func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {
 	if fd < 0 {
 		return nil, ocErrno("setup cmd pipe", fd)
 	}
+	// Our OpenConnect patch transfers ownership of the nonblocking write end.
 	f := os.NewFile(uintptr(fd), "")
-	return &CMDPipe{w: f}, nil
+	return &CMDPipe{WriteCloser: f}, nil
 }
 
 func (v *VpnInfo) MakeCSTPConnection() error {
@@ -299,17 +314,23 @@ func (v *VpnInfo) GetQuitReason() string {
 	return C.GoString(C.openconnect_get_quit_reason(v.vpninfo))
 }
 
+// MainLoop blocks until the native worker exits; Free must wait for its return.
 func (v *VpnInfo) MainLoop() error {
-	return ocErrno("main loop", C.go_mainloop(v.vpninfo))
-}
-
-func (v *VpnInfo) GetTunFd() (int, error) {
-	var err error
-	fd := int(C.openconnect_get_tun_fd(v.vpninfo))
-	if fd < 0 {
-		err = errors.New("get tun fd: fd not setup")
+	rc := C.openconnect_mainloop(v.vpninfo, 5, C.RECONNECT_INTERVAL_MIN)
+	op := v.GetQuitReason()
+	if op == "" {
+		op = "main loop"
 	}
-	return fd, err
+	err := ocErrno(op, rc)
+	if err == nil {
+		return nil
+	}
+	select {
+	case callbackErr := <-v.errCh:
+		return callbackErr
+	default:
+		return err
+	}
 }
 
 func ocErrno(op string, rc C.int) error {

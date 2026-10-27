@@ -20,7 +20,9 @@ func (conn *trackedConn) Close() error {
 
 // DialContext uses a context-aware dialer when available.
 // WARNING: this can leak a goroutine for as long as the underlying Dialer implementation takes to timeout
-// A Conn returned from a successful Dial after the context has been cancelled will be immediately closed.
+// A successful return transfers ownership to the caller; later context
+// cancellation does not close the connection. If cancellation wins before the
+// result is delivered, the fallback closes any connection produced afterward.
 func DialContext(ctx context.Context, d proxy.Dialer, network, address string) (net.Conn, error) {
 	if xd, ok := d.(proxy.ContextDialer); ok {
 		return xd.DialContext(ctx, network, address)
