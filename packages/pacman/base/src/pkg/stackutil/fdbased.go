@@ -1,14 +1,10 @@
 package stackutil
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"runtime"
-
-	"golang.org/x/sync/errgroup"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
@@ -127,7 +123,7 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 
 	cleanup := func() {
 		ep.Close()
-		s.Close()
+		s.Destroy()
 	}
 
 	nicID := s.NextNICID()
@@ -158,15 +154,9 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 		})
 	}
 
-	g, ctx := errgroup.WithContext(context.Background())
-	context.AfterFunc(ctx, cleanup)
-	for range runtime.GOMAXPROCS(0) {
-		g.Go(func() error {
-			return netutil.Join(rwc, &rwcep)
-		})
-	}
 	go func() {
-		_ = g.Wait()
+		defer cleanup()
+		_ = netutil.Join(rwc, &rwcep)
 	}()
 
 	sd := Dialer{Stack: s}

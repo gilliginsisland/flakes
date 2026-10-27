@@ -76,7 +76,8 @@ func (e *RWCEndpoint) Write(p []byte) (n int, err error) {
 }
 
 func (e *RWCEndpoint) ReadFrom(r io.Reader) (n int64, err error) {
-	p := make([]byte, e.Endpoint.MTU())
+	// Match OpenConnect's receive allowance for packets above the negotiated MTU.
+	p := make([]byte, max(16384, e.Endpoint.MTU()))
 	for {
 		count, err := r.Read(p)
 		n += int64(count)
@@ -101,6 +102,7 @@ func (e *RWCEndpoint) writePacketData(p []byte) (n int, err error) {
 	pb := stack.NewPacketBuffer(stack.PacketBufferOptions{
 		Payload: buffer.MakeWithData(p),
 	})
+	defer pb.DecRef()
 
 	var ipv tcpip.NetworkProtocolNumber
 	switch header.IPVersion(p) {
