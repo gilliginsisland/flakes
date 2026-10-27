@@ -94,6 +94,9 @@ func (s *Server) Serve(l net.Listener) error {
 
 // handleConn handles an individual SSH connection.
 func (s *Server) handleConn(conn net.Conn) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, s.config)
 	if err != nil {
 		conn.Close()
@@ -111,11 +114,11 @@ func (s *Server) handleConn(conn net.Conn) {
 			continue
 		}
 
-		go s.handleDirectTCPIP(newChan)
+		go s.handleDirectTCPIP(ctx, newChan)
 	}
 }
 
-func (s *Server) handleDirectTCPIP(newChan ssh.NewChannel) {
+func (s *Server) handleDirectTCPIP(ctx context.Context, newChan ssh.NewChannel) {
 	// Parse the direct-tcpip request parameters
 	var payload DirectTCPIPPayload
 	if err := ssh.Unmarshal(newChan.ExtraData(), &payload); err != nil {
@@ -129,9 +132,8 @@ func (s *Server) handleDirectTCPIP(newChan ssh.NewChannel) {
 	}
 	defer ch.Close()
 
-	// Dial the target using the provided Dialer with a cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure context is cancelled when function returns
+	// Service channel requests even while the target dial is pending.
+	go ssh.DiscardRequests(reqs)
 
 	targetAddr := fmt.Sprintf("%s:%d", strings.ToLower(payload.HostToConnect), payload.PortToConnect)
 	conn, err := s.Dialer(ctx, "tcp", targetAddr)
@@ -139,9 +141,6 @@ func (s *Server) handleDirectTCPIP(newChan ssh.NewChannel) {
 		return
 	}
 	defer conn.Close()
-
-	// Handle channel requests (e.g., EOF)
-	go ssh.DiscardRequests(reqs)
 
 	// Use netutil.Join to pipe data between the SSH channel and the target connection
 	// This will close both connections when either one is closed
