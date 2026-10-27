@@ -181,7 +181,11 @@ func go_mainloop_result(context unsafe.Pointer, result C.int) {
 		return
 	}
 
-	err := ocErrno("main loop", result)
+	op := v.GetQuitReason()
+	if op == "" {
+		op = "main loop"
+	}
+	err := ocErrno(op, result)
 	if err == nil {
 		return
 	}
