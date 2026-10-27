@@ -1,0 +1,79 @@
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -130,4 +130,5 @@ OPENCONNECT_5_9 {
+  global:
+ 	openconnect_set_sni;
++	openconnect_setup_tun_fd_raw;
+ } OPENCONNECT_5_8;
+ 
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -105,1 +105,2 @@
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
++ openconnect_setup_tun_fd_raw@OPENCONNECT_5_9 9.21
+diff --git a/openconnect-internal.h b/openconnect-internal.h
+--- a/openconnect-internal.h
++++ b/openconnect-internal.h
+@@ -702,3 +702,4 @@ struct openconnect_info {
+ 	int use_tun_script;
+ 	int script_tun;
++	int tun_fd_raw;
+ 	char *ifname;
+diff --git a/openconnect.h b/openconnect.h
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -722,3 +722,7 @@ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, intptr_t tun_fd);
+ /* Caller will provide a file descriptor for the tunnel traffic. */
+ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd);
++/* Borrow a file descriptor carrying raw IP packets, without a platform prefix.
++   No script is started. The caller owns the descriptor and must keep it open
++   until all native calls have returned, then close it even if setup failed. */
++int openconnect_setup_tun_fd_raw(struct openconnect_info *vpninfo, int tun_fd);
+ #endif
+diff --git a/tun.c b/tun.c
+--- a/tun.c
++++ b/tun.c
+@@ -446,3 +446,4 @@ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd)
+ 		unmonitor_fd(vpninfo, tun);
+ 
++	vpninfo->tun_fd_raw = 0;
+ 	vpninfo->tun_fd = tun_fd;
+@@ -465,3 +466,11 @@ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd)
+ }
+ 
++int openconnect_setup_tun_fd_raw(struct openconnect_info *vpninfo, int tun_fd)
++{
++	int ret = openconnect_setup_tun_fd(vpninfo, tun_fd);
++
++	vpninfo->tun_fd_raw = 1;
++	return ret;
++}
++
+ int openconnect_setup_tun_script(struct openconnect_info *vpninfo,
+@@ -508,3 +517,3 @@ int os_read_tun(struct openconnect_info *vpninfo, struct pkt *pkt)
+ #ifdef TUN_HAS_AF_PREFIX
+-	if (!vpninfo->script_tun)
++	if (!vpninfo->script_tun && !vpninfo->tun_fd_raw)
+ 		prefix_size = sizeof(int);
+@@ -527,3 +536,3 @@ int os_write_tun(struct openconnect_info *vpninfo, struct pkt *pkt)
+ #ifdef TUN_HAS_AF_PREFIX
+-	if (!vpninfo->script_tun) {
++	if (!vpninfo->script_tun && !vpninfo->tun_fd_raw) {
+ 		struct ip *iph = (void *)data;
+@@ -552,4 +561,7 @@ int os_write_tun(struct openconnect_info *vpninfo, struct pkt *pkt)
+-		/* Handle death of "script" socket */
+-		if (vpninfo->script_tun && errno == ENOTCONN) {
++		/* Handle a disconnected script or caller-owned packet socket. */
++		if ((vpninfo->script_tun || vpninfo->tun_fd_raw) &&
++		    (errno == ENOTCONN || errno == ECONNRESET ||
++		     errno == EDESTADDRREQ || errno == ECONNREFUSED ||
++		     errno == EPIPE)) {
+ 			vpninfo->quit_reason = "Client connection terminated";
+ 			return -1;
+@@ -594,3 +606,3 @@ void os_shutdown_tun(struct openconnect_info *vpninfo)
+-	if (vpninfo->vpnc_script)
++	if (vpninfo->vpnc_script && !vpninfo->tun_fd_raw)
+ 		close(vpninfo->tun_fd);
+ 	vpninfo->tun_fd = -1;

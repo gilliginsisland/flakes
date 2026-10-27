@@ -2,7 +2,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
 #include "bridge.h"
 
@@ -14,7 +13,7 @@ int go_process_csd(void *context, char *hostname, char *sha256, char *token,
 void go_progress(void *context, int level, char *message);
 int go_external_browser_callback(struct openconnect_info *vpninfo, char *uri, void *context);
 void go_reconnected_handler(void *context);
-void go_mainloop_result(void *context, int result);
+int go_setup_tun_handler(void *context);
 
 void go_progress_vargs(void *context, int level, const char *fmt, ...) {
 	va_list args;
@@ -58,6 +57,8 @@ struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {
 		go_progress_vargs,
 		privdata
 	);
+	if (!vpninfo)
+		return NULL;
 	openconnect_set_external_browser_callback(
 		vpninfo,
 		(openconnect_open_webview_vfn) go_external_browser_callback
@@ -70,21 +71,9 @@ struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {
 		vpninfo,
 		(openconnect_reconnected_vfn) go_reconnected_handler
 	);
+	openconnect_set_setup_tun_handler(
+		vpninfo,
+		(openconnect_setup_tun_vfn) go_setup_tun_handler
+	);
 	return vpninfo;
-}
-
-void* run_mainloop(void* arg) {
-	struct openconnect_info *vpninfo = (struct openconnect_info *)arg;
-	int result = openconnect_mainloop(vpninfo, 5, RECONNECT_INTERVAL_MIN);
-	go_mainloop_result(vpninfo, result);
-	return NULL;
-}
-
-int go_mainloop(struct openconnect_info *vpninfo) {
-	pthread_t thread;
-	int result = pthread_create(&thread, NULL, run_mainloop, vpninfo);
-	if (result == 0) {
-		pthread_detach(thread);
-	}
-	return -result;
 }

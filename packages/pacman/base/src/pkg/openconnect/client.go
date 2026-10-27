@@ -1,20 +1,42 @@
 package openconnect
 
+/*
+#include <shm_bridge.h>
+*/
+import "C"
+
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
+	"unsafe"
 
-	"golang.org/x/sys/unix"
+	"github.com/gilliginsisland/pacman/pkg/shmring"
 )
 
+type connState uint8
+
+const (
+	connIdle connState = iota
+	connRunning
+	connCloseRequested
+)
+
+// Conn must be configured before Run or from its synchronous setup-tunnel
+// callback. State transitions determine whether the worker or Close cancels ctx,
+// which schedules native cleanup.
 type Conn struct {
-	vpn      *VpnInfo
-	cmd      *CMDPipe
-	ctx      context.Context
-	cancel   context.CancelCauseFunc
-	mainLoop bool
+	vpn    *VpnInfo
+	cmd    *CMDPipe
+	ctx    context.Context
+	cancel context.CancelCauseFunc
+	mu     sync.Mutex
+	state  connState
 }
 
 const (
@@ -24,6 +46,9 @@ const (
 )
 
 func Connect(ctx context.Context, opts Options) (*Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	switch opts.Protocol {
 	case ProtocolAnyConnect:
 		if opts.UserAgent == "" {
@@ -58,104 +83,131 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 		return nil, err
 	}
 
-	defer context.AfterFunc(ctx, func() {
+	stop := context.AfterFunc(ctx, func() {
 		cp.Cancel()
-	})()
+	})
+	defer stop()
+
+	defer func() {
+		if err != nil {
+			cp.Close()
+		}
+	}()
 
 	if err = vpn.ObtainCookie(); err != nil {
 		return nil, err
 	}
-
 	if err = vpn.MakeCSTPConnection(); err != nil {
+		return nil, err
+	}
+	// CSTP negotiates the keys for AnyConnect DTLS or GlobalProtect ESP.
+	// Start UDP before Run so the main loop can complete its establishment.
+	if dtlsErr := vpn.SetupDTLS(60); dtlsErr != nil {
+		if err = vpn.DisableDTLS(); err != nil {
+			return nil, err
+		}
+		if vpn.Progress != nil {
+			vpn.Progress(LogLevelInfo, "Set up UDP failed; using SSL instead: "+dtlsErr.Error())
+		}
+	}
+	if !stop() {
+		err = ctx.Err()
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancelCause(context.Background())
-	conn := Conn{
+	context.AfterFunc(ctx, func() {
+		cp.Close()
+		vpn.Free()
+	})
+	return &Conn{
 		vpn:    vpn,
 		cmd:    cp,
 		ctx:    ctx,
 		cancel: cancel,
-	}
-	context.AfterFunc(ctx, vpn.Free)
-	return &conn, nil
+	}, nil
 }
 
+// Run starts the native main loop.
 func (c *Conn) Run() error {
-	done := make(chan struct{})
-	go func() {
-		select {
-		case err := <-c.vpn.errCh:
-			c.cancel(err)
-		case <-done:
-		}
-	}()
-	err := c.vpn.MainLoop()
-	if err != nil {
-		close(done)
-		c.cancel(err)
-	} else {
-		c.mainLoop = true
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := context.Cause(c.ctx); err != nil {
+		return err
 	}
-	return err
+	switch c.state {
+	case connRunning:
+		return errors.New("connection already in progress")
+	case connCloseRequested:
+		return os.ErrClosed
+	}
+	c.state = connRunning
+	go func() {
+		// Once started, the native loop must return before cleanup is scheduled.
+		c.cancel(c.vpn.MainLoop())
+	}()
+	return nil
 }
 
+// Done closes when native work has stopped; resource cleanup follows asynchronously.
 func (c *Conn) Done() <-chan struct{} {
 	return c.ctx.Done()
 }
 
+// Wait returns the shutdown cause after native work has stopped.
 func (c *Conn) Wait() error {
 	<-c.Done()
 	return context.Cause(c.ctx)
 }
 
 func (c *Conn) Close() error {
-	if c.mainLoop {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.state == connCloseRequested || c.ctx.Err() != nil {
+		return os.ErrClosed
+	}
+	state := c.state
+	c.state = connCloseRequested
+	if state == connRunning {
 		return c.cmd.Cancel()
 	}
 	c.cancel(nil)
 	return nil
 }
 
-func (c *Conn) TunClient() (*os.File, *IPInfo, error) {
-	err := c.TunScript([]string{"builtin"})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, fd := range fds {
-		unix.SetNonblock(fd, true)
-		unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 5<<20)
-		unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_SNDBUF, 5<<20)
-	}
-
-	defer func() {
-		if err != nil {
-			unix.Close(fds[0])
-			unix.Close(fds[1])
-		}
-	}()
-
-	oldfd, err := c.vpn.GetTunFd()
-	if err == nil {
-		unix.Close(oldfd)
-	}
-
-	err = c.vpn.SetupTunFd(fds[0])
-	if err != nil {
-		return nil, nil, err
-	}
-
+// TunClient configures the shared packet rings before packet processing starts,
+// either before Run or from the native setup-tunnel callback.
+func (c *Conn) TunClient() (io.ReadWriteCloser, *IPInfo, error) {
 	ipinfo, err := c.vpn.GetIPInfo()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return os.NewFile(uintptr(fds[1]), ""), ipinfo, nil
+	if ipinfo.MTU == 0 || ipinfo.MTU > 65535 {
+		return nil, nil, &OpError{Op: "setup packet bridge", Err: syscall.EINVAL}
+	}
+	endpoints, err := shmring.NewBridgePair(256, max(16384, ipinfo.MTU))
+	if err != nil {
+		return nil, nil, err
+	}
+	client, native := shmring.NewReadWriter(shmring.NewBridge(endpoints[0])), (*C.struct_shm_bridge)(unsafe.Pointer(endpoints[1]))
+	go func() {
+		// OpenConnect borrows its endpoint until native packet processing stops.
+		select {
+		case <-client.Done():
+			c.Close()
+			c.Wait()
+		case <-c.Done():
+			client.Close()
+		}
+		C.shm_bridge_close(native)
+	}()
+	if err := c.vpn.SetupPacketBridge(native); err != nil {
+		client.Close()
+		return nil, nil, err
+	}
+
+	return client, ipinfo, nil
 }
 
 func (c *Conn) TunScript(args []string) error {
