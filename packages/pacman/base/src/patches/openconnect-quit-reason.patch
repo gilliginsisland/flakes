@@ -1,0 +1,45 @@
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -130,3 +130,4 @@ OPENCONNECT_5_9 {
+  global:
++	openconnect_get_quit_reason;
+ 	openconnect_set_sni;
+ } OPENCONNECT_5_8;
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -103,3 +103,4 @@
+  openconnect_set_mca_key_password@OPENCONNECT_5_8 9.00
+  openconnect_set_useragent@OPENCONNECT_5_8 9.00
++ openconnect_get_quit_reason@OPENCONNECT_5_9 9.21
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
+diff --git a/library.c b/library.c
+--- a/library.c
++++ b/library.c
+@@ -1354,6 +1354,11 @@ const char *openconnect_get_version(void)
+ 	return openconnect_version_str;
+ }
+ 
++const char *openconnect_get_quit_reason(struct openconnect_info *vpninfo)
++{
++	return vpninfo->quit_reason;
++}
++
+ int openconnect_has_pkcs11_support(void)
+ {
+ #if defined(OPENCONNECT_GNUTLS) && defined(HAVE_P11KIT)
+diff --git a/openconnect.h b/openconnect.h
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -730,6 +730,10 @@
+ int openconnect_mainloop(struct openconnect_info *vpninfo,
+ 			 int reconnect_timeout,
+ 			 int reconnect_interval);
++
++/* Optional reason for mainloop termination, or NULL when none was set.
++   Read after mainloop returns; the string is owned by vpninfo. */
++const char *openconnect_get_quit_reason(struct openconnect_info *vpninfo);
+ 
+ /* The first (privdata) argument to each of these functions is either
+    the privdata argument provided to openconnect_vpninfo_new_with_cbdata(),

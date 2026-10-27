@@ -295,6 +295,10 @@ func (v *VpnInfo) MakeCSTPConnection() error {
 	return ocErrno("make CSTP connection", C.openconnect_make_cstp_connection(v.vpninfo))
 }
 
+func (v *VpnInfo) GetQuitReason() string {
+	return C.GoString(C.openconnect_get_quit_reason(v.vpninfo))
+}
+
 func (v *VpnInfo) MainLoop() error {
 	return ocErrno("main loop", C.go_mainloop(v.vpninfo))
 }
