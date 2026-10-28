@@ -30,6 +30,14 @@ PACman supports proxy chaining (e.g., routing an SSH tunnel through a VPN). Howe
 
 PACman uses a YAML (or JSON) configuration file to define proxies and routing rules. Below is the structure of the rule file.
 
+Always single-quote YAML passwords so characters such as `!`, `%`, `#`, `:`, and backslashes remain literal. Double an embedded single quote (`password: 'it''s-a-secret'`). For example:
+
+```yaml
+password: '!C3&%xBfZ2o7h&A@'
+```
+
+Do not URL-encode the separate `password:` field; PACman escapes credentials when constructing proxy URLs. JSON passwords use JSON string quoting instead.
+
 ### Config File Format
 
 PACman uses a YAML (or JSON) file, typically at `~/.config/pacman/config`, to define listening settings, proxies, and routing rules. Settings are described using dot notation (e.g., `option.<name>.field`) to indicate structure.
@@ -88,7 +96,7 @@ listen: 127.0.0.1:11078
 proxies:
   cisco_vpn:
     username: user
-    password: pass
+    password: 'pass'
     protocol: anyconnect
     host: vpn.example.com
     path: usergroup
@@ -97,7 +105,7 @@ proxies:
       timeout: 0
   global_protect:
     username: admin
-    password: secret
+    password: 'secret'
     protocol: gp
     host: gateway.example.com
     path: employee-group
@@ -106,14 +114,14 @@ proxies:
       timeout: 7200
   socks_proxy:
     username: proxyuser
-    password: proxypass
+    password: 'proxypass'
     protocol: socks5
     host: proxy.example.com:1080
     options:
       timeout: 1800
   ssh_tunnel:
     username: sshuser
-    password: sshpass
+    password: 'sshpass'
     protocol: ssh
     host: proxy.example.com:22
     options:

@@ -43,11 +43,11 @@ func Run(config Path, l net.Listener) error {
 			return
 		}
 		slog.Error("application terminated:", slog.Any("error", err))
-		notify.Notify(notify.Notification{
-			Subtitle: "Application Terminated",
-			Body:     err.Error(),
+		menuet.Display(menuet.Alert{
+			MessageText:     "PACman could not start",
+			InformativeText: err.Error(),
+			Buttons:         []string{"OK"},
 		})
-		app.Terminate()
 	})
 	return err
 }

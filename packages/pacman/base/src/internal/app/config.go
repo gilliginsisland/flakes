@@ -141,7 +141,9 @@ func ParseConfigFile(path Path) (*Config, error) {
 	var rs Config
 	err = yaml.Unmarshal(data, &rs)
 	if err != nil {
-		return nil, err
+		// Parser errors can contain credentials (especially for URL values).
+		// Give actionable guidance without copying config contents into logs or UI.
+		return nil, fmt.Errorf("cannot parse configuration %s: check YAML/JSON syntax; surround passwords with single quotes in YAML and double any embedded single quote", s)
 	}
 	rs.Path = path
 	return &rs, nil
