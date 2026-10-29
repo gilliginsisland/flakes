@@ -30,9 +30,10 @@ var failureNotificationCategory = notifications.NewCategory(notifications.Catego
 })
 
 type DialerPool struct {
-	dialers  map[string]*PooledDialer
-	fwd      proxy.Dialer
-	callback *core.Callback
+	dialers   map[string]*PooledDialer
+	fwd       proxy.Dialer
+	callback  *core.Callback
+	animation *statusAnimation
 }
 
 func (pool *DialerPool) MenuItems() []*appkit.MenuItem {
@@ -53,8 +54,9 @@ type PooledDialer struct {
 	URL     *url.URL
 	updates chan dialer.StateUpdate
 
-	dialer *dialer.Lazy
-	menu   struct {
+	dialer    *dialer.Lazy
+	animation *statusAnimation
+	menu      struct {
 		*appkit.MenuItem
 		*appkit.Menu
 		input struct {
@@ -78,9 +80,10 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 	}
 
 	pd := PooledDialer{
-		Label:   l,
-		URL:     u,
-		updates: make(chan dialer.StateUpdate),
+		Label:     l,
+		URL:       u,
+		updates:   make(chan dialer.StateUpdate),
+		animation: pool.animation,
 	}
 	core.NewString(l).WithPointer(func(obj unsafe.Pointer) {
 		pd.menu.MenuItem = appkit.NewMenuItem().
@@ -138,6 +141,9 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 
 func (pd *PooledDialer) run() {
 	state := dialer.Offline
+	defer func() {
+		pd.animation.updateState(state, dialer.Offline)
+	}()
 	for {
 		var update dialer.StateUpdate
 		select {
@@ -148,6 +154,7 @@ func (pd *PooledDialer) run() {
 		if update.State == state {
 			continue
 		}
+		pd.animation.updateState(state, update.State)
 		pd.updateMenu(update.State)
 		if update.State != dialer.Offline || state == dialer.Online {
 			pd.notification(update.State, update.Err)

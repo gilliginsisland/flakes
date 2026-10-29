@@ -117,6 +117,7 @@ func run(config Path, l net.Listener) error {
 	oc.DefaultInputProvider = &pacman
 	pacman.menu = newAppKitMenu(&pacman, plugins)
 	pacman.pool.callback = pacman.menu.callback
+	pacman.pool.animation = newStatusAnimation(pacman.menu.status)
 	pacman.server = NewProxyServer(&pacman.dialer)
 	if err = pacman.LoadConfig(cfg); err != nil {
 		return err

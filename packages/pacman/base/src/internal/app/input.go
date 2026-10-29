@@ -50,6 +50,8 @@ func (pacman *PACMan) Input(ctx context.Context, u *url.URL, input oc.InputType)
 	if pd == nil {
 		return "", errors.New("authentication requested for an inactive proxy")
 	}
+	pacman.pool.animation.addInput(1)
+	defer pacman.pool.animation.addInput(-1)
 	token, err := pd.input(ctx, pacman.menu.status, "YubiKey OTP")
 	if err != nil {
 		return "", err
