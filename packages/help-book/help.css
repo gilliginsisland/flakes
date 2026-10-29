@@ -1,0 +1,113 @@
+@import "github-markdown.css";
+
+:root {
+  color-scheme: light dark;
+}
+
+.markdown-body {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  align-items: start;
+  margin: 0;
+}
+
+.markdown-body::before,
+.markdown-body::after {
+  content: none;
+}
+
+.help-sidebar {
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 20px 12px;
+  background: var(--bgColor-muted);
+  border-right: 1px solid var(--borderColor-default);
+  font-size: 14px;
+}
+
+.help-sidebar ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-sidebar ul ul {
+  padding-left: 12px;
+}
+
+.help-sidebar li + li {
+  margin-top: 2px;
+}
+
+.help-sidebar > ul > li {
+  margin-top: 16px;
+}
+
+.help-sidebar > ul > li > a {
+  font-weight: 600;
+}
+
+.help-sidebar a {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--fgColor-default);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.help-sidebar a:hover {
+  background: var(--bgColor-neutral-muted);
+  text-decoration: none;
+}
+
+.help-sidebar a[aria-current="page"] {
+  background: var(--bgColor-neutral-muted);
+  color: var(--fgColor-accent);
+  font-weight: 600;
+}
+
+.help-sidebar .help-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.help-content {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: 28px 32px;
+}
+
+.breadcrumbs {
+  margin-bottom: 24px;
+}
+
+pre {
+  tab-size: 4;
+}
+
+@media (max-width: 640px) {
+  .markdown-body {
+    grid-template-columns: 11rem minmax(0, 1fr);
+  }
+
+  .help-content {
+    padding: 20px;
+  }
+}
+
+@media print {
+  .markdown-body {
+    display: block;
+  }
+
+  .help-sidebar {
+    display: none;
+  }
+}
