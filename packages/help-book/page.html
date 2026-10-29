@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {{if .BookID}}<meta name="AppleTitle" content="{{.BookID}}">{{end}}
+  <title>{{.Title}} — {{.BookTitle}}</title>
+  <link rel="stylesheet" href="help.css">
+</head>
+<body class="markdown-body">
+  <nav class="help-sidebar" aria-label="Table of contents">
+    <a class="help-title" href="index.html"{{if eq .Slug "index"}} aria-current="page"{{end}}>{{.BookTitle}}</a>
+    {{contents .Groups .Slug}}
+  </nav>
+  <main class="help-content">
+    {{if ne .Slug "index"}}<nav class="breadcrumbs" aria-label="Help navigation"><a href="index.html">Contents</a>{{with .Parent}} / <a href="{{.Slug}}.html">{{.Title}}</a>{{end}}</nav>{{end}}
+    <a name="{{if eq .Slug "index"}}contents{{else}}{{.Slug}}{{end}}"></a>
+    <h1>{{if eq .Slug "index"}}{{.BookTitle}}{{else}}{{.Title}}{{end}}</h1>
+    {{.Body}}
+    {{if .Children}}{{contents .Children ""}}{{end}}
+  </main>
+</body>
+</html>
