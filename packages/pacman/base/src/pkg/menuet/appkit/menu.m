@@ -76,6 +76,12 @@ void menuet_ns_menu_item_set_title(struct NSMenuItem *item, const char *title) {
 	});
 }
 
+void menuet_ns_menu_item_set_image(struct NSMenuItem *item, struct NSImage *image) {
+	menuet_on_main(^{
+		((__bridge NSMenuItem *)item).image = (__bridge NSImage *)image;
+	});
+}
+
 void menuet_ns_menu_item_set_badge(struct NSMenuItem *item, const char *badge) {
 	menuet_on_main(^{
 		NSMenuItemBadge *nsbadge = nil;

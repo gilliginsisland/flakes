@@ -4,7 +4,7 @@ package dialer
 type ConnectionState int
 
 const (
-	Offline ConnectionState = iota
+	Idle ConnectionState = iota
 	Connecting
 	Failed
 	Online

@@ -225,7 +225,7 @@ static BOOL pacman_adjust_count(_Atomic NSInteger *count, BOOL old, BOOL next) {
 
 - (void)updateState {
 	PACmanStatusState base = atomic_load(&_failed) > 0 ? PACmanStatusFailed :
-	                        atomic_load(&_connecting) > 0 ? PACmanStatusConnecting : PACmanStatusOffline;
+	                        atomic_load(&_connecting) > 0 ? PACmanStatusConnecting : PACmanStatusIdle;
 	uint64_t previous = atomic_load(&_activity);
 	uint64_t status;
 	do {

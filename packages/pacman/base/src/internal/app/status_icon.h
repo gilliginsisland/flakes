@@ -5,7 +5,7 @@ struct NSStatusItem;
 
 // Values mirror dialer.ConnectionState.
 typedef NS_ENUM(NSUInteger, PACmanStatusState) {
-	PACmanStatusOffline = 0,
+	PACmanStatusIdle = 0,
 	PACmanStatusConnecting = 1,
 	PACmanStatusFailed = 2,
 	PACmanStatusOnline = 3,

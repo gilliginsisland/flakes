@@ -24,7 +24,7 @@ The PAC file helps your browser decide whether to use PACman; PACman's rules dec
 
 ### Connections Start on Demand
 
-Configured proxies begin **Offline**. This is normal: they are ready to be used, but PACman has not started them yet.
+Configured proxies begin **Idle**. This is normal: they are ready to be used, but PACman has not started them yet.
 
 When an application requests a destination that needs a proxy or VPN, PACman starts that connection. The first request may take longer while the connection is established or you complete authentication. Later requests reuse the connection.
 
@@ -36,7 +36,7 @@ Click the PACman menu-bar icon to see the local server address and your configur
 
 | Status | Meaning | Available action |
 |--------|---------|------------------|
-| ⚪ Offline | Waiting until needed. | **Connect** to start now. |
+| ⚪ Idle | Waiting until needed. | **Connect** to start now. |
 | 🟡 Connecting | Setting up the connection; authentication may need your attention. | **Cancel** to stop setup. |
 | 🟢 Online | The connection is ready for use. | **Disconnect** to close it. |
 | 🔴 Failed | Connection setup failed and automatic attempts are paused. | **Reset** to allow another attempt. |
@@ -64,7 +64,7 @@ If a proxy or VPN fails to start, PACman marks it **Failed** and remembers the e
 
 Read the error notification and address the cause, such as an incorrect password, a missed OTP prompt, or an unreachable VPN server. Then open that proxy's menu and choose **Reset**, or use **Reset** on its error notification.
 
-Reset clears the saved failure and returns the proxy to **Offline**. The next request that needs it can start a fresh connection; choose **Connect** if you want to try immediately. If a rule lists other proxies, PACman can still try those alternatives in order.
+Reset clears the saved failure and returns the proxy to **Idle**. The next request that needs it can start a fresh connection; choose **Connect** if you want to try immediately. If a rule lists other proxies, PACman can still try those alternatives in order.
 
 ### Supported Protocols
 
