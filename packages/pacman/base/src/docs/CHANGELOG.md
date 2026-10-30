@@ -1,3 +1,17 @@
+# v3.3.0
+
+* Redesigned the proxy menu with live connection status and Connect, Cancel, Disconnect, and Reset controls
+* Enter YubiKey one-time passwords directly in each proxy's menu or through notification replies
+* Added menu bar animations for connection progress, authentication prompts, and connection failures
+* Reset failed proxy connections directly from their notifications
+* Added searchable offline Help with expanded setup instructions and configuration examples
+* Preserve unchanged proxy connections when reloading settings, and keep the current configuration if a rule refers to a missing proxy
+* Proxy options such as timeout now accept numbers without quotes in YAML and JSON configuration
+* Fixed inconsistent hostname matching between proxy routing and SSH checks, including mixed-case names and proxy aliases
+* Improved handling of HTTP, SOCKS5, and SSH connections sharing the same proxy port
+* Improved VPN packet transfer performance by replacing socket pairs with shared-memory ring buffers
+* Improved VPN setup, cancellation, disconnection, and error reporting, including stopping repeated attempts after GlobalProtect rejects authentication
+___
 # v3.2.0
 
 * Updated hostscan definitions to work with newer cisco versions
