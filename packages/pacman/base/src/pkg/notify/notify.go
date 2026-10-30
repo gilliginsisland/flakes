@@ -36,7 +36,6 @@ var (
 
 // Notify displays a notification.
 // If Identifier is empty, a unique one is generated automatically.
-// If Identifier is set, any pending or delivered notification with that ID is removed before display.
 func Notify(n Notification) string {
 	if n.Title == "" {
 		n.Title = "PACman"
@@ -47,7 +46,6 @@ func Notify(n Notification) string {
 
 // NotifyCh displays a notification and returns a channel that will receive the user's response.
 // If Identifier is empty, a unique one is generated automatically.
-// If Identifier is set, any pending or delivered notification with that ID is removed before display.
 // If another response channel has the same Identifier, it is closed.
 // A cleanup function is provided to discard the channel and remove the notification.
 func NotifyCh(n Notification) (<-chan Response, func()) {
@@ -71,8 +69,6 @@ func notify(n Notification, ch chan<- Response) (string, func()) {
 	// Ensure a unique or provided identifier
 	if n.Identifier == "" {
 		n.Identifier = fmt.Sprintf("auto-%d", counter.Add(1))
-	} else {
-		Remove(n.Identifier)
 	}
 	if n.PresentationOptions == notifications.PresentationOptionNone {
 		n.PresentationOptions =
@@ -140,11 +136,15 @@ func ResponseHandler(response *notifications.Response) {
 	}
 }
 
-// Remove removes pending and delivered notifications by identifier.
+// Remove removes pending and delivered notifications by identifier and closes
+// any associated response channel.
 func Remove(identifiers ...string) {
 	for _, identifier := range identifiers {
 		if identifier == "" {
 			continue
+		}
+		if ch, ok := chans.LoadAndDelete(identifier); ok {
+			close(ch)
 		}
 		center := notifications.CurrentCenter()
 		center.RemovePendingRequests(identifier)

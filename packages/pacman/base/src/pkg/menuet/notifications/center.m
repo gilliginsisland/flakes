@@ -61,3 +61,15 @@ void menuet_un_center_remove_delivered_notifications(struct UNUserNotificationCe
 		[(__bridge UNUserNotificationCenter *)center removeDeliveredNotificationsWithIdentifiers:@[[NSString stringWithUTF8String:identifier]]];
 	}
 }
+
+void menuet_un_center_remove_all_pending_requests(struct UNUserNotificationCenter *center) {
+	@autoreleasepool {
+		[(__bridge UNUserNotificationCenter *)center removeAllPendingNotificationRequests];
+	}
+}
+
+void menuet_un_center_remove_all_delivered_notifications(struct UNUserNotificationCenter *center) {
+	@autoreleasepool {
+		[(__bridge UNUserNotificationCenter *)center removeAllDeliveredNotifications];
+	}
+}

@@ -12,3 +12,5 @@ void menuet_un_center_request_authorization(struct UNUserNotificationCenter *cen
 void menuet_un_center_add_request(struct UNUserNotificationCenter *center, struct UNNotificationRequest *request);
 void menuet_un_center_remove_pending_requests(struct UNUserNotificationCenter *center, const char *identifier);
 void menuet_un_center_remove_delivered_notifications(struct UNUserNotificationCenter *center, const char *identifier);
+void menuet_un_center_remove_all_pending_requests(struct UNUserNotificationCenter *center);
+void menuet_un_center_remove_all_delivered_notifications(struct UNUserNotificationCenter *center);
