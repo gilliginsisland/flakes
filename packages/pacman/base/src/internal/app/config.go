@@ -63,7 +63,7 @@ func (u *URL) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	type Parts struct {
+	var p struct {
 		Username string            `json:"username"`
 		Password string            `json:"password"`
 		Protocol string            `json:"protocol"`
@@ -72,7 +72,6 @@ func (u *URL) UnmarshalJSON(data []byte) error {
 		Options  map[string]string `json:"options"`
 	}
 
-	var p Parts
 	if err := json.Unmarshal(data, &p); err != nil {
 		return fmt.Errorf("failed to unmarshal URL: %w", err)
 	}

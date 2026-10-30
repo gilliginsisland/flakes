@@ -30,15 +30,6 @@ func (s *SpaceSeparated) UnmarshalText(text []byte) error {
 	return nil
 }
 
-type TunEnv struct {
-	Fd      int            `env:"VPNFD,required"`
-	MTU     uint32         `env:"INTERNAL_IP4_MTU,required"`
-	IP      string         `env:"INTERNAL_IP4_ADDRESS,required"`
-	Netmask string         `env:"INTERNAL_IP4_NETMASK,required"`
-	DNS     SpaceSeparated `env:"INTERNAL_IP4_DNS,required"`
-	Domain  string         `env:"CISCO_DEF_DOMAIN"`
-}
-
 var _ flags.Commander = (*TunSocksCommand)(nil)
 
 type TunSocksCommand struct {
@@ -47,7 +38,14 @@ type TunSocksCommand struct {
 
 // Execute runs the check command.
 func (c *TunSocksCommand) Execute(args []string) error {
-	var e TunEnv
+	var e struct {
+		Fd      int            `env:"VPNFD,required"`
+		MTU     uint32         `env:"INTERNAL_IP4_MTU,required"`
+		IP      string         `env:"INTERNAL_IP4_ADDRESS,required"`
+		Netmask string         `env:"INTERNAL_IP4_NETMASK,required"`
+		DNS     SpaceSeparated `env:"INTERNAL_IP4_DNS,required"`
+		Domain  string         `env:"CISCO_DEF_DOMAIN"`
+	}
 	err := env.Unmarshal(&e, os.Environ())
 	if err != nil {
 		return fmt.Errorf("error parsing env: %w", err)

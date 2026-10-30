@@ -52,10 +52,10 @@ func (c *Client) GetToken(ctx context.Context, ticket, stub string) (string, err
 	}
 	defer resp.Body.Close()
 
-	t := struct {
+	var t struct {
 		XMLName xml.Name `xml:"hostscan"`
 		Token   string   `xml:"token"`
-	}{}
+	}
 	if err := xml.NewDecoder(resp.Body).Decode(&t); err != nil {
 		return "", fmt.Errorf("Error parsing hostscan token: %w", err)
 	}
