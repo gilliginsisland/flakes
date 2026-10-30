@@ -7,13 +7,13 @@ OUTPUT_DIR="$3"
 
 # Function to generate appcast RSS feed to stdout
 generate_appcast_feed() {
-	local ENTRY APP SYSTEM VERSION TAG RELEASE
+	local ENTRY APP SYSTEM VERSION SHORT_VERSION TAG RELEASE
 	read -r ENTRY
 	APP=$(jq -r '.app' <<< "$ENTRY")
 	SYSTEM=$(jq -r '.system' <<< "$ENTRY")
-	VERSION=$(jq -r '.version' <<< "$ENTRY")
 	# CHANGES=$(jq -r '.changes | .[] | "* "+.' <<< "$ENTRY")
 	TAG=$(jq -r '.tag' <<< "$ENTRY")
+	SHORT_VERSION=${TAG#"$APP@v"}
 
 	echo "Generating appcast for $APP on $SYSTEM (tag: $TAG)..." >&2
 
@@ -28,6 +28,8 @@ generate_appcast_feed() {
 
 	local NAME BODY LINK PUBLISHED_AT PUB_DATE
 	NAME=$(jq -r '.name' <<< "$RELEASE")
+	# Resolve the build version from the published tag, not the current checkout.
+	VERSION=$(nix eval --raw --no-update-lock-file "github:$REPOSITORY/$TAG#releases.$SYSTEM.$APP.version")
 	BODY=$(jq -r '.body' <<< "$RELEASE")
 	LINK=$(jq -r '.url' <<< "$RELEASE")
 	PUBLISHED_AT=$(jq -r '.publishedAt' <<< "$RELEASE")
@@ -57,10 +59,10 @@ generate_appcast_feed() {
 				<description>Most recent changes with links to updates.</description>
 				<language>en</language>
 				<item>
-					<title>Version $VERSION</title>
+					<title>Version $SHORT_VERSION</title>
 					<link>$LINK</link>
 					<sparkle:version>$VERSION</sparkle:version>
-					<sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+					<sparkle:shortVersionString>$SHORT_VERSION</sparkle:shortVersionString>
 					<description sparkle:format="markdown"><![CDATA[$BODY]]></description>
 					<pubDate>$PUB_DATE</pubDate>
 					<enclosure url="$URL" length="$SIZE" type="application/octet-stream"/>

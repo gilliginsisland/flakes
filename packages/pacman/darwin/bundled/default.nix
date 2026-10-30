@@ -72,6 +72,7 @@ let
 
   attrs = {
     inherit (pacman) pname version meta;
+    passthru = { inherit (pacman) releaseVersion; };
     nativeBuildInputs = [ macdylibbundler cctools insert-dylib rcodesign ];
     buildInputs = [ pacman openssl.out ossl-conf-sidecar updater-bundle ];
   };

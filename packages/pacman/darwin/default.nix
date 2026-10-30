@@ -36,7 +36,8 @@ let
     pages="$out/Contents/Resources/en.lproj"
     mkdir -p "$pages"
     substitute ${resources}/help-Info.plist "$out/Contents/Info.plist" \
-      --replace-fail "@VERSION@" "${pacman.version}"
+      --replace-fail "@VERSION@" "${pacman.version}" \
+      --replace-fail "@RELEASE_VERSION@" "${pacman.releaseVersion}"
     help-book --title "PACman Help" \
       --book-id "io.github.gilliginsisland.pacman.help" \
       ${docs}/README.md "$pages"
@@ -51,6 +52,7 @@ let
       platforms = lib.platforms.darwin;
     };
     passthru = {
+      inherit (pacman) releaseVersion;
       bundled = callPackage ./bundled {};
     };
   };
@@ -82,7 +84,8 @@ let
     cp ${resources}/menuicon.pdf "$app/Contents/Resources/menuicon.pdf"
     cp -R ${pacman-help} "$app/Contents/Resources/PACman.help"
     substitute ${resources}/Info.plist "$app/Contents/Info.plist" \
-      --replace "@VERSION@" "${attrs.version}"
+      --replace "@VERSION@" "${attrs.version}" \
+      --replace "@RELEASE_VERSION@" "${pacman.releaseVersion}"
 
     rcodesign sign \
       --timestamp-url none \

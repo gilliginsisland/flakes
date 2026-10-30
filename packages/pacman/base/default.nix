@@ -7,6 +7,7 @@
   apple-sdk_26,
   darwinMinVersionHook,
   fetchFromGitLab,
+  buildDate ? null,
 }:
 
 let
@@ -50,9 +51,12 @@ let
       lib.filter (x: x != {}) sections;
 
   changelog = parseChangelog (builtins.readFile ./src/docs/CHANGELOG.md);
-in buildGo126Module (final: {
+  releaseVersion = (builtins.elemAt changelog 0).version;
+in buildGo126Module {
   pname = "pacman";
-  version = (builtins.elemAt changelog 0).version;
+  version = if buildDate == null then releaseVersion else buildDate;
+
+  passthru = { inherit releaseVersion; };
 
   meta = {
     description = "Rule-based HTTP proxy server.";
@@ -67,7 +71,7 @@ in buildGo126Module (final: {
 
   ldflags = [
     "-w"
-    "-X github.com/gilliginsisland/pacman/internal/version.Version=${final.version}"
+    "-X github.com/gilliginsisland/pacman/internal/version.Version=${releaseVersion}"
   ];
 
   env = {
@@ -77,4 +81,4 @@ in buildGo126Module (final: {
   vendorHash = null;
 
   src = lib.cleanSource ./src;
-})
+}

@@ -23,7 +23,7 @@
     <key>CFBundleVersion</key>
     <string>@VERSION@</string>
     <key>CFBundleShortVersionString</key>
-    <string>@VERSION@</string>
+    <string>@RELEASE_VERSION@</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.10</string>
     <key>LSUIElement</key>

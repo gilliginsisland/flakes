@@ -96,6 +96,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.9.0
       - name: Generate Appcast XML Files
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
