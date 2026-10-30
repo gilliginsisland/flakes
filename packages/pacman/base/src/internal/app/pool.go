@@ -127,7 +127,7 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 	pd.menu.Menu = appkit.NewMenu().
 		Append(pd.menu.input.header, pd.menu.input.MenuItem, pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset)
 	pd.menu.SetSubmenu(pd.menu.Menu)
-	pd.updateMenu(dialer.Offline)
+	pd.updateMenu(dialer.Idle)
 	pd.dialer = dialer.NewLazy(
 		func(ctx context.Context) (dialer.Dialer, error) {
 			// This bounds shared tunnel setup, not the returned tunnel's lifetime.
@@ -145,10 +145,10 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 }
 
 func (pd *PooledDialer) run() {
-	state := dialer.Offline
+	state := dialer.Idle
 	defer func() {
 		notify.Remove(pd.notificationID)
-		pd.animation.updateState(state, dialer.Offline)
+		pd.animation.updateState(state, dialer.Idle)
 	}()
 	for {
 		var update dialer.StateUpdate
@@ -162,7 +162,7 @@ func (pd *PooledDialer) run() {
 		}
 		pd.animation.updateState(state, update.State)
 		pd.updateMenu(update.State)
-		if update.State != dialer.Offline || state == dialer.Online {
+		if update.State != dialer.Idle || state == dialer.Online {
 			pd.notification(update.State, update.Err)
 		}
 		state = update.State
@@ -170,9 +170,10 @@ func (pd *PooledDialer) run() {
 }
 
 func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
-	pd.menu.SetTitle(pd.icon(state) + " " + pd.Label).
+	pd.menu.SetTitle(pd.Label).
+		SetImage(pd.icon(state)).
 		SetBadge(state.String())
-	pd.menu.connect.SetHidden(state != dialer.Offline)
+	pd.menu.connect.SetHidden(state != dialer.Idle)
 	pd.menu.cancel.SetHidden(state != dialer.Connecting)
 	pd.menu.disconnect.SetHidden(state != dialer.Online)
 	pd.menu.reset.SetHidden(state != dialer.Failed)
@@ -182,18 +183,21 @@ func (pd *PooledDialer) Close() {
 	pd.dialer.Close()
 }
 
-func (pd *PooledDialer) icon(state dialer.ConnectionState) string {
+func (pd *PooledDialer) icon(state dialer.ConnectionState) *appkit.Image {
+	var name string
 	switch state {
-	case dialer.Offline:
-		return "⚪"
+	case dialer.Idle:
+		name = "NSStatusNone"
 	case dialer.Online:
-		return "🟢"
+		name = "NSStatusAvailable"
 	case dialer.Failed:
-		return "🔴"
+		name = "NSStatusUnavailable"
 	case dialer.Connecting:
-		return "🟡"
+		name = "NSStatusPartiallyAvailable"
+	default:
+		return nil
 	}
-	return ""
+	return appkit.ImageNamed(name)
 }
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
@@ -205,7 +209,7 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 		PresentationOptions: notifications.PresentationOptionBanner,
 	}
 	switch state {
-	case dialer.Offline:
+	case dialer.Idle:
 		notif.Subtitle = "Proxy disconnected"
 		notif.Body = "The connection was terminated."
 	case dialer.Connecting:

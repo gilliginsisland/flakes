@@ -253,7 +253,7 @@ func (d *Lazy) monitor() {
 			}
 			d.value, d.err = nil, nil
 			d.requests.Enable()
-			d.notify(Offline, err)
+			d.notify(Idle, err)
 		case ready := <-d.releases:
 			if ready != 0 {
 				d.state.Add(^uint64(0))
@@ -297,7 +297,7 @@ func (d *Lazy) monitor() {
 					}
 					d.err = nil
 					d.requests.Enable()
-					d.notify(Offline, nil)
+					d.notify(Idle, nil)
 				}
 			case Connect:
 				if d.factory == nil && d.value == nil && d.err == nil {

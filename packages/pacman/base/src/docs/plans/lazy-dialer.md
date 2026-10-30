@@ -178,9 +178,9 @@ I/O. A retained wrapper that is never Closed can prevent retirement indefinitely
 
 After Disconnect, the old `value` remains installed with ready cleared and
 requests disabled until its Wait result is consumed. The Wait case completes
-retirement, clears `value` and `err`, enables requests, and publishes Offline.
+retirement, clears `value` and `err`, enables requests, and publishes Idle.
 Natural death takes that same Wait case. Cached-error Reset has no Wait sender:
-it drains error readers, clears `err`, enables requests, and publishes Offline.
+it drains error readers, clears `err`, enables requests, and publishes Idle.
 
 Only one successful backend is observed at a time. Its Wait result is consumed
 before a replacement factory starts, so a late result cannot clear a replacement.
@@ -229,7 +229,7 @@ handles the command, not when the user clicked the menu.
 | --- | --- | --- |
 | Cancel | Factory exists and Done is not yet closed | Cancel its setup context with ErrResetRequested. Await and publish the factory's actual result. |
 | Disconnect | `value != nil` | Retire the backend; remain unavailable until Wait completes. |
-| Reset | `err != nil` | Retire cached error readers, clear the error, and publish Offline. |
+| Reset | `err != nil` | Retire cached error readers, clear the error, and publish Idle. |
 | Connect | No factory, value, or error | Start shared setup without requiring a network request. |
 
 Other combinations are ignored. A queued Cancel cannot turn into Disconnect,
@@ -271,10 +271,10 @@ The pool subscribes to Lazy's state updates and updates its existing menu items:
 | Connecting | Shared setup started. |
 | Online | The factory returned success; stateless dialers may not have contacted their upstream yet. |
 | Failed | A factory error was cached. |
-| Offline | The previous backend ended, or a cached error was cleared. Wait errors are attached to Offline, not cached as factory failures. |
+| Idle | The previous backend ended, or a cached error was cleared. Wait errors are attached to Idle, not cached as factory failures. |
 
-Construction does not emit an initial Offline update; the pool initializes its
-menu to Offline itself. Delivery is a latest-state mechanism: notify tries an
+Construction does not emit an initial Idle update; the pool initializes its
+menu to Idle itself. Delivery is a latest-state mechanism: notify tries an
 immediate send and otherwise retains one pending snapshot. A newer update can
 replace that pending snapshot, so intermediate notifications are not guaranteed.
 The monitor retries the latest pending update while alive; shutdown can end it

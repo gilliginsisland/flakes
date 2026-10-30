@@ -4,7 +4,7 @@
   pkg-config,
   openconnect_openssl,
   shmring,
-  apple-sdk_15,
+  apple-sdk_26,
   darwinMinVersionHook,
   fetchFromGitLab,
 }:
@@ -63,7 +63,7 @@ in buildGo126Module (final: {
   };
 
   nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ openconnect' shmring apple-sdk_15 (darwinMinVersionHook "14.4") ];
+  buildInputs = [ openconnect' shmring apple-sdk_26 (darwinMinVersionHook "14.4") ];
 
   ldflags = [
     "-w"

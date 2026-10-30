@@ -169,6 +169,15 @@ func (item *MenuItem) SetBadge(badge string) *MenuItem {
 	return item
 }
 
+func (item *MenuItem) SetImage(image *Image) *MenuItem {
+	item.WithPointer(func(itemID unsafe.Pointer) {
+		image.WithPointer(func(imageID unsafe.Pointer) {
+			C.menuet_ns_menu_item_set_image((*C.struct_NSMenuItem)(itemID), (*C.struct_NSImage)(imageID))
+		})
+	})
+	return item
+}
+
 func (item *MenuItem) SetHidden(hidden bool) *MenuItem {
 	item.WithPointer(func(obj unsafe.Pointer) {
 		C.menuet_ns_menu_item_set_hidden((*C.struct_NSMenuItem)(obj), C.bool(hidden))
