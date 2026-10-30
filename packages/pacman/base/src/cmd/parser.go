@@ -11,9 +11,7 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/flagutil"
 )
 
-var opts Opts
-
-type Opts struct {
+var opts struct {
 	ConfigPath app.Path          `short:"c" long:"config" description:"Path to the config file"`
 	LogLevel   flagutil.LogLevel `short:"v" long:"verbosity" description:"Verbosity level"`
 }

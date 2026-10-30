@@ -21,10 +21,10 @@ type Field struct {
 }
 
 func (f *Field) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	v := struct {
+	var v struct {
 		Name  string `xml:"name,attr"`
 		Value string `xml:"value,attr"`
-	}{}
+	}
 	if err := d.DecodeElement(&v, &start); err != nil {
 		return err
 	}

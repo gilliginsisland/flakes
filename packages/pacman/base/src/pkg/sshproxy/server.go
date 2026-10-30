@@ -15,13 +15,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type DirectTCPIPPayload struct {
-	HostToConnect  string
-	PortToConnect  uint32
-	OriginatorIP   string
-	OriginatorPort uint32
-}
-
 // Server is an SSH server that handles proxying through direct-tcpip channels.
 type Server struct {
 	config  *ssh.ServerConfig
@@ -120,7 +113,12 @@ func (s *Server) handleConn(conn net.Conn) {
 
 func (s *Server) handleDirectTCPIP(ctx context.Context, newChan ssh.NewChannel) {
 	// Parse the direct-tcpip request parameters
-	var payload DirectTCPIPPayload
+	var payload struct {
+		HostToConnect  string
+		PortToConnect  uint32
+		OriginatorIP   string
+		OriginatorPort uint32
+	}
 	if err := ssh.Unmarshal(newChan.ExtraData(), &payload); err != nil {
 		newChan.Reject(ssh.ConnectionFailed, err.Error())
 		return
