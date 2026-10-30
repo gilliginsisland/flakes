@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-MATRIX=$(nix eval --json .#actions.matrix | jq -c 'map(.tag = "\(.app)@v\(.version)")')
+MATRIX=$(nix eval --json .#actions.matrix | jq -c 'map(.tag = "\(.app)@v\(.releaseVersion)")')
 
 filter_jobs(){
 	while read -r line; do
@@ -20,7 +20,7 @@ jq -src \
 	<<< "$JOBS"
 
 jq -src \
-	'"release="+(group_by(.app,.version) | map(.[0] | {app,version,changes,tag}) | @json)' \
+	'"release="+(group_by(.app,.tag) | map(.[0] | {app,version,changes,tag}) | @json)' \
 	<<< "$JOBS"
 
 jq -src \

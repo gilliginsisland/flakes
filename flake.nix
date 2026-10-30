@@ -8,7 +8,16 @@
   outputs = { self, nixpkgs }:
     let
       forAllSystems = nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed;
-      loadModulePaths = path: with builtins; mapAttrs (name: value: "${path}/${name}") (readDir path);
+      loadModulePaths = path: builtins.mapAttrs
+        (name: _: { lib, options, pkgs, ... }: {
+          imports = [ "${path}/${name}" ];
+          config = lib.optionalAttrs (lib.hasAttrByPath [ "programs" name "package" ] options) {
+            programs.${name}.package = lib.mkIf
+              (builtins.hasAttr name self.packages.${pkgs.stdenv.hostPlatform.system})
+              (lib.mkDefault self.packages.${pkgs.stdenv.hostPlatform.system}.${name});
+          };
+        })
+        (builtins.readDir path);
       pkgsFor = forAllSystems (system:
         if (nixpkgs.legacyPackages.${system}.config.allowUnfree)
         then nixpkgs.legacyPackages.${system}
@@ -19,7 +28,10 @@
       );
     in {
       homeModules = loadModulePaths "${self}/homeModules";
-      packages = forAllSystems (system: import ./. { pkgs = pkgsFor.${system}; });
+      packages = forAllSystems (system: import ./. {
+        pkgs = pkgsFor.${system};
+        buildDate = self.lastModifiedDate;
+      });
       releases = forAllSystems (system:
         let
           lib = nixpkgs.lib;
@@ -50,6 +62,7 @@
               (app: drv: {
                 inherit runner system app;
                 inherit (drv) version;
+                releaseVersion = drv.releaseVersion or drv.version;
                 changes = drv.meta.changes or [];
                 output = "releases.${system}.${app}";
               })
