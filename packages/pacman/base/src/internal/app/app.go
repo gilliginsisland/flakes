@@ -46,6 +46,8 @@ func Run(config Path, l net.Listener) error {
 	delegate := appkit.NewAppDelegate().
 		SetWillFinishLaunching(func() {
 			center := notifications.CurrentCenter()
+			center.RemoveAllPendingRequests()
+			center.RemoveAllDeliveredNotifications()
 			notificationDelegate.WithPointer(func(obj unsafe.Pointer) {
 				center.SetDelegate(obj)
 			})

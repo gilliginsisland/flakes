@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net/url"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -28,6 +30,8 @@ var failureNotificationCategory = notifications.NewCategory(notifications.Catego
 	},
 	Options: notifications.CategoryOptionCustomDismiss,
 })
+
+var statusNotificationCounter atomic.Uint64
 
 type DialerPool struct {
 	dialers   map[string]*PooledDialer
@@ -54,9 +58,10 @@ type PooledDialer struct {
 	URL     *url.URL
 	updates chan dialer.StateUpdate
 
-	dialer    *dialer.Lazy
-	animation *statusAnimation
-	menu      struct {
+	dialer         *dialer.Lazy
+	animation      *statusAnimation
+	notificationID string
+	menu           struct {
 		*appkit.MenuItem
 		*appkit.Menu
 		input struct {
@@ -142,6 +147,7 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 func (pd *PooledDialer) run() {
 	state := dialer.Offline
 	defer func() {
+		notify.Remove(pd.notificationID)
 		pd.animation.updateState(state, dialer.Offline)
 	}()
 	for {
@@ -191,8 +197,10 @@ func (pd *PooledDialer) icon(state dialer.ConnectionState) string {
 }
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
+	notify.Remove(pd.notificationID)
+	pd.notificationID = fmt.Sprintf("status:%d", statusNotificationCounter.Add(1))
 	notif := notify.Notification{
-		Identifier:          "status:" + pd.Label,
+		Identifier:          pd.notificationID,
 		Title:               pd.Label,
 		PresentationOptions: notifications.PresentationOptionBanner,
 	}
