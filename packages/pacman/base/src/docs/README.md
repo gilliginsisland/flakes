@@ -214,36 +214,36 @@ path: employee-group
 
 #### proxies.<name>.options
 
-**Type:** object mapping option names to strings.
+**Type:** object mapping option names to scalar values (strings, numbers, or booleans).
 
 **Default:** no additional options.
 
-Options are converted to URL query parameters. Quote numeric values in YAML so their string type is explicit; JSON option values must also be strings. The settings below describe the options PACman uses.
+Options are converted to strings for URL query parameters. Numeric values can be written without quotes in YAML and JSON. The settings below describe the options PACman uses.
 
 **Example:**
 
 ```yaml
 options:
-  timeout: "1800"
+  timeout: 1800
 ```
 
 <a id="timeout"></a>
 
 ##### proxies.<name>.options.timeout
 
-**Type:** string containing an integer number of seconds.
+**Type:** integer number of seconds, or a string containing an integer.
 
-**Default:** `"3600"` (one hour).
+**Default:** `3600` (one hour).
 
 **Applies to:** all proxy protocols.
 
-Closes an idle proxy connection after this interval. Use `"0"` to disable idle disconnection. This controls the shared proxy's idle lifetime, rather than the time allowed to establish a connection. An empty or non-integer value leaves the one-hour default in effect.
+Closes an idle proxy connection after this interval. Use `0` to disable idle disconnection. This controls the shared proxy's idle lifetime, rather than the time allowed to establish a connection. An empty or non-integer value leaves the one-hour default in effect.
 
 **Example:**
 
 ```yaml
 options:
-  timeout: "7200"
+  timeout: 7200
 ```
 
 <a id="token"></a>
@@ -369,7 +369,7 @@ proxies:
     path: usergroup
     options:
       token: otp
-      timeout: "0"
+      timeout: 0
   global_protect:
     username: admin
     password: secret
@@ -378,14 +378,14 @@ proxies:
     path: employee-group
     options:
       token: otp
-      timeout: "7200"
+      timeout: 7200
   socks_proxy:
     username: proxyuser
     password: proxypass
     protocol: socks5
     host: proxy.example.com:1080
     options:
-      timeout: "1800"
+      timeout: 1800
   ssh_tunnel:
     username: sshuser
     password: sshpass
@@ -393,7 +393,7 @@ proxies:
     host: proxy.example.com:22
     options:
       identity: /path/to/privatekey
-      timeout: "0"
+      timeout: 0
 
 rules:
   - hosts:

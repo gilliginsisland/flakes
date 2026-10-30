@@ -71,8 +71,7 @@ func (u *URL) UnmarshalJSON(data []byte) error {
 		Path     string            `json:"path"`
 		Options  map[string]string `json:"options"`
 	}
-
-	if err := json.Unmarshal(data, &p); err != nil {
+	if err := yaml.Unmarshal(data, &p); err != nil {
 		return fmt.Errorf("failed to unmarshal URL: %w", err)
 	}
 
