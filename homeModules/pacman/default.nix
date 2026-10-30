@@ -95,8 +95,8 @@ let
         };
 
         options = mkOption {
-          type = types.attrsOf types.str;
-          description = "Extra options for specific proxies";
+          type = types.attrsOf (types.oneOf [types.str types.number types.bool]);
+          description = "Extra options for specific proxies. Values may be strings, numbers, or booleans.";
           default = {};
         };
       };
