@@ -1,0 +1,22 @@
+# github.com/dropbox/dropbox-sdk-go-unofficial/v6 v6.6.2
+## explicit; go 1.25.0
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/async
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/auth
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/common
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/contenthash
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/file_properties
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/files
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/oauth
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/retry
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/team_common
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/team_policies
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/users
+github.com/dropbox/dropbox-sdk-go-unofficial/v6/dropbox/users_common
+# golang.org/x/oauth2 v0.36.0
+## explicit; go 1.25.0
+golang.org/x/oauth2
+golang.org/x/oauth2/internal
+# golang.org/x/sync v0.24.0
+## explicit; go 1.26.0
+golang.org/x/sync/errgroup
