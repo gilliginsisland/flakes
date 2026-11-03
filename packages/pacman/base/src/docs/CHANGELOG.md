@@ -1,3 +1,8 @@
+# v3.3.1
+
+* Support device-id in AnyConnect
+* Update OPSWAT definitions
+___
 # v3.3.0
 
 * Redesigned the proxy menu with live connection status and Connect, Cancel, Disconnect, and Reset controls
