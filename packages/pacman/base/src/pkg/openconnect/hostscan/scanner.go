@@ -14,34 +14,35 @@ func (s *mockScanner) Scan() *Report {
 	r := Report{
 		OS: OS{
 			Version:      "Mac OS X",
-			ServicePack:  "26.4.1",
+			ServicePack:  "27.2",
 			Architecture: "arm64",
 		},
 		Policy: Policy{
 			Location: "Default",
 		},
 		Device: Device{
-			Protection:        "none",
-			ProtectionVersion: "5.1.8.122",
+			Protection:          "none",
+			ProtectionVersion:   "5.1.18.314",
+			ProtectionExtension: "4.3.5495.0",
 		},
 		Enforce: "success",
 		PersonalFireWall: map[string]PersonalFireWall{
 			"100386": {
 				Exists:      true,
 				Description: "Packet Filter (Mac)",
-				Version:     "26.4.1",
+				Version:     "27.2",
 				Enabled:     "ok",
 			},
 			"100250": {
 				Exists:      true,
 				Description: "CrowdStrike Falcon (Mac)",
-				Version:     "7.36.20807.0",
+				Version:     "7.37.20904.0",
 				Enabled:     "ok",
 			},
 			"100022": {
 				Exists:      true,
 				Description: "Mac OS X Builtin Firewall (Mac)",
-				Version:     "26.4.1",
+				Version:     "27.2",
 				Enabled:     "ok",
 			},
 		},
@@ -49,7 +50,7 @@ func (s *mockScanner) Scan() *Report {
 			"100366": {
 				Exists:      true,
 				Description: "Xprotect (Mac)",
-				Version:     "5344",
+				Version:     "5368",
 				Activescan:  "ok",
 				LastUpdate:  545119,
 				Timestamp:   int(time.Now().Unix()) - 545119,
@@ -57,7 +58,7 @@ func (s *mockScanner) Scan() *Report {
 			"100250": {
 				Exists:      true,
 				Description: "CrowdStrike Falcon (Mac)",
-				Version:     "7.36.20807.0",
+				Version:     "7.37.20904.0",
 				Activescan:  "ok",
 				LastUpdate:  9447,
 				Timestamp:   int(time.Now().Unix()) - 9447,
@@ -65,7 +66,7 @@ func (s *mockScanner) Scan() *Report {
 			"100137": {
 				Exists:      true,
 				Description: "Gatekeeper (Mac)",
-				Version:     "26.4.1",
+				Version:     "27.2",
 				Activescan:  "ok",
 			},
 		},
