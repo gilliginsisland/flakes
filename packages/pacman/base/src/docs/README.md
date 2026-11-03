@@ -265,6 +265,25 @@ options:
   token: otp
 ```
 
+##### proxies.<name>.options.platform-version, device-type, unique-id
+
+**Type:** strings.
+
+**Default:** AnyConnect connections use the local device identity detected by the `openconnect.Connect` Go helper. macOS detection reads the OS version, hardware model, and SHA-256 of the hardware UUID directly from system APIs.
+
+**Applies to:** `anyconnect` and `gp`. Automatic identity detection applies to `anyconnect` only.
+
+These options populate the individual fields of OpenConnect's `DeviceIdentity`. If any value is nonempty, the supplied identity is used as-is; omitted fields remain empty. When all three values are empty, the `Connect` helper supplies the default identity. These options are local dialer settings and are not forwarded as gateway URL query parameters.
+
+They can be supplied in a URI query, such as `anyconnect://vpn.example.com?platform-version=27.2.0&device-type=Mac15%2C6&unique-id=EXAMPLE`, or through the proxy's options:
+
+```yaml
+options:
+  platform-version: "27.2.0"
+  device-type: "Mac15,6"
+  unique-id: "EXAMPLE"
+```
+
 ##### proxies.<name>.options.identity
 
 **Type:** string containing a private key file path.

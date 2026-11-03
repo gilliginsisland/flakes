@@ -215,13 +215,19 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		logLevel = openconnect.LogLevelErr
 	}
 
+	query := u.Query()
 	conn, err := openconnect.Connect(ctx, openconnect.Options{
 		Protocol:            openconnect.Protocol(u.Scheme),
 		Server:              fmt.Sprintf("%s%s", u.Host, u.Path),
 		ForceDPD:            5,
 		LogLevel:            logLevel,
 		AllowInsecureCrypto: true,
-		Callbacks:           callbacks,
+		DeviceIdentity: openconnect.DeviceIdentity{
+			PlatformVersion: query.Get("platform-version"),
+			DeviceType:      query.Get("device-type"),
+			UniqueID:        query.Get("unique-id"),
+		},
+		Callbacks: callbacks,
 	})
 	if err != nil {
 		return nil, err

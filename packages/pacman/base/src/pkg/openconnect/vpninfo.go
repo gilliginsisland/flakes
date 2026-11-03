@@ -60,6 +60,7 @@ type Options struct {
 	LogLevel            LogLevel
 	ForceDPD            int
 	AllowInsecureCrypto bool
+	DeviceIdentity      DeviceIdentity
 	Callbacks
 }
 
@@ -132,6 +133,12 @@ func (v *VpnInfo) ParseOpts(opts Options) error {
 	v.Callbacks = opts.Callbacks
 
 	v.SetLogLevel(opts.LogLevel)
+
+	if opts.DeviceIdentity != (DeviceIdentity{}) {
+		if err := v.SetDeviceIdentity(opts.DeviceIdentity); err != nil {
+			return err
+		}
+	}
 
 	if opts.UserAgent != "" {
 		if err := v.SetUserAgent(opts.UserAgent); err != nil {
