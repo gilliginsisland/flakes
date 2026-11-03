@@ -51,6 +51,13 @@ func Connect(ctx context.Context, opts Options) (*Conn, error) {
 	}
 	switch opts.Protocol {
 	case ProtocolAnyConnect:
+		if opts.DeviceIdentity == (DeviceIdentity{}) {
+			identity, err := LocalDeviceIdentity(ctx)
+			if err != nil {
+				return nil, &OpError{Op: "read device identity", Err: err}
+			}
+			opts.DeviceIdentity = identity
+		}
 		if opts.UserAgent == "" {
 			opts.UserAgent = CiscoUserAgent
 		}
