@@ -3,8 +3,8 @@
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
-@property (nonatomic, weak) MenuetCallback *willFinishLaunching;
-@property (nonatomic, weak) MenuetCallback *didFinishLaunching;
+@property(nonatomic, weak) MenuetCallback *willFinishLaunching;
+@property(nonatomic, weak) MenuetCallback *didFinishLaunching;
 
 @end
 

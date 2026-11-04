@@ -1,6 +1,6 @@
 #import "input_view.h"
-#import "EditableNSTextField.h"
 #import "../core/core.h"
+#import "EditableNSTextField.h"
 
 #include <string.h>
 

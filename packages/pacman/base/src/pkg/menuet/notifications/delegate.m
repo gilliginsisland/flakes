@@ -2,14 +2,14 @@
 #import "../core/core.h"
 
 @interface MenuetNotificationDelegate : NSObject <UNUserNotificationCenterDelegate>
-@property (weak) MenuetCallback *responseCallback;
+@property(weak) MenuetCallback *responseCallback;
 @end
 
 @implementation MenuetNotificationDelegate
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
-	didReceiveNotificationResponse:(UNNotificationResponse *)response
-	withCompletionHandler:(void (^)(void))completionHandler {
+    didReceiveNotificationResponse:(UNNotificationResponse *)response
+             withCompletionHandler:(void (^)(void))completionHandler {
 	// MenuetCallback passes an owned reference into Go. The response wrapper
 	// keeps it alive after this delegate method and its completion return.
 	[self.responseCallback invoke:response];
@@ -17,16 +17,13 @@
 }
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
-	willPresentNotification:(UNNotification *)notification
-	withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
+       willPresentNotification:(UNNotification *)notification
+         withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completionHandler {
 	NSNumber *options = notification.request.content.userInfo[@"presentationOptions"];
 	if ([options isKindOfClass:NSNumber.class]) {
 		completionHandler((UNNotificationPresentationOptions)options.unsignedIntegerValue);
 	} else {
-		completionHandler(UNNotificationPresentationOptionBadge |
-			UNNotificationPresentationOptionSound |
-			UNNotificationPresentationOptionList |
-			UNNotificationPresentationOptionBanner);
+		completionHandler(UNNotificationPresentationOptionBadge | UNNotificationPresentationOptionSound | UNNotificationPresentationOptionList | UNNotificationPresentationOptionBanner);
 	}
 }
 

@@ -4,13 +4,17 @@
 
 struct NSBundle *menuet_ns_bundle_main(void) {
 	__block NSBundle *result;
-	menuet_on_main(^{ result = NSBundle.mainBundle; });
+	menuet_on_main(^{
+		result = NSBundle.mainBundle;
+	});
 	return (__bridge_retained struct NSBundle *)result;
 }
 
 struct NSBundle *menuet_ns_bundle_with_path(const char *path) {
 	__block NSBundle *result;
-	menuet_on_main(^{ result = [NSBundle bundleWithPath:[NSString stringWithUTF8String:path]]; });
+	menuet_on_main(^{
+		result = [NSBundle bundleWithPath:[NSString stringWithUTF8String:path]];
+	});
 	return (__bridge_retained struct NSBundle *)result;
 }
 
@@ -37,6 +41,8 @@ bool menuet_ns_bundle_load(struct NSBundle *bundle, char **message) {
 
 void *menuet_ns_bundle_principal_class(struct NSBundle *bundle) {
 	__block Class result;
-	menuet_on_main(^{ result = ((__bridge NSBundle *)bundle).principalClass; });
+	menuet_on_main(^{
+		result = ((__bridge NSBundle *)bundle).principalClass;
+	});
 	return (__bridge void *)result;
 }
