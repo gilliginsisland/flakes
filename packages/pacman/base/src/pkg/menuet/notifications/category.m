@@ -7,10 +7,10 @@ struct UNNotificationCategory *menuet_un_category_new(const char *identifier, st
 			[values addObject:(__bridge UNNotificationAction *)actions[index]];
 		}
 		UNNotificationCategory *result = [UNNotificationCategory
-			categoryWithIdentifier:[NSString stringWithUTF8String:identifier]
-			actions:values
-			intentIdentifiers:@[]
-			options:options];
+		    categoryWithIdentifier:[NSString stringWithUTF8String:identifier]
+		                   actions:values
+		         intentIdentifiers:@[]
+		                   options:options];
 		return (__bridge_retained struct UNNotificationCategory *)result;
 	}
 }

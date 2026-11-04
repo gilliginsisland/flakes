@@ -40,6 +40,6 @@ void menuet_un_content_set_interruption_level(struct UNMutableNotificationConten
 
 void menuet_un_content_set_presentation_options(struct UNMutableNotificationContent *content, UNNotificationPresentationOptions value) {
 	@autoreleasepool {
-		((__bridge UNMutableNotificationContent *)content).userInfo = @{ @"presentationOptions": @(value) };
+		((__bridge UNMutableNotificationContent *)content).userInfo = @{@"presentationOptions" : @(value)};
 	}
 }

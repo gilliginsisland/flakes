@@ -87,7 +87,7 @@ void menuet_ns_menu_item_set_badge(struct NSMenuItem *item, const char *badge) {
 		NSMenuItemBadge *nsbadge = nil;
 		if (badge[0]) {
 			nsbadge =
-				[[NSMenuItemBadge alloc] initWithString:[NSString stringWithUTF8String:badge]];
+			    [[NSMenuItemBadge alloc] initWithString:[NSString stringWithUTF8String:badge]];
 		}
 		((__bridge NSMenuItem *)item).badge = nsbadge;
 	});
@@ -112,12 +112,13 @@ void menuet_ns_menu_item_pop_up_menu(struct NSMenuItem *item, struct NSStatusIte
 		NSStatusBarButton *button = ((__bridge NSStatusItem *)status).button;
 		// Wait for previous menu tracking to unwind. Run outside the main dispatch
 		// queue so Go callbacks can synchronously read input and dismiss the menu.
-		[[NSRunLoop mainRunLoop] performInModes:@[NSDefaultRunLoopMode] block:^{
-			if (!value.hidden && value.menu && value.view == view && !view.window) {
-				[NSApp activateIgnoringOtherApps:YES];
-				[value.menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, 0) inView:button];
-			}
-		}];
+		[[NSRunLoop mainRunLoop] performInModes:@[ NSDefaultRunLoopMode ]
+		                                  block:^{
+			                                  if (!value.hidden && value.menu && value.view == view && !view.window) {
+				                                  [NSApp activateIgnoringOtherApps:YES];
+				                                  [value.menu popUpMenuPositioningItem:nil atLocation:NSMakePoint(0, 0) inView:button];
+			                                  }
+		                                  }];
 	});
 }
 
