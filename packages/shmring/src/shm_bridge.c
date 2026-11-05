@@ -109,7 +109,7 @@ ssize_t shm_bridge_read(struct shm_bridge *bridge, void *data, size_t size) {
 	ssize_t ret;
 	int err;
 
-	ret = shm_ring_pop(bridge->rx, data, size);
+	ret = shm_ring_read(bridge->rx, data, size);
 	if (ret < 0)
 		return ret;
 	err = shm_bridge_signal(bridge, &bridge->rx->pending, SHM_RING_WRITE_PENDING);
@@ -122,7 +122,7 @@ ssize_t shm_bridge_write(struct shm_bridge *bridge, const void *data, size_t siz
 
 	if (!size)
 		return 0;
-	ret = shm_ring_commit(bridge->tx, data, size);
+	ret = shm_ring_write(bridge->tx, data, size);
 	if (ret < 0)
 		return ret;
 	err = shm_bridge_signal(bridge, &bridge->tx->pending, SHM_RING_READ_PENDING);

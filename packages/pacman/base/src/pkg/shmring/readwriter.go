@@ -70,14 +70,14 @@ func (p *ReadWriter) finishPoll(wakeup chan<- struct{}) {
 }
 
 func (p *ReadWriter) Read(b []byte) (int, error) {
-	return p.transfer(b, p.Bridge.Pop, ErrEmpty, p.read, p.write)
+	return p.transfer(b, p.Bridge.Read, ErrEmpty, p.read, p.write)
 }
 
 func (p *ReadWriter) Write(b []byte) (int, error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
-	return p.transfer(b, p.Bridge.Commit, ErrFull, p.write, p.read)
+	return p.transfer(b, p.Bridge.Write, ErrFull, p.write, p.read)
 }
 
 func (p *ReadWriter) transfer(

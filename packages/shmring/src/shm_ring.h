@@ -44,13 +44,12 @@ void shm_ring_close_write(struct shm_ring *ring);
 
 /* Consumer: copy and remove one record without blocking. Returns its byte count,
  * -EAGAIN when empty, -EPIPE when drained after write closure, or -EMSGSIZE when
- * the record exceeds the destination or ring capacity. Failure leaves the
- * record in the ring. */
-ssize_t shm_ring_pop(struct shm_ring *ring, void *data, size_t size);
+ * the destination is too small. Failure leaves the record in the ring. */
+ssize_t shm_ring_read(struct shm_ring *ring, void *data, size_t size);
 
 /* Producer: copy and publish one record without blocking. Returns its byte count,
  * -EAGAIN when full, -EPIPE when the reader has closed, or -EMSGSIZE when size
  * exceeds record_size. Failure leaves the ring unchanged. */
-ssize_t shm_ring_commit(struct shm_ring *ring, const void *data, size_t size);
+ssize_t shm_ring_write(struct shm_ring *ring, const void *data, size_t size);
 
 #endif
