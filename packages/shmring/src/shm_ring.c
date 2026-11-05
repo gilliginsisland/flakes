@@ -52,7 +52,7 @@ static unsigned char *record_slot(struct shm_ring *ring, uint64_t index)
 	return ring->slots + (index & (ring->capacity - 1)) * ring->stride;
 }
 
-ssize_t shm_ring_pop(struct shm_ring *ring, void *data, size_t size)
+ssize_t shm_ring_read(struct shm_ring *ring, void *data, size_t size)
 {
 	uint64_t tail = __atomic_load_n(&ring->tail, __ATOMIC_SEQ_CST);
 	uint64_t head = __atomic_load_n(&ring->head, __ATOMIC_SEQ_CST);
@@ -67,20 +67,22 @@ ssize_t shm_ring_pop(struct shm_ring *ring, void *data, size_t size)
 	}
 	slot = record_slot(ring, tail);
 	memcpy(&length, slot, sizeof(length));
-	if (!length || length > ring->record_size || length > size)
+	if (length > size)
 		return -EMSGSIZE;
 	memcpy(data, slot + sizeof(length), length);
 	__atomic_store_n(&ring->tail, (tail + 1) & SHM_RING_COUNT_MASK, __ATOMIC_SEQ_CST);
 	return length;
 }
 
-ssize_t shm_ring_commit(struct shm_ring *ring, const void *data, size_t size)
+ssize_t shm_ring_write(struct shm_ring *ring, const void *data, size_t size)
 {
 	uint64_t head = __atomic_load_n(&ring->head, __ATOMIC_SEQ_CST);
 	uint64_t tail = __atomic_load_n(&ring->tail, __ATOMIC_SEQ_CST);
 	uint32_t length;
 	unsigned char *slot;
 
+	if (!size)
+		return 0;
 	if (tail & SHM_RING_CLOSED_BIT)
 		return -EPIPE;
 	if (size > ring->record_size)

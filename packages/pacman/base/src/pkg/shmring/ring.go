@@ -55,14 +55,14 @@ func (r *Ring) slot(index uint64) unsafe.Pointer {
 	)
 }
 
-// Pop copies and removes one record, or returns ErrEmpty without blocking.
-// After the writer closes, it drains published records before returning io.EOF.
-// A short destination returns io.ErrShortBuffer and leaves the record in place.
-func (r *Ring) Pop(b []byte) (int, error) {
+// WriteOneTo writes one record directly to w, calling Write once. The slot is
+// released only if the entire record is accepted without an error. A failed or
+// short write leaves the whole record queued. Writers must not retain or modify
+// the supplied bytes.
+func (r *Ring) WriteOneTo(w io.Writer) (int, error) {
 	tail := atomic.LoadUint64((*uint64)(&r.tail))
 	head := atomic.LoadUint64((*uint64)(&r.head))
 	if tail == head&C.SHM_RING_COUNT_MASK {
-		// The closed flag and final producer count are one atomic snapshot.
 		if head&C.SHM_RING_CLOSED_BIT != 0 {
 			return 0, io.EOF
 		}
@@ -70,33 +70,80 @@ func (r *Ring) Pop(b []byte) (int, error) {
 	}
 	slot := r.slot(tail)
 	size := *(*uint32)(slot)
-	if size == 0 || size > uint32(r.record_size) || uint64(size) > uint64(len(b)) {
-		return 0, io.ErrShortBuffer
+	n, err := w.Write(unsafe.Slice((*byte)(unsafe.Add(slot, unsafe.Sizeof(size))), int(size)))
+	if n < 0 || n > int(size) {
+		return 0, io.ErrShortWrite
 	}
-	n := copy(b, unsafe.Slice((*byte)(unsafe.Add(slot, unsafe.Sizeof(size))), int(size)))
+	if err != nil {
+		return n, err
+	}
+	if n != int(size) {
+		return n, io.ErrShortWrite
+	}
 	atomic.StoreUint64((*uint64)(&r.tail), (tail+1)&C.SHM_RING_COUNT_MASK)
 	return n, nil
 }
 
-// Commit copies and publishes one record, or returns ErrFull without blocking.
-// A closed reader returns io.ErrClosedPipe. Oversized records return
-// io.ErrShortBuffer. Failure leaves the ring unchanged.
-func (r *Ring) Commit(b []byte) (int, error) {
+// ReadOneFrom reads one record directly into an unpublished slot, calling read
+// once. The reader must return one complete record and must not retain the
+// supplied storage. Errors, including EOF, leave the slot unpublished and the
+// producer position unchanged, even when bytes were written into the slot.
+// A zero-byte read without an error is a no-op.
+func (r *Ring) ReadOneFrom(read func([]byte) (int, error)) (int, error) {
 	head := atomic.LoadUint64((*uint64)(&r.head))
 	tail := atomic.LoadUint64((*uint64)(&r.tail))
 	if tail&C.SHM_RING_CLOSED_BIT != 0 {
 		return 0, io.ErrClosedPipe
 	}
-	if uint64(len(b)) > uint64(r.record_size) {
-		return 0, io.ErrShortBuffer
-	}
 	if (head-tail)&C.SHM_RING_COUNT_MASK == uint64(r.capacity) {
 		return 0, ErrFull
 	}
 	slot := r.slot(head)
-	size := uint32(len(b))
-	copy(unsafe.Slice((*byte)(unsafe.Add(slot, unsafe.Sizeof(size))), len(b)), b)
-	*(*uint32)(slot) = size
+	dst := unsafe.Slice((*byte)(unsafe.Add(slot, unsafe.Sizeof(uint32(0)))), int(r.record_size))
+	n, err := read(dst)
+	if n < 0 || n > len(dst) {
+		return 0, io.ErrShortBuffer
+	}
+	if err != nil {
+		return n, err
+	}
+	if n == 0 {
+		return 0, nil
+	}
+	*(*uint32)(slot) = uint32(n)
 	atomic.StoreUint64((*uint64)(&r.head), (head+1)&C.SHM_RING_COUNT_MASK)
-	return len(b), nil
+	return n, nil
+}
+
+// Read copies one complete record. A short destination leaves the record in
+// place. ErrEmpty means no record is available. One consumer only.
+func (r *Ring) Read(dst []byte) (int, error) {
+	return r.WriteOneTo(byteSlice(dst))
+}
+
+// Write copies one complete record. Oversized or empty writes leave the ring
+// unchanged. ErrFull means no slot is available. One producer only.
+func (r *Ring) Write(src []byte) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
+	}
+	return r.ReadOneFrom(byteSlice(src).Read)
+}
+
+// byteSlice adapts a caller's buffer for a single record transfer. It neither
+// allocates storage nor advances a cursor; short buffers leave it unchanged.
+type byteSlice []byte
+
+func (b byteSlice) Read(dst []byte) (int, error) {
+	if len(dst) < len(b) {
+		return 0, io.ErrShortBuffer
+	}
+	return copy(dst, b), nil
+}
+
+func (b byteSlice) Write(src []byte) (int, error) {
+	if len(b) < len(src) {
+		return 0, io.ErrShortBuffer
+	}
+	return copy(b, src), nil
 }
