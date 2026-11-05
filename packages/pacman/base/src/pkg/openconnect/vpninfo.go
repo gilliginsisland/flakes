@@ -31,12 +31,16 @@ const (
 )
 
 type Callbacks struct {
-	ValidatePeerCert   func(cert string) bool
-	ProcessAuthForm    func(form *AuthForm) error
-	ProcessCSD         func(info CSDInfo) error
-	Progress           func(level LogLevel, message string)
+	ValidatePeerCert func(cert string) bool
+	ProcessAuthForm  func(form *AuthForm) error
+	ProcessCSD       func(info CSDInfo) error
+	Progress         func(level LogLevel, message string)
+	// ExternalBrowser launches a browser and returns without waiting for authentication.
 	ExternalBrowser    func(uri string) error
 	ReconnectedHandler func()
+	// CookieObtained runs synchronously in Connect after successful cookie acquisition,
+	// before tunnel negotiation. Calling VpnInfo.ObtainCookie directly does not invoke it.
+	CookieObtained func(cookie string)
 	// SetupTunHandler runs synchronously before native packet processing.
 	// Installing a tunnel fd here replaces the default device/script setup.
 	// An error aborts setup and is returned by MainLoop.
@@ -301,6 +305,10 @@ func (v *VpnInfo) ObtainCookie() error {
 	default:
 		return err
 	}
+}
+
+func (v *VpnInfo) GetCookie() string {
+	return C.GoString(C.openconnect_get_cookie(v.vpninfo))
 }
 
 func (v *VpnInfo) SetupCmdPipe() (*CMDPipe, error) {

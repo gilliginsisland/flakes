@@ -10,33 +10,17 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
-	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/openconnect/hostscan"
 	"github.com/gilliginsisland/pacman/pkg/stackutil"
-	"github.com/gilliginsisland/pacman/pkg/xdg"
 )
 
-var NotificationCategories = []*notifications.Category{
-	notifications.NewCategory(notifications.CategoryContent{
-		Identifier: "external-browser-auth",
-		Actions: []*notifications.Action{
-			notifications.NewAction(notifications.ActionContent{
-				Identifier: "external-browser-auth-open",
-				Title:      "Open",
-				Options:    notifications.ActionOptionForeground,
-			}),
-		},
-		Options: notifications.CategoryOptionCustomDismiss,
-	}),
-}
-
 type callbacks struct {
-	url   *url.URL
-	ctx   context.Context
-	cp    openconnect.CredentialsProcessor
-	label string
+	url    *url.URL
+	ctx    context.Context
+	cp     openconnect.CredentialsProcessor
+	label  string
+	cancel context.CancelCauseFunc
 }
 
 func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
@@ -62,24 +46,18 @@ func (cb *callbacks) DebugLog(msg string, xtras ...slog.Attr) {
 	slog.LogAttrs(context.Background(), slog.LevelDebug, msg, xtras...)
 }
 
-func (cb *callbacks) ExternalBrowser(uri string) error {
-	resp, err := notify.NotifyCtx(cb.ctx, notify.Notification{
-		CategoryIdentifier: "external-browser-auth",
-		Title:              cb.label,
-		Subtitle:           "Authentication Required",
-		Body:               "Click to complete authentication in browser",
-		InterruptionLevel:  notifications.InterruptionLevelTimeSensitive,
-	})
-	if err != nil {
-		cb.DebugLog("ExternalBrowser ctx cancelled", slog.Any("error", err))
-		return err
+func (cb *callbacks) ExternalBrowser(ctx context.Context, uri string) (err error) {
+	defer func() {
+		// Cookie acquisition cancels the browser context when authentication finishes.
+		// That expected closure must not cancel the connection's context.
+		if err != nil && !errors.Is(err, ctx.Err()) {
+			cb.cancel(err)
+		}
+	}()
+	if DefaultBrowserProvider == nil {
+		return errors.New("browser authentication provider is not configured")
 	}
-	if resp.ActionIdentifier == notifications.DismissActionIdentifier {
-		err = errors.New("ExternalBrowser user cancelled")
-		cb.DebugLog("ExternalBrowser user cancelled", slog.Any("error", err))
-		return err
-	}
-	return xdg.Run(uri)
+	return DefaultBrowserProvider.Browser(ctx, uri)
 }
 
 func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) error {
@@ -163,31 +141,47 @@ type Dialer struct {
 	*openconnect.Conn
 }
 
-func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
-	cb := callbacks{
-		url: u,
-		ctx: ctx,
-	}
+func NewDialer(ctx context.Context, u *url.URL) (_ *Dialer, err error) {
+	cb := callbacks{url: u}
+	cb.ctx, cb.cancel = context.WithCancelCause(context.WithoutCancel(ctx))
+	stop := context.AfterFunc(ctx, func() {
+		cb.cancel(context.Cause(ctx))
+	})
+	defer stop()
 	if l, _ := cb.ctx.Value("label").(string); l != "" {
 		cb.label = l
 	} else {
 		cb.label = cb.url.Redacted()
 	}
 
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-
 	var (
 		conn  *openconnect.Conn
 		d     *Dialer
-		setup = make(chan struct{})
+		ready = make(chan struct{})
 	)
+	defer func() {
+		if err == nil {
+			return
+		}
+		cb.cancel(err)
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+	browserCtx, browserClose := context.WithCancel(cb.ctx)
+	defer browserClose()
 	callbacks := openconnect.Callbacks{
 		Progress: cb.Progress,
 		ProcessAuthForm: (&openconnect.AggregateProcessor{
 			openconnect.LoggerFunc(cb.DebugLog), &cb,
 		}).ProcessForm,
-		ExternalBrowser: cb.ExternalBrowser,
+		ExternalBrowser: func(uri string) error {
+			go cb.ExternalBrowser(browserCtx, uri)
+			return nil
+		},
+		CookieObtained: func(string) {
+			browserClose()
+		},
 		ValidatePeerCert: func(cert string) bool {
 			return true
 		},
@@ -195,9 +189,9 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 			// Native startup delays this callback until initial MTU detection ends.
 			var err error
 			if d, err = WithConn(conn); err != nil {
-				cancel(err)
+				cb.cancel(err)
 			}
-			close(setup)
+			close(ready)
 			return err
 		},
 	}
@@ -216,7 +210,7 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 	}
 
 	query := u.Query()
-	conn, err := openconnect.Connect(ctx, openconnect.Options{
+	conn, err = openconnect.Connect(cb.ctx, openconnect.Options{
 		Protocol:            openconnect.Protocol(u.Scheme),
 		Server:              fmt.Sprintf("%s%s", u.Host, u.Path),
 		ForceDPD:            5,
@@ -230,31 +224,26 @@ func NewDialer(ctx context.Context, u *url.URL) (*Dialer, error) {
 		Callbacks: callbacks,
 	})
 	if err != nil {
+		if cause := context.Cause(cb.ctx); cause != nil {
+			err = cause
+		}
 		return nil, err
 	}
-
-	// Setup cancellation closes the native loop, but must be detached before
-	// returning a tunnel whose lifetime is independent of this request.
-	stop := context.AfterFunc(ctx, func() {
-		conn.Close()
-	})
-	defer stop()
 
 	if err = conn.Run(); err != nil {
 		return nil, err
 	}
 
 	select {
-	case <-setup:
+	case <-ready:
 	case <-conn.Done():
-		cancel(conn.Wait())
-	case <-ctx.Done():
+		cb.cancel(conn.Wait())
+	case <-cb.ctx.Done():
 	}
 	if !stop() {
-		return nil, context.Cause(ctx)
+		cb.cancel(context.Cause(ctx))
 	}
-	if err = context.Cause(ctx); err != nil {
-		conn.Close()
+	if err = context.Cause(cb.ctx); err != nil {
 		return nil, err
 	}
 	return d, nil

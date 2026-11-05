@@ -51,7 +51,7 @@ func Run(config Path, l net.Listener) error {
 			notificationDelegate.WithPointer(func(obj unsafe.Pointer) {
 				center.SetDelegate(obj)
 			})
-			center.SetCategories(append(oc.NotificationCategories, inputNotificationCategory, failureNotificationCategory))
+			center.SetCategories([]*notifications.Category{inputNotificationCategory, failureNotificationCategory})
 			center.RequestAuthorization(notifications.AuthorizationOptionAlert |
 				notifications.AuthorizationOptionSound |
 				notifications.AuthorizationOptionBadge)
@@ -117,6 +117,7 @@ func run(config Path, l net.Listener) error {
 	}
 	pacman.pool.fwd = &pacman.dialer
 	oc.DefaultInputProvider = &pacman
+	oc.DefaultBrowserProvider = &pacman
 	pacman.menu = newAppKitMenu(&pacman, plugins)
 	pacman.pool.callback = pacman.menu.callback
 	pacman.pool.animation = newStatusAnimation(pacman.menu.status)

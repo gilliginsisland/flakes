@@ -58,6 +58,8 @@ For a VPN configured with [options.token: otp](proxies.html#token), PACman asks 
 
 PACman appends the entered OTP to your configured password. This flow uses the YubiKey's OTP typing feature; it does not read a code from the key automatically. Notification permission enables the notification prompt and reply, while the menu input provides another way to respond if you miss the notification.
 
+For browser-based VPN authentication, PACman automatically opens a system browser authentication session using your existing browser login state. Login methods and extensions are handled by the browser and depend on its support for authentication windows. The window closes when VPN authentication completes, setup is cancelled, or the connection's two-minute setup deadline expires. Dismissing the authentication window cancels connection setup.
+
 ### When a Connection Fails
 
 If a proxy or VPN fails to start, PACman marks it **Failed** and remembers the error. New requests do not keep retrying that failed setup. This helps avoid repeated authentication attempts that could lock your account.
