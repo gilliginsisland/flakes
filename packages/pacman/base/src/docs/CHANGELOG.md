@@ -1,3 +1,7 @@
+# v3.3.2
+
+* VPN browser authentication on macOS now uses a dedicated authentication window that closes when sign-in finishes, without opening extra browser tabs
+___
 # v3.3.1
 
 * Support device-id in AnyConnect
