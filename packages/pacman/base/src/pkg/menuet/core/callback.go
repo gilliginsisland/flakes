@@ -30,17 +30,16 @@ type Callback struct {
 	obj *C.struct_MenuetCallback
 }
 
-var callbacks syncutil.Map[uintptr, CallbackFunc]
+var callbacks syncutil.Map[*C.struct_MenuetCallback, CallbackFunc]
 
 func NewCallback(fn CallbackFunc) *Callback {
 	callback := &Callback{obj: C.menuet_callback_new()}
-	pointer := unsafe.Pointer(callback.obj)
-	callbacks.Store(uintptr(pointer), fn)
-	runtime.AddCleanup(callback, func(pointer unsafe.Pointer) {
+	callbacks.Store(callback.obj, fn)
+	runtime.AddCleanup(callback, func(obj *C.struct_MenuetCallback) {
 		// Remove the mapping before release allows the native address to be reused.
-		callbacks.Delete(uintptr(pointer))
-		Release(pointer)
-	}, pointer)
+		callbacks.Delete(obj)
+		Release(unsafe.Pointer(obj))
+	}, callback.obj)
 	return callback
 }
 
@@ -60,11 +59,11 @@ func (callback *Callback) Selector() Selector {
 }
 
 //export menuet_core_invoke_callback
-func menuet_core_invoke_callback(pointer uintptr, value unsafe.Pointer) {
+func menuet_core_invoke_callback(pointer *C.struct_MenuetCallback, value *C.struct_NSObject) {
 	callback, ok := callbacks.Load(pointer)
 	if !ok {
-		Release(value)
+		Release(unsafe.Pointer(value))
 		return
 	}
-	callback(Sender{obj: (*C.struct_NSObject)(value)})
+	callback(Sender{obj: value})
 }

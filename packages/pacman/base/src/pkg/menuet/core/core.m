@@ -19,7 +19,7 @@ void menuet_on_main(void (^block)(void)) {
 @implementation MenuetCallback
 
 - (void)invoke:(NSObject *)sender {
-	menuet_core_invoke_callback((uintptr_t)(__bridge void *)self, (__bridge_retained void *)sender);
+	menuet_core_invoke_callback((__bridge struct MenuetCallback *)self, (__bridge_retained struct NSObject *)sender);
 }
 
 @end
