@@ -24,14 +24,3 @@ func ClearColor() *Color {
 	runtime.AddCleanup(color, core.Release, unsafe.Pointer(color.obj))
 	return color
 }
-
-// WithPointer calls fn synchronously while keeping the color alive.
-// A nil color passes a nil pointer to fn.
-func (color *Color) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(color)
-	var obj unsafe.Pointer
-	if color != nil {
-		obj = unsafe.Pointer(color.obj)
-	}
-	fn(obj)
-}

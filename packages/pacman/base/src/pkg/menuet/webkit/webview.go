@@ -50,14 +50,3 @@ func (view *WebView) LoadRequest(request unsafe.Pointer) {
 	defer runtime.KeepAlive(view)
 	C.menuet_wk_web_view_load_request(view.obj, (*C.struct_NSURLRequest)(request))
 }
-
-// WithPointer calls fn synchronously while keeping the web view alive.
-// A nil web view passes a nil pointer to fn.
-func (view *WebView) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(view)
-	var obj unsafe.Pointer
-	if view != nil {
-		obj = unsafe.Pointer(view.obj)
-	}
-	fn(obj)
-}

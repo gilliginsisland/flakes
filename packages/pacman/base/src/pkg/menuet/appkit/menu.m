@@ -170,9 +170,9 @@ void menuet_ns_menu_item_set_target(struct NSMenuItem *item, void *target) {
 	});
 }
 
-void menuet_ns_menu_item_set_action(struct NSMenuItem *item, uintptr_t action) {
+void menuet_ns_menu_item_set_action(struct NSMenuItem *item, struct objc_selector *action) {
 	menuet_on_main(^{
-		((__bridge NSMenuItem *)item).action = (SEL)(void *)action;
+		((__bridge NSMenuItem *)item).action = (SEL)action;
 	});
 }
 

@@ -18,13 +18,17 @@ type String struct {
 func NewString(value string) *String {
 	text := C.CString(value)
 	defer C.free(unsafe.Pointer(text))
-	return StringFromPointer(unsafe.Pointer(C.menuet_ns_string_new(text)))
+	return newString(C.menuet_ns_string_new(text))
 }
 
 // StringFromPointer takes ownership of a retained NSString reference.
 func StringFromPointer(pointer unsafe.Pointer) *String {
-	value := &String{obj: (*C.struct_NSString)(pointer)}
-	runtime.AddCleanup(value, Release, pointer)
+	return newString((*C.struct_NSString)(pointer))
+}
+
+func newString(obj *C.struct_NSString) *String {
+	value := &String{obj: obj}
+	runtime.AddCleanup(value, Release, unsafe.Pointer(obj))
 	return value
 }
 
@@ -41,10 +45,8 @@ func (s *String) WithPointer(fn func(unsafe.Pointer)) {
 }
 
 func (s *String) String() string {
-	var value *C.char
-	s.WithPointer(func(obj unsafe.Pointer) {
-		value = C.menuet_ns_string_value((*C.struct_NSString)(obj))
-	})
+	defer runtime.KeepAlive(s)
+	value := C.menuet_ns_string_value(s.obj)
 	defer C.free(unsafe.Pointer(value))
 	return C.GoString(value)
 }

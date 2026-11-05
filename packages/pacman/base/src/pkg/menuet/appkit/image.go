@@ -18,13 +18,12 @@ import (
 
 type Image struct{ obj *C.struct_NSImage }
 
-// WithPointer calls fn synchronously while keeping the image alive.
-// A nil image passes a nil pointer to fn.
-func (image *Image) WithPointer(fn func(unsafe.Pointer)) {
+// withPointer permits nil images when clearing menu-item and status-item images.
+func (image *Image) withPointer(fn func(*C.struct_NSImage)) {
 	defer runtime.KeepAlive(image)
-	var obj unsafe.Pointer
+	var obj *C.struct_NSImage
 	if image != nil {
-		obj = unsafe.Pointer(image.obj)
+		obj = image.obj
 	}
 	fn(obj)
 }
