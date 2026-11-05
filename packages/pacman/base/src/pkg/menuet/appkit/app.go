@@ -48,52 +48,35 @@ func SharedApplication() *Application {
 
 // Run runs the application loop on the main goroutine.
 func (application *Application) Run() {
-	application.WithPointer(func(obj unsafe.Pointer) {
-		C.menuet_ns_application_run((*C.struct_NSApplication)(obj))
-	})
+	defer runtime.KeepAlive(application)
+	C.menuet_ns_application_run(application.obj)
 }
 
 func (application *Application) Terminate() {
-	application.WithPointer(func(obj unsafe.Pointer) {
-		C.menuet_ns_application_terminate((*C.struct_NSApplication)(obj))
-	})
+	defer runtime.KeepAlive(application)
+	C.menuet_ns_application_terminate(application.obj)
 }
 
 func (application *Application) ShowHelp() {
-	application.WithPointer(func(obj unsafe.Pointer) {
-		C.menuet_ns_application_show_help((*C.struct_NSApplication)(obj))
-	})
+	defer runtime.KeepAlive(application)
+	C.menuet_ns_application_show_help(application.obj)
 }
 
 // SetDelegate assigns a weak Objective-C reference. The caller must keep its
 // Go delegate wrapper alive while the application uses it.
 func (application *Application) SetDelegate(delegate unsafe.Pointer) *Application {
-	application.WithPointer(func(obj unsafe.Pointer) {
-		C.menuet_ns_application_set_delegate((*C.struct_NSApplication)(obj), delegate)
-	})
+	defer runtime.KeepAlive(application)
+	C.menuet_ns_application_set_delegate(application.obj, delegate)
 	return application
 }
 
 func (application *Application) SetActivationPolicy(policy ActivationPolicy) *Application {
-	application.WithPointer(func(obj unsafe.Pointer) {
-		C.menuet_ns_application_set_activation_policy((*C.struct_NSApplication)(obj), C.NSApplicationActivationPolicy(policy))
-	})
+	defer runtime.KeepAlive(application)
+	C.menuet_ns_application_set_activation_policy(application.obj, C.NSApplicationActivationPolicy(policy))
 	return application
 }
 
 func (application *Application) ActivateIgnoringOtherApps(flag bool) {
-	application.WithPointer(func(obj unsafe.Pointer) {
-		C.menuet_ns_application_activate_ignoring_other_apps((*C.struct_NSApplication)(obj), C.bool(flag))
-	})
-}
-
-// WithPointer calls fn synchronously while keeping the application alive.
-// A nil application passes a nil pointer to fn.
-func (application *Application) WithPointer(fn func(unsafe.Pointer)) {
 	defer runtime.KeepAlive(application)
-	var obj unsafe.Pointer
-	if application != nil {
-		obj = unsafe.Pointer(application.obj)
-	}
-	fn(obj)
+	C.menuet_ns_application_activate_ignoring_other_apps(application.obj, C.bool(flag))
 }

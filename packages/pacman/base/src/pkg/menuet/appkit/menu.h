@@ -8,6 +8,7 @@ struct NSMenu;
 struct NSMenuItem;
 struct NSStatusItem;
 struct NSImage;
+struct objc_selector;
 
 // The caller owns each retained item and must free the raw array separately.
 typedef struct menuet_ns_menu_item_array {
@@ -40,7 +41,7 @@ void menuet_ns_menu_item_set_tag(struct NSMenuItem *item, NSInteger tag);
 struct NSMenu *menuet_ns_menu_item_submenu(struct NSMenuItem *item);
 void menuet_ns_menu_item_set_submenu(struct NSMenuItem *item, struct NSMenu *menu);
 void menuet_ns_menu_item_set_target(struct NSMenuItem *item, void *target);
-void menuet_ns_menu_item_set_action(struct NSMenuItem *item, uintptr_t action);
+void menuet_ns_menu_item_set_action(struct NSMenuItem *item, struct objc_selector *action);
 
 struct NSStatusItem *menuet_ns_status_item_new(void);
 

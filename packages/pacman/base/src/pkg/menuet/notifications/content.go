@@ -44,17 +44,6 @@ func NewContent() *Content {
 	return content
 }
 
-// WithPointer calls fn synchronously while keeping the content alive.
-// A nil content passes a nil pointer to fn.
-func (content *Content) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(content)
-	var obj unsafe.Pointer
-	if content != nil {
-		obj = unsafe.Pointer(content.obj)
-	}
-	fn(obj)
-}
-
 func (content *Content) SetCategoryIdentifier(text string) *Content {
 	defer runtime.KeepAlive(content)
 	value := C.CString(text)

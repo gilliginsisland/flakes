@@ -33,14 +33,3 @@ func NewRequest(options RequestOptions) *Request {
 	runtime.AddCleanup(request, core.Release, unsafe.Pointer(request.obj))
 	return request
 }
-
-// WithPointer calls fn synchronously while keeping the request alive.
-// A nil request passes a nil pointer to fn.
-func (request *Request) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(request)
-	var obj unsafe.Pointer
-	if request != nil {
-		obj = unsafe.Pointer(request.obj)
-	}
-	fn(obj)
-}

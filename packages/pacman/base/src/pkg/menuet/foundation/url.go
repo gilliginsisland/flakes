@@ -31,14 +31,3 @@ func URLWithString(value string) *URL {
 	runtime.AddCleanup(url, core.Release, unsafe.Pointer(obj))
 	return url
 }
-
-// WithPointer calls fn synchronously while keeping the URL alive.
-// A nil URL passes a nil pointer to fn.
-func (url *URL) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(url)
-	var obj unsafe.Pointer
-	if url != nil {
-		obj = unsafe.Pointer(url.obj)
-	}
-	fn(obj)
-}

@@ -92,14 +92,3 @@ func (center *Center) RemoveAllDeliveredNotifications() {
 	defer runtime.KeepAlive(center)
 	C.menuet_un_center_remove_all_delivered_notifications(center.obj)
 }
-
-// WithPointer calls fn synchronously while keeping the center alive.
-// A nil center passes a nil pointer to fn.
-func (center *Center) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(center)
-	var obj unsafe.Pointer
-	if center != nil {
-		obj = unsafe.Pointer(center.obj)
-	}
-	fn(obj)
-}

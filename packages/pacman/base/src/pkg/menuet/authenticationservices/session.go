@@ -91,14 +91,3 @@ func (session *Session) SetPrefersEphemeralWebBrowserSession(ephemeral bool) *Se
 	C.menuet_as_web_authentication_session_set_prefers_ephemeral_browser_session(session.obj, C.bool(ephemeral))
 	return session
 }
-
-// WithPointer calls fn synchronously while keeping the session alive.
-// A nil session passes a nil pointer to fn.
-func (session *Session) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(session)
-	var pointer unsafe.Pointer
-	if session != nil {
-		pointer = unsafe.Pointer(session.obj)
-	}
-	fn(pointer)
-}

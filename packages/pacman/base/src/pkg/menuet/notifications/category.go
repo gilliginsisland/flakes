@@ -47,14 +47,3 @@ func NewCategory(content CategoryContent) *Category {
 	runtime.AddCleanup(category, core.Release, unsafe.Pointer(category.obj))
 	return category
 }
-
-// WithPointer calls fn synchronously while keeping the category alive.
-// A nil category passes a nil pointer to fn.
-func (category *Category) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(category)
-	var obj unsafe.Pointer
-	if category != nil {
-		obj = unsafe.Pointer(category.obj)
-	}
-	fn(obj)
-}

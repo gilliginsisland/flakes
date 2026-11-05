@@ -64,14 +64,3 @@ func (bundle *Bundle) PrincipalClass() unsafe.Pointer {
 	defer runtime.KeepAlive(bundle)
 	return C.menuet_ns_bundle_principal_class(bundle.obj)
 }
-
-// WithPointer calls fn synchronously while keeping the bundle alive.
-// A nil bundle passes a nil pointer to fn.
-func (bundle *Bundle) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(bundle)
-	var obj unsafe.Pointer
-	if bundle != nil {
-		obj = unsafe.Pointer(bundle.obj)
-	}
-	fn(obj)
-}

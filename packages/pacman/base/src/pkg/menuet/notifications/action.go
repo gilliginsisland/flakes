@@ -68,14 +68,3 @@ func NewTextInputAction(content TextInputActionContent) *Action {
 	defer C.free(unsafe.Pointer(hint))
 	return newAction(C.menuet_un_text_input_action_new(id, text, C.UNNotificationActionOptions(content.Options), submit, hint))
 }
-
-// WithPointer calls fn synchronously while keeping the action alive.
-// A nil action passes a nil pointer to fn.
-func (action *Action) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(action)
-	var obj unsafe.Pointer
-	if action != nil {
-		obj = unsafe.Pointer(action.obj)
-	}
-	fn(obj)
-}

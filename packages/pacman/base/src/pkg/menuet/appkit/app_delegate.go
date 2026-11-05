@@ -43,6 +43,7 @@ func (delegate *AppDelegate) WithPointer(fn func(unsafe.Pointer)) {
 // SetWillFinishLaunching invokes fn synchronously on the main thread before
 // launch completes, so initialization finishes before AppKit continues launching.
 func (delegate *AppDelegate) SetWillFinishLaunching(fn func()) *AppDelegate {
+	defer runtime.KeepAlive(delegate)
 	var callback *core.Callback
 	if fn != nil {
 		callback = core.NewCallback(func(sender core.Sender) {
@@ -50,10 +51,8 @@ func (delegate *AppDelegate) SetWillFinishLaunching(fn func()) *AppDelegate {
 			fn()
 		})
 	}
-	delegate.WithPointer(func(obj unsafe.Pointer) {
-		callback.WithPointer(func(target unsafe.Pointer) {
-			C.menuet_app_delegate_set_will_finish_launching((*C.struct_AppDelegate)(obj), (*C.struct_MenuetCallback)(target))
-		})
+	callback.WithPointer(func(target unsafe.Pointer) {
+		C.menuet_app_delegate_set_will_finish_launching(delegate.obj, (*C.struct_MenuetCallback)(target))
 	})
 	delegate.willFinishLaunching = callback
 	return delegate
@@ -61,6 +60,7 @@ func (delegate *AppDelegate) SetWillFinishLaunching(fn func()) *AppDelegate {
 
 // SetDidFinishLaunching invokes fn in a goroutine after the application launches.
 func (delegate *AppDelegate) SetDidFinishLaunching(fn func()) *AppDelegate {
+	defer runtime.KeepAlive(delegate)
 	var callback *core.Callback
 	if fn != nil {
 		callback = core.NewCallback(func(sender core.Sender) {
@@ -68,10 +68,8 @@ func (delegate *AppDelegate) SetDidFinishLaunching(fn func()) *AppDelegate {
 			go fn()
 		})
 	}
-	delegate.WithPointer(func(obj unsafe.Pointer) {
-		callback.WithPointer(func(target unsafe.Pointer) {
-			C.menuet_app_delegate_set_did_finish_launching((*C.struct_AppDelegate)(obj), (*C.struct_MenuetCallback)(target))
-		})
+	callback.WithPointer(func(target unsafe.Pointer) {
+		C.menuet_app_delegate_set_did_finish_launching(delegate.obj, (*C.struct_MenuetCallback)(target))
 	})
 	delegate.didFinishLaunching = callback
 	return delegate

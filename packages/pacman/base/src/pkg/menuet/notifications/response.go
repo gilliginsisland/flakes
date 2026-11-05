@@ -50,14 +50,3 @@ func (response *Response) Text() string {
 	defer runtime.KeepAlive(response)
 	return stringValue(C.menuet_un_response_text(response.obj))
 }
-
-// WithPointer calls fn synchronously while keeping the response alive.
-// A nil response passes a nil pointer to fn.
-func (response *Response) WithPointer(fn func(unsafe.Pointer)) {
-	defer runtime.KeepAlive(response)
-	var obj unsafe.Pointer
-	if response != nil {
-		obj = unsafe.Pointer(response.obj)
-	}
-	fn(obj)
-}

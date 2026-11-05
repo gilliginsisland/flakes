@@ -33,7 +33,7 @@ func (delegate *Delegate) SetDidReceiveResponse(fn func(*Response)) *Delegate {
 	var callback *core.Callback
 	if fn != nil {
 		callback = core.NewCallback(func(sender core.Sender) {
-			response := newResponse((*C.struct_UNNotificationResponse)(unsafe.Pointer(sender.Pointer())))
+			response := newResponse((*C.struct_UNNotificationResponse)(sender.Pointer()))
 			go fn(response)
 		})
 	}
