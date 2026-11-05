@@ -8,3 +8,7 @@ void menuet_ns_window_set_content_view(struct NSWindow *window, void *view);
 void menuet_ns_window_center(struct NSWindow *window);
 void menuet_ns_window_make_key_and_order_front(struct NSWindow *window);
 void menuet_ns_window_close(struct NSWindow *window);
+void menuet_ns_window_set_restorable(struct NSWindow *window, bool value);
+void menuet_ns_window_set_opaque(struct NSWindow *window, bool value);
+void menuet_ns_window_set_alpha_value(struct NSWindow *window, double value);
+void menuet_ns_window_set_ignores_mouse_events(struct NSWindow *window, bool value);

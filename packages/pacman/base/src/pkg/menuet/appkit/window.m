@@ -41,3 +41,27 @@ void menuet_ns_window_close(struct NSWindow *window) {
 		[(__bridge NSWindow *)window close];
 	});
 }
+
+void menuet_ns_window_set_restorable(struct NSWindow *window, bool value) {
+	menuet_on_main(^{
+		((__bridge NSWindow *)window).restorable = value;
+	});
+}
+
+void menuet_ns_window_set_opaque(struct NSWindow *window, bool value) {
+	menuet_on_main(^{
+		((__bridge NSWindow *)window).opaque = value;
+	});
+}
+
+void menuet_ns_window_set_alpha_value(struct NSWindow *window, double value) {
+	menuet_on_main(^{
+		((__bridge NSWindow *)window).alphaValue = value;
+	});
+}
+
+void menuet_ns_window_set_ignores_mouse_events(struct NSWindow *window, bool value) {
+	menuet_on_main(^{
+		((__bridge NSWindow *)window).ignoresMouseEvents = value;
+	});
+}

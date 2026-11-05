@@ -74,17 +74,12 @@ func Connect(ctx context.Context, opts Options) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			vpn.Free()
+		}
+	}()
 
-	conn, err := connect(ctx, vpn)
-	if err != nil {
-		vpn.Free()
-		return nil, err
-	}
-
-	return conn, nil
-}
-
-func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 	cp, err := vpn.SetupCmdPipe()
 	if err != nil {
 		return nil, err
@@ -103,6 +98,9 @@ func connect(ctx context.Context, vpn *VpnInfo) (*Conn, error) {
 
 	if err = vpn.ObtainCookie(); err != nil {
 		return nil, err
+	}
+	if vpn.CookieObtained != nil {
+		vpn.CookieObtained(vpn.GetCookie())
 	}
 	if err = vpn.MakeCSTPConnection(); err != nil {
 		return nil, err

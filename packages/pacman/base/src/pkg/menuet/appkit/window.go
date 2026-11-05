@@ -41,12 +41,21 @@ type Window struct {
 
 func NewWindow(options WindowOptions) *Window {
 	rect := options.ContentRect
-	window := &Window{obj: C.menuet_ns_window_new(
+	return newWindow(C.menuet_ns_window_new(
 		C.NSMakeRect(C.CGFloat(rect.X), C.CGFloat(rect.Y), C.CGFloat(rect.Width), C.CGFloat(rect.Height)),
 		C.NSWindowStyleMask(options.StyleMask), C.NSBackingStoreType(options.Backing), C.bool(options.Defer),
-	)}
+	))
+}
+
+func newWindow(obj *C.struct_NSWindow) *Window {
+	window := &Window{obj: obj}
 	runtime.AddCleanup(window, core.Release, unsafe.Pointer(window.obj))
 	return window
+}
+
+// WindowFromPointer takes ownership of a retained Objective-C window.
+func WindowFromPointer(obj unsafe.Pointer) *Window {
+	return newWindow((*C.struct_NSWindow)(obj))
 }
 
 func (window *Window) SetTitle(title string) *Window {
@@ -87,4 +96,28 @@ func (window *Window) WithPointer(fn func(unsafe.Pointer)) {
 		obj = unsafe.Pointer(window.obj)
 	}
 	fn(obj)
+}
+
+func (window *Window) SetRestorable(value bool) *Window {
+	defer runtime.KeepAlive(window)
+	C.menuet_ns_window_set_restorable(window.obj, C.bool(value))
+	return window
+}
+
+func (window *Window) SetOpaque(value bool) *Window {
+	defer runtime.KeepAlive(window)
+	C.menuet_ns_window_set_opaque(window.obj, C.bool(value))
+	return window
+}
+
+func (window *Window) SetAlphaValue(value float64) *Window {
+	defer runtime.KeepAlive(window)
+	C.menuet_ns_window_set_alpha_value(window.obj, C.double(value))
+	return window
+}
+
+func (window *Window) SetIgnoresMouseEvents(value bool) *Window {
+	defer runtime.KeepAlive(window)
+	C.menuet_ns_window_set_ignores_mouse_events(window.obj, C.bool(value))
+	return window
 }
