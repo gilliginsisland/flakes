@@ -17,4 +17,4 @@ struct MenuetCallback *menuet_callback_new(void);
 SEL menuet_selector(const char *name);
 struct NSString *menuet_ns_string_new(const char *value);
 char *menuet_ns_string_value(struct NSString *string);
-void menuet_core_invoke_callback(uintptr_t callback, void *sender);
+void menuet_core_invoke_callback(struct MenuetCallback *callback, struct NSObject *sender);
