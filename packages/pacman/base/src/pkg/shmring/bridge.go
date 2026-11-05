@@ -7,6 +7,7 @@ package shmring
 import "C"
 
 import (
+	"io"
 	"os"
 	"runtime"
 	"sync/atomic"
@@ -82,29 +83,84 @@ func (b *Bridge) Poll() (uint64, error) {
 	return read&ReadPending | write&WritePending, nil
 }
 
-// Pop attempts to copy one packet. ErrEmpty means the caller should wait for a
-// notification and retry. Successful pops notify the peer through the file.
-func (b *Bridge) Pop(p []byte) (int, error) {
+var (
+	_ io.ReadWriteCloser = (*Bridge)(nil)
+	_ io.ReaderFrom      = (*Bridge)(nil)
+	_ io.WriterTo        = (*Bridge)(nil)
+)
+
+// Read copies one complete record. A short destination leaves it in the ring.
+// ErrEmpty means the caller should Poll and retry. One consumer only.
+func (b *Bridge) Read(dst []byte) (int, error) {
 	defer runtime.KeepAlive(b)
-	n, err := (*Ring)(b.rx).Pop(p)
+	n, err := (*Ring)(b.rx).Read(dst)
 	if err != nil {
 		return n, err
 	}
 	return n, b.signal(&b.rx.pending, C.SHM_RING_WRITE_PENDING)
 }
 
-// Commit attempts to copy one packet. ErrFull means the caller should wait for a
-// notification and retry. Successful commits notify the peer through the file.
-func (b *Bridge) Commit(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
+// Write copies one complete record. ErrFull does not wait for space. Empty
+// writes are a no-op. One producer only.
+func (b *Bridge) Write(src []byte) (int, error) {
 	defer runtime.KeepAlive(b)
-	n, err := (*Ring)(b.tx).Commit(p)
-	if err != nil {
+	n, err := (*Ring)(b.tx).Write(src)
+	if err != nil || n == 0 {
 		return n, err
 	}
 	return n, b.signal(&b.tx.pending, C.SHM_RING_READ_PENDING)
+}
+
+// ReadFrom reads records directly into ring slots until EOF or an error,
+// including ErrFull. Each Read must supply one whole record and must not retain
+// the buffer. Failed reads leave the slot unpublished. EOF is success.
+// Calls to Write and ReadFrom must not overlap.
+func (b *Bridge) ReadFrom(reader io.Reader) (total int64, err error) {
+	defer runtime.KeepAlive(b)
+	emptyReads := 0
+	for {
+		n, err := (*Ring)(b.tx).ReadOneFrom(reader.Read)
+		total += int64(n)
+		if err == io.EOF {
+			return total, nil
+		}
+		if err != nil {
+			return total, err
+		}
+		if n == 0 {
+			emptyReads++
+			if emptyReads >= 100 {
+				return total, io.ErrNoProgress
+			}
+			continue
+		}
+		emptyReads = 0
+		if err := b.signal(&b.tx.pending, C.SHM_RING_READ_PENDING); err != nil {
+			return total, err
+		}
+	}
+}
+
+// WriteTo writes records directly from ring slots until EOF or an error,
+// including ErrEmpty. Each Write receives one whole record and must not retain
+// or modify the bytes. Failed or short writes leave the record queued.
+// Calls to Read and WriteTo must not overlap.
+func (b *Bridge) WriteTo(writer io.Writer) (total int64, err error) {
+	defer runtime.KeepAlive(b)
+	for {
+		n, err := (*Ring)(b.rx).WriteOneTo(writer)
+		total += int64(n)
+		if err == io.EOF {
+			return total, nil
+		}
+		if err != nil {
+			return total, err
+		}
+		// Even an empty record frees a slot when consumed successfully.
+		if err := b.signal(&b.rx.pending, C.SHM_RING_WRITE_PENDING); err != nil {
+			return total, err
+		}
+	}
 }
 
 func (b *Bridge) signal(pending *C.uint64_t, mask uint64) error {
