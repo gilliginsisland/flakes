@@ -20,13 +20,14 @@
  	$(INTL_LIBS) $(ICONV_LIBS) $(LIBPCSCLITE_LIBS) $(LIBP11_LIBS)\
 --- a/openconnect.h
 +++ b/openconnect.h
-@@ -721,6 +721,11 @@
+@@ -721,6 +721,12 @@
  #else
  /* Caller will provide a file descriptor for the tunnel traffic. */
  int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd);
 +#endif
 +#ifndef _WIN32
 +struct shm_bridge;
++/* Takes ownership of bridge on success. */
 +int openconnect_setup_packet_bridge(struct openconnect_info *vpninfo,
 +                                   struct shm_bridge *bridge);
  #endif
@@ -52,6 +53,18 @@
  	int use_tun_script;
  	int script_tun;
  	char *ifname;
+--- a/library.c
++++ b/library.c
+@@ -771,5 +771,9 @@
+ void openconnect_vpninfo_free(struct openconnect_info *vpninfo)
+ {
++#ifndef _WIN32
++	if (vpninfo->packet_bridge)
++		shm_bridge_close(vpninfo->packet_bridge);
++#endif
+ 	openconnect_close_https(vpninfo, 1);
+ 	if (vpninfo->proto->udp_shutdown)
+ 		vpninfo->proto->udp_shutdown(vpninfo);
 --- a/mainloop.c
 +++ b/mainloop.c
 @@ -52,7 +52,18 @@

@@ -8,7 +8,6 @@ import "C"
 import (
 	"context"
 	"errors"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -182,7 +181,7 @@ func (c *Conn) Close() error {
 
 // TunClient configures the shared packet rings before packet processing starts,
 // either before Run or from the native setup-tunnel callback.
-func (c *Conn) TunClient() (io.ReadWriteCloser, *IPInfo, error) {
+func (c *Conn) TunClient() (*shmring.Bridge, *IPInfo, error) {
 	ipinfo, err := c.vpn.GetIPInfo()
 	if err != nil {
 		return nil, nil, err
@@ -195,20 +194,10 @@ func (c *Conn) TunClient() (io.ReadWriteCloser, *IPInfo, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	client, native := shmring.NewReadWriter(shmring.NewBridge(endpoints[0])), (*C.struct_shm_bridge)(unsafe.Pointer(endpoints[1]))
-	go func() {
-		// OpenConnect borrows its endpoint until native packet processing stops.
-		select {
-		case <-client.Done():
-			c.Close()
-			c.Wait()
-		case <-c.Done():
-			client.Close()
-		}
-		C.shm_bridge_close(native)
-	}()
+	client, native := shmring.NewBridge(endpoints[0]), (*C.struct_shm_bridge)(unsafe.Pointer(endpoints[1]))
 	if err := c.vpn.SetupPacketBridge(native); err != nil {
 		client.Close()
+		C.shm_bridge_close(native)
 		return nil, nil, err
 	}
 

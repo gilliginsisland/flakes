@@ -250,12 +250,18 @@ func NewDialer(ctx context.Context, u *url.URL) (_ *Dialer, err error) {
 }
 
 // WithConn configures netstack from the synchronous native setup-tunnel callback.
+// On failure it closes the endpoint; the caller remains responsible for conn.
 func WithConn(conn *openconnect.Conn) (*Dialer, error) {
-	rwc, ipinfo, err := conn.TunClient()
+	bridge, ipinfo, err := conn.TunClient()
 	if err != nil {
 		return nil, err
 	}
-
+	ep := stackutil.NewRingEndpoint(bridge, ipinfo.MTU)
+	defer func() {
+		if err != nil {
+			ep.Close()
+		}
+	}()
 	opts := stackutil.NetOptions{
 		Addr:     ipinfo.Addr,
 		Netmask:  ipinfo.Netmask,
@@ -263,16 +269,26 @@ func WithConn(conn *openconnect.Conn) (*Dialer, error) {
 		Netmask6: ipinfo.Netmask6,
 		DNS:      ipinfo.DNS,
 		Domain:   ipinfo.Domain,
-		MTU:      ipinfo.MTU,
 	}
 	// Match vpnc-script's fallback when OpenConnect supplies only an IPv6 address.
 	if opts.Netmask6 == "" && opts.Addr6 != "" {
 		opts.Netmask6 = opts.Addr6 + "/128"
 	}
-	d, err := stackutil.NewTunDialer(rwc, &opts)
+	d, err := stackutil.NewEndpointDialer(ep, &opts)
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		ep.Wait()
+		// A bridge error stops a live connection. On normal shutdown the
+		// connection has already stopped.
+		select {
+		case <-conn.Done():
+		default:
+			conn.Close()
+		}
+		d.Stack.Destroy()
+	}()
 
 	return &Dialer{
 		Conn:   conn,

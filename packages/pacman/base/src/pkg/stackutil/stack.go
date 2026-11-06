@@ -3,12 +3,10 @@ package stackutil
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/header"
-	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
@@ -25,7 +23,6 @@ type NetOptions struct {
 	Netmask6 string
 	DNS      []string
 	Domain   string
-	MTU      uint32
 }
 
 func (opts *NetOptions) protocolAddrs() ([]tcpip.ProtocolAddress, error) {
@@ -84,12 +81,10 @@ func (opts *NetOptions) protocolAddrs() ([]tcpip.ProtocolAddress, error) {
 	return addrs, errors.Join(errs...)
 }
 
-func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
-	dns := make([]string, len(opts.DNS))
-	for i, addr := range opts.DNS {
-		dns[i] = net.JoinHostPort(addr, "53")
-	}
-
+// NewEndpointDialer configures a stack and resolver for the supplied link
+// endpoint. On setup failure it destroys only the stack; the endpoint keeps
+// ownership of its transport.
+func NewEndpointDialer(ep stack.LinkEndpoint, opts *NetOptions) (*Dialer, error) {
 	addrs, err := opts.protocolAddrs()
 	if err != nil {
 		return nil, err
@@ -106,37 +101,15 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 		},
 	})
 
-	rwcep := RWCEndpoint{
-		Endpoint: channel.New(1024, opts.MTU, ""),
-	}
-
-	var ep stack.LinkEndpoint = rwcep.Endpoint
-	// if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-	// 	ep = &DumpingLinkEndpoint{
-	// 		LinkEndpoint: ep,
-	// 		Dumper: PacketDumperFunc(func(pkt *stack.PacketBuffer, chain string) {
-	// 			b := pkt.ToBuffer()
-	// 			netutil.DumpPacket(b.Flatten(), chain)
-	// 		}),
-	// 	}
-	// }
-
-	cleanup := func() {
-		ep.Close()
-		s.Destroy()
-	}
-
 	nicID := s.NextNICID()
-	iperr := s.CreateNIC(nicID, ep)
-	if iperr != nil {
-		cleanup()
-		return nil, fmt.Errorf("Failed to create nic: %s", iperr.String())
+	if iperr := s.CreateNIC(nicID, ep); iperr != nil {
+		s.Destroy()
+		return nil, fmt.Errorf("failed to create NIC: %s", iperr.String())
 	}
 
 	for _, a := range addrs {
-		iperr := s.AddProtocolAddress(nicID, a, stack.AddressProperties{})
-		if iperr != nil {
-			cleanup()
+		if iperr := s.AddProtocolAddress(nicID, a, stack.AddressProperties{}); iperr != nil {
+			s.Destroy()
 			return nil, fmt.Errorf("failed to add protocol address: %s", iperr.String())
 		}
 
@@ -154,12 +127,12 @@ func NewTunDialer(rwc io.ReadWriteCloser, opts *NetOptions) (*Dialer, error) {
 		})
 	}
 
-	go func() {
-		defer cleanup()
-		_ = netutil.Join(rwc, &rwcep)
-	}()
+	dns := make([]string, len(opts.DNS))
+	for i, addr := range opts.DNS {
+		dns[i] = net.JoinHostPort(addr, "53")
+	}
 
-	sd := Dialer{Stack: s}
-	sd.Resolver = netutil.NewResolver(dns, sd.DialContext)
-	return &sd, nil
+	d := &Dialer{Stack: s}
+	d.Resolver = netutil.NewResolver(dns, d.DialContext)
+	return d, nil
 }
