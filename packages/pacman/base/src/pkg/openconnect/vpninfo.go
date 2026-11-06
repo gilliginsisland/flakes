@@ -246,7 +246,8 @@ func (v *VpnInfo) SetupTunFdRaw(fd int) error {
 	return ocErrno("setup tun fd raw", C.openconnect_setup_tun_fd_raw(v.vpninfo, C.int(fd)))
 }
 
-// SetupPacketBridge borrows an endpoint. Close it only after native calls stop.
+// SetupPacketBridge transfers ownership to OpenConnect on success. On failure,
+// the caller must close the endpoint.
 func (v *VpnInfo) SetupPacketBridge(bridge *C.struct_shm_bridge) error {
 	return ocErrno("setup packet bridge", C.openconnect_setup_packet_bridge(v.vpninfo, bridge))
 }
