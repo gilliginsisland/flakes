@@ -247,7 +247,7 @@ func (v *VpnInfo) SetupTunFdRaw(fd int) error {
 }
 
 // SetupPacketBridge transfers ownership to OpenConnect on success. On failure,
-// the caller must close the endpoint.
+// the caller must release the endpoint.
 func (v *VpnInfo) SetupPacketBridge(bridge *C.struct_shm_bridge) error {
 	return ocErrno("setup packet bridge", C.openconnect_setup_packet_bridge(v.vpninfo, bridge))
 }
