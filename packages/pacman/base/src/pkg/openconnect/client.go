@@ -190,14 +190,14 @@ func (c *Conn) TunClient() (*shmring.Bridge, *IPInfo, error) {
 	if ipinfo.MTU == 0 || ipinfo.MTU > 65535 {
 		return nil, nil, &OpError{Op: "setup packet bridge", Err: syscall.EINVAL}
 	}
-	endpoints, err := shmring.NewBridgePair(256, max(16384, ipinfo.MTU))
+	endpoints, err := shmring.NewBridgePair(256, uint16(max(16384, ipinfo.MTU)))
 	if err != nil {
 		return nil, nil, err
 	}
 	client, native := shmring.NewBridge(endpoints[0]), (*C.struct_shm_bridge)(unsafe.Pointer(endpoints[1]))
 	if err := c.vpn.SetupPacketBridge(native); err != nil {
 		client.Close()
-		C.shm_bridge_close(native)
+		C.shm_bridge_release(native)
 		return nil, nil, err
 	}
 

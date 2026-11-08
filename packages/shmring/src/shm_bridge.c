@@ -6,13 +6,13 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-int shm_bridge_new(uint32_t capacity, uint32_t record_size, struct shm_bridge *result[2]) {
+int shm_bridge_new(uint32_t target_slots, uint16_t slot_capacity, struct shm_bridge *result[2]) {
 	struct shm_bridge *endpoints[2] = {NULL, NULL};
 	struct shm_ring *rings[2] = {NULL, NULL};
 	int fds[2] = {-1, -1}, ret, type = SOCK_STREAM;
 
 	for (unsigned int i = 0; i < 2; i++) {
-		ret = shm_ring_new(capacity, record_size, &rings[i]);
+		ret = shm_ring_new(target_slots, slot_capacity, &rings[i]);
 		if (ret < 0)
 			goto fail;
 		endpoints[i] = calloc(1, sizeof(*endpoints[i]));
@@ -63,13 +63,21 @@ fail:
 int shm_bridge_close(struct shm_bridge *bridge) {
 	int ret = 0;
 
+	shm_ring_close_read(bridge->rx);
+	shm_ring_close_write(bridge->tx);
 	if (bridge->fd >= 0) {
 		if (close(bridge->fd) < 0)
 			ret = -errno;
 		bridge->fd = -1;
 	}
-	shm_ring_close_read(bridge->rx);
-	shm_ring_close_write(bridge->tx);
+	return ret;
+}
+
+int shm_bridge_release(struct shm_bridge *bridge) {
+	int ret = shm_bridge_close(bridge);
+
+	shm_ring_release_read(bridge->rx);
+	shm_ring_release_write(bridge->tx);
 	free(bridge);
 	return ret;
 }
@@ -85,17 +93,17 @@ int shm_bridge_poll(struct shm_bridge *bridge) {
 		return -EPIPE;
 	if (errno != EAGAIN && errno != EWOULDBLOCK)
 		return -errno;
-	/* Clear only our bits; the peer owns the other bit in each word. Clear
-	 * before inspecting the rings so racing work is seen or leaves a wakeup. */
-	__atomic_fetch_and(&bridge->rx->pending, ~SHM_RING_READ_PENDING, __ATOMIC_SEQ_CST);
-	__atomic_fetch_and(&bridge->tx->pending, ~SHM_RING_WRITE_PENDING, __ATOMIC_SEQ_CST);
+	/* Clear our notification bits before inspecting the rings so racing work
+	 * is seen or leaves a wakeup. */
+	__atomic_fetch_and(&bridge->rx->state, ~SHM_RING_READ_PENDING, __ATOMIC_SEQ_CST);
+	__atomic_fetch_and(&bridge->tx->state, ~SHM_RING_WRITE_PENDING, __ATOMIC_SEQ_CST);
 	return 0;
 }
 
-static int shm_bridge_signal(struct shm_bridge *bridge, uint64_t *pending, uint64_t mask) {
+static int shm_bridge_signal(struct shm_bridge *bridge, uint32_t *state, uint32_t mask) {
 	ssize_t ret;
 
-	if (__atomic_fetch_or(pending, mask, __ATOMIC_SEQ_CST) & mask)
+	if (__atomic_fetch_or(state, mask, __ATOMIC_SEQ_CST) & mask)
 		return 0;
 	do {
 		ret = write(bridge->fd, "x", 1);
@@ -112,7 +120,7 @@ ssize_t shm_bridge_read(struct shm_bridge *bridge, void *data, size_t size) {
 	ret = shm_ring_read(bridge->rx, data, size);
 	if (ret < 0)
 		return ret;
-	err = shm_bridge_signal(bridge, &bridge->rx->pending, SHM_RING_WRITE_PENDING);
+	err = shm_bridge_signal(bridge, &bridge->rx->state, SHM_RING_WRITE_PENDING);
 	return err < 0 ? err : ret;
 }
 
@@ -125,6 +133,6 @@ ssize_t shm_bridge_write(struct shm_bridge *bridge, const void *data, size_t siz
 	ret = shm_ring_write(bridge->tx, data, size);
 	if (ret < 0)
 		return ret;
-	err = shm_bridge_signal(bridge, &bridge->tx->pending, SHM_RING_READ_PENDING);
+	err = shm_bridge_signal(bridge, &bridge->tx->state, SHM_RING_READ_PENDING);
 	return err < 0 ? err : ret;
 }

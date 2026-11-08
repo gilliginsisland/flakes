@@ -60,7 +60,7 @@
  {
 +#ifndef _WIN32
 +	if (vpninfo->packet_bridge)
-+		shm_bridge_close(vpninfo->packet_bridge);
++		shm_bridge_release(vpninfo->packet_bridge);
 +#endif
  	openconnect_close_https(vpninfo, 1);
  	if (vpninfo->proto->udp_shutdown)
