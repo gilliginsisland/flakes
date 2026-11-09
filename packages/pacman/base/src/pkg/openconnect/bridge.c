@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../shmring/shm_bridge.h"
 #include "bridge.h"
 
 int go_validate_peer_cert(void *context, char *cert);
@@ -48,6 +49,29 @@ void go_progress_vargs(void *context, int level, const char *fmt, ...) {
 void go_set_csd_callback(struct openconnect_info *vpninfo, int enabled) {
 	openconnect_set_csd_callback(vpninfo, enabled ? (openconnect_process_csd_vfn) go_process_csd : NULL);
 }
+
+static ssize_t bridge_read(void *context, void *data, size_t size) {
+	return shm_bridge_read(context, data, size);
+}
+
+static ssize_t bridge_write(void *context, const void *data, size_t size) {
+	return shm_bridge_write(context, data, size);
+}
+
+static int bridge_poll(void *context) {
+	return shm_bridge_poll(context);
+}
+
+static int bridge_release(void *context) {
+	return shm_bridge_release(context);
+}
+
+const struct openconnect_packet_bridge go_packet_bridge_callbacks = {
+	.read = bridge_read,
+	.write = bridge_write,
+	.poll = bridge_poll,
+	.release = bridge_release,
+};
 
 struct openconnect_info *go_vpninfo_new(const char *useragent, void *privdata) {
 	struct openconnect_info *vpninfo = openconnect_vpninfo_new(

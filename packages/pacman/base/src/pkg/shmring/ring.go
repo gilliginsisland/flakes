@@ -4,8 +4,8 @@
 package shmring
 
 /*
-#cgo pkg-config: shmring
-#include <shm_ring.h>
+#cgo CFLAGS: -std=c11
+#include "shm_ring.h"
 */
 import "C"
 

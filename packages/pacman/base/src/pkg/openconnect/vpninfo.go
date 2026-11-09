@@ -250,15 +250,10 @@ func (v *VpnInfo) SetupTunFd(fd int) error {
 	return ocErrno("setup tun fd", C.openconnect_setup_tun_fd(v.vpninfo, C.int(fd)))
 }
 
-// SetupTunFdRaw borrows a descriptor carrying raw IP packets. The caller owns it.
-func (v *VpnInfo) SetupTunFdRaw(fd int) error {
-	return ocErrno("setup tun fd raw", C.openconnect_setup_tun_fd_raw(v.vpninfo, C.int(fd)))
-}
-
-// SetupPacketBridge transfers ownership to OpenConnect on success. On failure,
-// the caller must release the endpoint.
-func (v *VpnInfo) SetupPacketBridge(bridge *C.struct_shm_bridge) error {
-	return ocErrno("setup packet bridge", C.openconnect_setup_packet_bridge(v.vpninfo, bridge))
+// SetupPacketBridge transfers ownership of callbacks.context to OpenConnect on
+// success. On failure, the caller must release it.
+func (v *VpnInfo) SetupPacketBridge(callbacks *C.struct_openconnect_packet_bridge) error {
+	return ocErrno("setup packet bridge", C.openconnect_setup_packet_bridge(v.vpninfo, callbacks))
 }
 
 func (v *VpnInfo) SetLogLevel(level LogLevel) {
