@@ -9,8 +9,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -200,21 +198,10 @@ func (c *Conn) TunClient() (*shmring.Bridge, *IPInfo, error) {
 		C.shm_bridge_release(native)
 		return nil, nil, err
 	}
+	go func() {
+		<-c.Done()
+		client.Close()
+	}()
 
 	return client, ipinfo, nil
-}
-
-func (c *Conn) TunScript(args []string) error {
-	quoted := make([]string, len(args))
-	for i, a := range args {
-		quoted[i] = strconv.Quote(a)
-	}
-	script := strings.Join(quoted, " ")
-
-	err := c.vpn.SetupTunScript(script)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
