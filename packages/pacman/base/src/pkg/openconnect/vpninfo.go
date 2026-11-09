@@ -13,6 +13,8 @@ import "C"
 import (
 	"errors"
 	"os"
+	"strconv"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -42,7 +44,6 @@ type Callbacks struct {
 	// before tunnel negotiation. Calling VpnInfo.ObtainCookie directly does not invoke it.
 	CookieObtained func(cookie string)
 	// SetupTunHandler runs synchronously before native packet processing.
-	// Installing a tunnel fd here replaces the default device/script setup.
 	// An error aborts setup and is returned by MainLoop.
 	SetupTunHandler func() error
 }
@@ -235,6 +236,14 @@ func (v *VpnInfo) SetupTunScript(script string) error {
 	cStr := C.CString(script)
 	defer C.free(unsafe.Pointer(cStr))
 	return ocErrno("setup tun script", C.openconnect_setup_tun_script(v.vpninfo, cStr))
+}
+
+func (v *VpnInfo) TunScript(args []string) error {
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = strconv.Quote(a)
+	}
+	return v.SetupTunScript(strings.Join(quoted, " "))
 }
 
 func (v *VpnInfo) SetupTunFd(fd int) error {

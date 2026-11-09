@@ -95,7 +95,7 @@ var (
 )
 
 // ReadFrom reads packets directly into ring slots until EOF or an error,
-// including ErrFull. Each Read must supply one whole packet and must not retain
+// including ENOBUFS. Each Read must supply one whole packet and must not retain
 // the buffer. If the supplied buffer is too small, it must return ErrShortBuffer
 // without consuming the packet. Failed reads leave the slot unpublished. EOF is success.
 // Calls to ReadFrom must not overlap.
@@ -125,9 +125,10 @@ func (b *Bridge) ReadFrom(reader io.Reader) (total int64, err error) {
 	}
 }
 
-// WriteTo writes packets directly from ring slots until EOF or an error,
-// including ErrEmpty. Each Write receives one whole packet and must not retain
-// or modify the bytes. Failed or short writes leave the slot queued.
+// WriteTo writes packets directly from ring slots until EOF or an error.
+// It waits for notifications while the ring is empty. Each Write receives one
+// whole packet and must not retain or modify the bytes. Failed or short writes
+// leave the slot queued.
 // Calls to WriteTo must not overlap.
 func (b *Bridge) WriteTo(writer io.Writer) (total int64, err error) {
 	defer runtime.KeepAlive(b)
@@ -136,6 +137,17 @@ func (b *Bridge) WriteTo(writer io.Writer) (total int64, err error) {
 		total += int64(n)
 		if err == io.EOF {
 			return total, nil
+		}
+		if err == ErrEmpty {
+			// Notifications are hints: retry the ring after acknowledging any
+			// wakeup, including a space-only or stale notification.
+			if _, err = b.Poll(); err != nil {
+				if err == io.EOF {
+					return total, nil
+				}
+				return total, err
+			}
+			continue
 		}
 		if err != nil {
 			return total, err

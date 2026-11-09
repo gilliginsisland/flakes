@@ -20,6 +20,12 @@ type Dialer struct {
 	Resolver netutil.IPLookuper
 }
 
+// Close destroys the stack. Call once.
+func (d *Dialer) Close() error {
+	d.Stack.Destroy()
+	return nil
+}
+
 func (d *Dialer) Dial(network, address string) (net.Conn, error) {
 	return d.DialContext(context.Background(), network, address)
 }

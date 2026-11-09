@@ -18,10 +18,7 @@ import (
 	"unsafe"
 )
 
-var (
-	ErrEmpty = errors.New("shared ring is empty")
-	ErrFull  = errors.New("shared ring is full")
-)
+var ErrEmpty = errors.New("shared ring is empty")
 
 type cring = C.struct_shm_ring
 
@@ -180,7 +177,7 @@ func (r *Ring) ReadOneFrom(reader io.Reader) (int, error) {
 	mask := uint32(r.capacity) - 1
 	free := mask - ((tail - head) & mask)
 	if r.advance(tail, uint32(r.slot_size)) > free {
-		return 0, ErrFull
+		return 0, syscall.ENOBUFS
 	}
 	slot := r.slot(tail)
 	// The slot is unpublished; its length can hold the maximum packet size
