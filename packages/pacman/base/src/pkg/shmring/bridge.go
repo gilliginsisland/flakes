@@ -1,8 +1,7 @@
 package shmring
 
 /*
-#cgo pkg-config: shmring
-#include <shm_bridge.h>
+#include "shm_bridge.h"
 */
 import "C"
 

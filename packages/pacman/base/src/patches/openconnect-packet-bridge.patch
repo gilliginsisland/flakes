@@ -1,80 +1,51 @@
---- a/Makefile.am
-+++ b/Makefile.am
-@@ -24,7 +24,7 @@
- noinst_PROGRAMS :=
+diff --git a/libopenconnect.map.in b/libopenconnect.map.in
+index f036c07..d347e6a 100644
+--- a/libopenconnect.map.in
++++ b/libopenconnect.map.in
+@@ -130,6 +130,7 @@ OPENCONNECT_5_8 {
+ OPENCONNECT_5_9 {
+  global:
++	openconnect_setup_packet_bridge;
+ 	openconnect_set_sni;
+ } OPENCONNECT_5_8;
  
- AM_CFLAGS = @WFLAGS@
--AM_CPPFLAGS = -DLOCALEDIR="\"$(localedir)\""
-+AM_CPPFLAGS = $(SHMRING_CFLAGS) -DLOCALEDIR="\"$(localedir)\""
- 
- openconnect_SOURCES = xml.c main.c
- openconnect_CFLAGS = $(AM_CFLAGS) $(SSL_CFLAGS) $(DTLS_SSL_CFLAGS) \
-@@ -136,7 +136,7 @@
- 	$(P11KIT_CFLAGS) $(TSS_CFLAGS) $(LIBSTOKEN_CFLAGS) $(LIBPSKC_CFLAGS) \
- 	$(GSSAPI_CFLAGS) $(INTL_CFLAGS) $(ICONV_CFLAGS) $(LIBPCSCLITE_CFLAGS) \
- 	$(LIBP11_CFLAGS) $(LIBLZ4_CFLAGS)
--libopenconnect_la_LIBADD = $(SSL_LIBS) $(DTLS_SSL_LIBS) \
-+libopenconnect_la_LIBADD = $(SHMRING_LIBS) $(SSL_LIBS) $(DTLS_SSL_LIBS) \
- 	$(LIBXML2_LIBS) $(LIBPROXY_LIBS) $(ZLIB_LIBS) $(P11KIT_LIBS) \
- 	$(TSS_LIBS) $(LIBSTOKEN_LIBS) $(LIBPSKC_LIBS) $(GSSAPI_LIBS) \
- 	$(INTL_LIBS) $(ICONV_LIBS) $(LIBPCSCLITE_LIBS) $(LIBP11_LIBS)\
---- a/openconnect.h
-+++ b/openconnect.h
-@@ -721,6 +721,12 @@
- #else
- /* Caller will provide a file descriptor for the tunnel traffic. */
- int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd);
-+#endif
-+#ifndef _WIN32
-+struct shm_bridge;
-+/* Takes ownership of bridge on success. */
-+int openconnect_setup_packet_bridge(struct openconnect_info *vpninfo,
-+                                   struct shm_bridge *bridge);
- #endif
- /* Optional call to enable DTLS on the connection. */
- int openconnect_setup_dtls(struct openconnect_info *vpninfo, int dtls_attempt_period);
---- a/openconnect-internal.h
-+++ b/openconnect-internal.h
-@@ -119,6 +119,9 @@
- #include <sys/types.h>
- 
- #include <stdint.h>
-+#ifndef _WIN32
-+#include <shm_bridge.h>
-+#endif
- #include <stdlib.h>
- #include <string.h>
- #include <errno.h>
-@@ -699,6 +702,7 @@
- 	uid_t uid;
- 	gid_t gid;
- #endif
-+	struct shm_bridge *packet_bridge;
- 	int use_tun_script;
- 	int script_tun;
- 	char *ifname;
+ OPENCONNECT_PRIVATE {
+diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
+index 7cb04d0..565441c 100644
+--- a/libopenconnect5.symbols
++++ b/libopenconnect5.symbols
+@@ -103,3 +103,4 @@ libopenconnect.so.5 libopenconnect5 #MINVER#
+  openconnect_set_mca_key_password@OPENCONNECT_5_8 9.00
+  openconnect_set_useragent@OPENCONNECT_5_8 9.00
+  openconnect_set_sni@OPENCONNECT_5_9 9.12
++ openconnect_setup_packet_bridge@OPENCONNECT_5_9 9.21
+diff --git a/library.c b/library.c
+index 668a184..6292825 100644
 --- a/library.c
 +++ b/library.c
-@@ -771,5 +771,9 @@
+@@ -770,6 +770,10 @@ static void free_certinfo(struct cert_info *certinfo)
+ 
  void openconnect_vpninfo_free(struct openconnect_info *vpninfo)
  {
 +#ifndef _WIN32
-+	if (vpninfo->packet_bridge)
-+		shm_bridge_release(vpninfo->packet_bridge);
++	if (vpninfo->packet_bridge.context)
++		vpninfo->packet_bridge.release(vpninfo->packet_bridge.context);
 +#endif
  	openconnect_close_https(vpninfo, 1);
  	if (vpninfo->proto->udp_shutdown)
  		vpninfo->proto->udp_shutdown(vpninfo);
+diff --git a/mainloop.c b/mainloop.c
+index f4babc7..50893af 100644
 --- a/mainloop.c
 +++ b/mainloop.c
-@@ -52,7 +52,18 @@
+@@ -52,7 +52,18 @@ int tun_mainloop(struct openconnect_info *vpninfo, int *timeout, int readable, i
  	struct pkt *this;
  	int work_done = 0;
  
 -	if (readable && read_fd_monitored(vpninfo, tun)) {
 +#ifndef _WIN32
-+	if (vpninfo->packet_bridge && readable) {
-+		int ret = shm_bridge_poll(vpninfo->packet_bridge);
++	if (vpninfo->packet_bridge.context && readable) {
++		int ret = vpninfo->packet_bridge.poll(vpninfo->packet_bridge.context);
 +		if (ret < 0) {
 +			vpninfo->quit_reason = "Packet bridge notification failed";
 +			return ret;
@@ -82,51 +53,94 @@
 +	}
 +#endif
 +	if (readable && read_fd_monitored(vpninfo, tun) &&
-+	    (!vpninfo->packet_bridge || vpninfo->outgoing_queue.count +
++	    (!vpninfo->packet_bridge.context || vpninfo->outgoing_queue.count +
 +	     vpninfo->tcp_control_queue.count < vpninfo->max_qlen)) {
  		struct pkt *out_pkt = vpninfo->tun_pkt;
  		while (1) {
  			int len = vpninfo->ip_info.mtu;
-@@ -76,7 +87,10 @@
+@@ -76,7 +87,10 @@ int tun_mainloop(struct openconnect_info *vpninfo, int *timeout, int readable, i
  			if (queue_packet(&vpninfo->outgoing_queue, out_pkt) +
  			    vpninfo->tcp_control_queue.count >= vpninfo->max_qlen) {
  				out_pkt = NULL;
 -				unmonitor_read_fd(vpninfo, tun);
 +				/* Ring wakeups also report receive space; keep listening
 +				 * when the native outgoing queue has reached its limit. */
-+				if (!vpninfo->packet_bridge)
++				if (!vpninfo->packet_bridge.context)
 +					unmonitor_read_fd(vpninfo, tun);
  				break;
  			}
  			out_pkt = NULL;
+diff --git a/openconnect-internal.h b/openconnect-internal.h
+index 7a836e9..dfd9575 100644
+--- a/openconnect-internal.h
++++ b/openconnect-internal.h
+@@ -699,6 +699,7 @@ struct openconnect_info {
+ 	uid_t uid;
+ 	gid_t gid;
+ #endif
++	struct openconnect_packet_bridge packet_bridge;
+ 	int use_tun_script;
+ 	int script_tun;
+ 	char *ifname;
+diff --git a/openconnect.h b/openconnect.h
+index 136f181..acd5241 100644
+--- a/openconnect.h
++++ b/openconnect.h
+@@ -722,6 +722,21 @@ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, intptr_t tun_fd);
+ /* Caller will provide a file descriptor for the tunnel traffic. */
+ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd);
+ #endif
++/* Packet I/O callbacks. Setup copies this table; context and fd must remain
++ * valid until OpenConnect calls release after native packet processing stops. */
++struct openconnect_packet_bridge {
++	void *context;
++	int fd;
++	ssize_t (*read)(void *context, void *data, size_t size);
++	ssize_t (*write)(void *context, const void *data, size_t size);
++	int (*poll)(void *context);
++	int (*release)(void *context);
++};
++#ifndef _WIN32
++/* Takes ownership of the packet bridge on success. */
++int openconnect_setup_packet_bridge(struct openconnect_info *vpninfo,
++				    const struct openconnect_packet_bridge *bridge);
++#endif
+ /* Optional call to enable DTLS on the connection. */
+ int openconnect_setup_dtls(struct openconnect_info *vpninfo, int dtls_attempt_period);
+ 
+diff --git a/tun.c b/tun.c
+index 234f980..c051185 100644
 --- a/tun.c
 +++ b/tun.c
-@@ -464,6 +464,19 @@
+@@ -464,6 +464,21 @@ int openconnect_setup_tun_fd(struct openconnect_info *vpninfo, int tun_fd)
  	return 0;
  }
  
 +int openconnect_setup_packet_bridge(struct openconnect_info *vpninfo,
-+                                   struct shm_bridge *bridge)
++				    const struct openconnect_packet_bridge *bridge)
 +{
 +	int ret;
 +
-+	if (vpninfo->packet_bridge)
++	if (vpninfo->packet_bridge.context || !bridge || !bridge->context ||
++	    bridge->fd < 0 || !bridge->read || !bridge->write ||
++	    !bridge->poll || !bridge->release)
 +		return -EINVAL;
-+	ret = openconnect_setup_tun_fd_raw(vpninfo, bridge->fd);
++	ret = openconnect_setup_tun_fd(vpninfo, bridge->fd);
 +	if (!ret)
-+		vpninfo->packet_bridge = bridge;
++		vpninfo->packet_bridge = *bridge;
 +	return ret;
 +}
 +
  int openconnect_setup_tun_script(struct openconnect_info *vpninfo,
  				 const char *tun_script)
  {
-@@ -505,6 +518,17 @@
+@@ -505,6 +520,18 @@ int os_read_tun(struct openconnect_info *vpninfo, struct pkt *pkt)
  	int prefix_size = 0;
  	int len;
  
-+	if (vpninfo->packet_bridge) {
-+		len = shm_bridge_read(vpninfo->packet_bridge, pkt->data, pkt->len);
++	if (vpninfo->packet_bridge.context) {
++		len = vpninfo->packet_bridge.read(vpninfo->packet_bridge.context,
++						    pkt->data, pkt->len);
 +		if (len < 0) {
 +			if (len != -EAGAIN && len != -EWOULDBLOCK)
 +				vpninfo->quit_reason = "Packet bridge read failed";
@@ -139,56 +153,29 @@
  #ifdef TUN_HAS_AF_PREFIX
  	if (!vpninfo->script_tun)
  		prefix_size = sizeof(int);
-@@ -523,6 +547,15 @@
- {
+@@ -524,6 +551,16 @@ int os_write_tun(struct openconnect_info *vpninfo, struct pkt *pkt)
  	unsigned char *data = pkt->data;
  	int len = pkt->len;
-+
-+	if (vpninfo->packet_bridge) {
-+		int ret = shm_bridge_write(vpninfo->packet_bridge, data, len);
+ 
++	if (vpninfo->packet_bridge.context) {
++		int ret = vpninfo->packet_bridge.write(vpninfo->packet_bridge.context,
++						      data, len);
 +		if (ret >= 0)
 +			return 0;
 +		if (ret != -EAGAIN && ret != -EWOULDBLOCK)
 +			vpninfo->quit_reason = "Packet bridge write failed";
 +		return ret;
 +	}
- 
++
  #ifdef TUN_HAS_AF_PREFIX
  	if (!vpninfo->script_tun) {
---- a/libopenconnect.map.in
-+++ b/libopenconnect.map.in
-@@ -130,6 +130,7 @@
- OPENCONNECT_5_9 {
-  global:
- 	openconnect_set_sni;
-+	openconnect_setup_packet_bridge;
- } OPENCONNECT_5_8;
+ 		struct ip *iph = (void *)data;
+@@ -591,7 +628,7 @@ void os_shutdown_tun(struct openconnect_info *vpninfo)
+ 	shutdown_vhost(vpninfo);
+ #endif
  
- OPENCONNECT_PRIVATE {
---- a/libopenconnect5.symbols
-+++ b/libopenconnect5.symbols
-@@ -103,3 +103,4 @@
-  openconnect_set_mca_key_password@OPENCONNECT_5_8 9.00
-  openconnect_set_useragent@OPENCONNECT_5_8 9.00
-  openconnect_set_sni@OPENCONNECT_5_9 9.12
-+ openconnect_setup_packet_bridge@OPENCONNECT_5_9 9.21
---- a/configure.ac
-+++ b/configure.ac
-@@ -971,6 +971,7 @@
- 
- AX_CHECK_VSCRIPT
- 
-+PKG_CHECK_MODULES(SHMRING, shmring)
- PKG_CHECK_MODULES(LIBXML2, libxml-2.0)
- 
- AC_ARG_WITH([builtin-json],
---- a/openconnect.pc.in
-+++ b/openconnect.pc.in
-@@ -7,6 +7,7 @@
- Name: openconnect
- Description: OpenConnect VPN client
- Version: @VERSION@
-+Requires: shmring
- Requires.private: @LIBPROXY_PC@ @ZLIB_PC@ @JSON_PC@ @LIBLZ4_PC@ @SSL_PC@ @P11KIT_PC@ @LIBSTOKEN_PC@ @LIBPSKC_PC@ @LIBPCSCLITE_PC@ libxml-2.0
- Libs: -L${libdir} -lopenconnect
- Libs.private: @INTL_LIBS@ @system_pcsc_libs@ @openssl_pc_libs@
+-	if (vpninfo->vpnc_script)
++	if (vpninfo->vpnc_script && !vpninfo->packet_bridge.context)
+ 		close(vpninfo->tun_fd);
+ 	vpninfo->tun_fd = -1;
+ }

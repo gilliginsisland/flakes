@@ -11,8 +11,8 @@ diff --git a/libopenconnect5.symbols b/libopenconnect5.symbols
 +++ b/libopenconnect5.symbols
 @@ -103,3 +103,4 @@
   openconnect_set_mca_key_password@OPENCONNECT_5_8 9.00
-  openconnect_set_useragent@OPENCONNECT_5_8 9.00
 + openconnect_get_quit_reason@OPENCONNECT_5_9 9.21
+  openconnect_set_useragent@OPENCONNECT_5_8 9.00
   openconnect_set_sni@OPENCONNECT_5_9 9.12
 diff --git a/library.c b/library.c
 --- a/library.c

@@ -3,7 +3,6 @@
   buildGo126Module,
   pkg-config,
   openconnect_openssl,
-  shmring,
   apple-sdk_26,
   darwinMinVersionHook,
   fetchFromGitLab,
@@ -23,7 +22,6 @@ let
       hash = "sha256-Jtd4cIR6BWSQPmLm8UOvlEcC1g6QlMgFw/aM7cokOCw=";
     };
     patches = (prev.patches or []) ++ lib.filesystem.listFilesRecursive (lib.cleanSource ./src/patches);
-    propagatedBuildInputs = (prev.propagatedBuildInputs or []) ++ [ shmring ];
     configureFlags = prev.configureFlags ++ [
       "--without-libpcsclite"
       "--without-stoken"
@@ -67,7 +65,7 @@ in buildGo126Module {
   };
 
   nativeBuildInputs = [ pkg-config ];
-  buildInputs = [ openconnect' shmring apple-sdk_26 (darwinMinVersionHook "14.4") ];
+  buildInputs = [ openconnect' apple-sdk_26 (darwinMinVersionHook "14.4") ];
 
   ldflags = [
     "-w"

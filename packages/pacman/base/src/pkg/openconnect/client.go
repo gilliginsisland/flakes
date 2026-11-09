@@ -1,7 +1,8 @@
 package openconnect
 
 /*
-#include <shm_bridge.h>
+#include "../shmring/shm_bridge.h"
+#include "bridge.h"
 */
 import "C"
 
@@ -193,7 +194,10 @@ func (c *Conn) TunClient() (*shmring.Bridge, *IPInfo, error) {
 		return nil, nil, err
 	}
 	client, native := shmring.NewBridge(endpoints[0]), (*C.struct_shm_bridge)(unsafe.Pointer(endpoints[1]))
-	if err := c.vpn.SetupPacketBridge(native); err != nil {
+	callbacks := C.go_packet_bridge_callbacks
+	callbacks.context = unsafe.Pointer(native)
+	callbacks.fd = native.fd
+	if err := c.vpn.SetupPacketBridge(&callbacks); err != nil {
 		client.Close()
 		C.shm_bridge_release(native)
 		return nil, nil, err
