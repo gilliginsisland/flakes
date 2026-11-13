@@ -12,10 +12,11 @@ import "C"
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 )
+
+type AppDelegateRef = *C.struct_AppDelegate
 
 type AppDelegate struct {
 	obj                 *C.struct_AppDelegate
@@ -25,17 +26,17 @@ type AppDelegate struct {
 
 func NewAppDelegate() *AppDelegate {
 	delegate := &AppDelegate{obj: C.menuet_app_delegate_new()}
-	runtime.AddCleanup(delegate, core.Release, unsafe.Pointer(delegate.obj))
+	runtime.AddCleanup(delegate, core.Release, core.ObjectRef(delegate.obj))
 	return delegate
 }
 
 // WithPointer calls fn synchronously while keeping the delegate alive.
 // A nil delegate passes a nil pointer to fn.
-func (delegate *AppDelegate) WithPointer(fn func(unsafe.Pointer)) {
+func (delegate *AppDelegate) WithPointer(fn func(AppDelegateRef)) {
 	defer runtime.KeepAlive(delegate)
-	var obj unsafe.Pointer
+	var obj AppDelegateRef
 	if delegate != nil {
-		obj = unsafe.Pointer(delegate.obj)
+		obj = delegate.obj
 	}
 	fn(obj)
 }
@@ -47,11 +48,11 @@ func (delegate *AppDelegate) SetWillFinishLaunching(fn func()) *AppDelegate {
 	var callback *core.Callback
 	if fn != nil {
 		callback = core.NewCallback(func(sender core.Sender) {
-			core.Release(unsafe.Pointer(sender.Pointer()))
+			core.Release(sender.Pointer())
 			fn()
 		})
 	}
-	callback.WithPointer(func(target unsafe.Pointer) {
+	callback.WithPointer(func(target core.CallbackRef) {
 		C.menuet_app_delegate_set_will_finish_launching(delegate.obj, (*C.struct_MenuetCallback)(target))
 	})
 	delegate.willFinishLaunching = callback
@@ -64,11 +65,11 @@ func (delegate *AppDelegate) SetDidFinishLaunching(fn func()) *AppDelegate {
 	var callback *core.Callback
 	if fn != nil {
 		callback = core.NewCallback(func(sender core.Sender) {
-			core.Release(unsafe.Pointer(sender.Pointer()))
+			core.Release(sender.Pointer())
 			go fn()
 		})
 	}
-	callback.WithPointer(func(target unsafe.Pointer) {
+	callback.WithPointer(func(target core.CallbackRef) {
 		C.menuet_app_delegate_set_did_finish_launching(delegate.obj, (*C.struct_MenuetCallback)(target))
 	})
 	delegate.didFinishLaunching = callback

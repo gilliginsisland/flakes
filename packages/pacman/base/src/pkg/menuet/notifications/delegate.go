@@ -11,10 +11,11 @@ import "C"
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 )
+
+type DelegateRef = *C.struct_MenuetNotificationDelegate
 
 type Delegate struct {
 	obj      *C.struct_MenuetNotificationDelegate
@@ -23,7 +24,7 @@ type Delegate struct {
 
 func NewDelegate() *Delegate {
 	delegate := &Delegate{obj: C.menuet_un_delegate_new()}
-	runtime.AddCleanup(delegate, core.Release, unsafe.Pointer(delegate.obj))
+	runtime.AddCleanup(delegate, core.Release, core.ObjectRef(delegate.obj))
 	return delegate
 }
 
@@ -37,7 +38,7 @@ func (delegate *Delegate) SetDidReceiveResponse(fn func(*Response)) *Delegate {
 			go fn(response)
 		})
 	}
-	callback.WithPointer(func(obj unsafe.Pointer) {
+	callback.WithPointer(func(obj core.CallbackRef) {
 		C.menuet_un_delegate_set_response_callback(delegate.obj, (*C.struct_MenuetCallback)(obj))
 	})
 	delegate.response = callback
@@ -46,11 +47,11 @@ func (delegate *Delegate) SetDidReceiveResponse(fn func(*Response)) *Delegate {
 
 // WithPointer calls fn synchronously while keeping the delegate alive.
 // A nil delegate passes a nil pointer to fn.
-func (delegate *Delegate) WithPointer(fn func(unsafe.Pointer)) {
+func (delegate *Delegate) WithPointer(fn func(DelegateRef)) {
 	defer runtime.KeepAlive(delegate)
-	var obj unsafe.Pointer
+	var obj DelegateRef
 	if delegate != nil {
-		obj = unsafe.Pointer(delegate.obj)
+		obj = delegate.obj
 	}
 	fn(obj)
 }

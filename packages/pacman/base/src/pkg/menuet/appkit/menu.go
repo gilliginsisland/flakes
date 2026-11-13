@@ -21,6 +21,10 @@ type Menu struct {
 	obj *C.struct_NSMenu
 }
 
+type MenuItemRef = *C.struct_NSMenuItem
+type StatusItemRef = *C.struct_NSStatusItem
+type ViewRef = *C.struct_NSView
+
 type MenuItem struct {
 	obj *C.struct_NSMenuItem
 }
@@ -38,7 +42,7 @@ func newMenu(obj *C.struct_NSMenu) *Menu {
 		return nil
 	}
 	menu := &Menu{obj: obj}
-	runtime.AddCleanup(menu, core.Release, unsafe.Pointer(menu.obj))
+	runtime.AddCleanup(menu, core.Release, core.ObjectRef(menu.obj))
 	return menu
 }
 
@@ -58,18 +62,18 @@ func NewMenuItemSectionHeader(title string) *MenuItem {
 
 func newMenuItem(obj *C.struct_NSMenuItem) *MenuItem {
 	item := &MenuItem{obj: obj}
-	runtime.AddCleanup(item, core.Release, unsafe.Pointer(item.obj))
+	runtime.AddCleanup(item, core.Release, core.ObjectRef(item.obj))
 	return item
 }
 
 // MenuItemFromPointer takes ownership of a retained Objective-C menu item.
-func MenuItemFromPointer(obj unsafe.Pointer) *MenuItem {
-	return newMenuItem((*C.struct_NSMenuItem)(obj))
+func MenuItemFromPointer(obj MenuItemRef) *MenuItem {
+	return newMenuItem(obj)
 }
 
 func NewStatusItem() *StatusItem {
 	item := &StatusItem{obj: C.menuet_ns_status_item_new()}
-	runtime.AddCleanup(item, core.Release, unsafe.Pointer(item.obj))
+	runtime.AddCleanup(item, core.Release, core.ObjectRef(item.obj))
 	return item
 }
 
@@ -85,11 +89,11 @@ func (menu *Menu) withPointer(fn func(*C.struct_NSMenu)) {
 
 // WithPointer calls fn synchronously while keeping the status item alive.
 // A nil status item passes a nil pointer to fn.
-func (item *StatusItem) WithPointer(fn func(unsafe.Pointer)) {
+func (item *StatusItem) WithPointer(fn func(StatusItemRef)) {
 	defer runtime.KeepAlive(item)
-	var obj unsafe.Pointer
+	var obj StatusItemRef
 	if item != nil {
-		obj = unsafe.Pointer(item.obj)
+		obj = item.obj
 	}
 	fn(obj)
 }
@@ -139,6 +143,17 @@ func (item *MenuItem) SetTitle(title string) *MenuItem {
 	return item
 }
 
+type FontWeight float64
+
+var FontWeightSemibold = FontWeight(C.NSFontWeightSemibold)
+
+// SetTitleFont styles the current title using AppKit's attributed-title support.
+func (item *MenuItem) SetTitleFont(size float64, weight FontWeight) *MenuItem {
+	defer runtime.KeepAlive(item)
+	C.menuet_ns_menu_item_set_title_font(item.obj, C.double(size), C.double(weight))
+	return item
+}
+
 func (item *MenuItem) SetBadge(badge string) *MenuItem {
 	defer runtime.KeepAlive(item)
 	value := C.CString(badge)
@@ -155,6 +170,22 @@ func (item *MenuItem) SetImage(image *Image) *MenuItem {
 	return item
 }
 
+type ControlStateValue int
+
+const (
+	ControlStateValueOff   ControlStateValue = C.NSControlStateValueOff
+	ControlStateValueOn    ControlStateValue = C.NSControlStateValueOn
+	ControlStateValueMixed ControlStateValue = C.NSControlStateValueMixed
+)
+
+func (item *MenuItem) SetToolTip(text string) *MenuItem {
+	defer runtime.KeepAlive(item)
+	value := C.CString(text)
+	defer C.free(unsafe.Pointer(value))
+	C.menuet_ns_menu_item_set_tool_tip(item.obj, value)
+	return item
+}
+
 func (item *MenuItem) SetHidden(hidden bool) *MenuItem {
 	defer runtime.KeepAlive(item)
 	C.menuet_ns_menu_item_set_hidden(item.obj, C.bool(hidden))
@@ -163,7 +194,7 @@ func (item *MenuItem) SetHidden(hidden bool) *MenuItem {
 
 // SetView assigns a custom NSView retained by the menu item.
 // view must be an Objective-C view pointer or nil, not a Go pointer.
-func (item *MenuItem) SetView(view unsafe.Pointer) *MenuItem {
+func (item *MenuItem) SetView(view ViewRef) *MenuItem {
 	defer runtime.KeepAlive(item)
 	C.menuet_ns_menu_item_set_view(item.obj, view)
 	return item
@@ -179,16 +210,16 @@ func (item *MenuItem) PopUpMenu(status *StatusItem) {
 
 // RepresentedObject returns an owned Objective-C reference. The caller must
 // release it or transfer it to a wrapper with cleanup.
-func (item *MenuItem) RepresentedObject() unsafe.Pointer {
+func (item *MenuItem) RepresentedObject() core.ObjectRef {
 	defer runtime.KeepAlive(item)
-	return C.menuet_ns_menu_item_represented_object(item.obj)
+	return core.ObjectRef(C.menuet_ns_menu_item_represented_object(item.obj))
 }
 
 // SetRepresentedObject sets the Objective-C object retained by the menu item.
 // object must be an Objective-C object pointer or nil, not a Go pointer.
-func (item *MenuItem) SetRepresentedObject(object unsafe.Pointer) *MenuItem {
+func (item *MenuItem) SetRepresentedObject(object core.ObjectRef) *MenuItem {
 	defer runtime.KeepAlive(item)
-	C.menuet_ns_menu_item_set_represented_object(item.obj, object)
+	C.menuet_ns_menu_item_set_represented_object(item.obj, (*C.struct_NSObject)(object))
 	return item
 }
 
@@ -201,6 +232,12 @@ func (item *MenuItem) SetTag(tag int) *MenuItem {
 	defer runtime.KeepAlive(item)
 	C.menuet_ns_menu_item_set_tag(item.obj, C.NSInteger(tag))
 	return item
+}
+
+// Menu returns an owned wrapper for the containing menu, or nil if unattached.
+func (item *MenuItem) Menu() *Menu {
+	defer runtime.KeepAlive(item)
+	return newMenu(C.menuet_ns_menu_item_menu(item.obj))
 }
 
 // Submenu returns an owned wrapper, or nil if the item has no submenu.
@@ -217,13 +254,13 @@ func (item *MenuItem) SetSubmenu(menu *Menu) *MenuItem {
 	return item
 }
 
-func (item *MenuItem) SetTarget(target unsafe.Pointer) *MenuItem {
+func (item *MenuItem) SetTarget(target core.ObjectRef) *MenuItem {
 	defer runtime.KeepAlive(item)
-	C.menuet_ns_menu_item_set_target(item.obj, target)
+	C.menuet_ns_menu_item_set_target(item.obj, (*C.struct_NSObject)(target))
 	return item
 }
 
-// NewMenuItemCallback invokes callback in a goroutine with an owned sender wrapper.
+// NewMenuItemCallback invokes callback in a goroutine with an owned menu item sender.
 // The caller must keep the returned target alive while menu items use it.
 func NewMenuItemCallback(callback func(*MenuItem)) *core.Callback {
 	return core.NewCallback(func(sender core.Sender) {
@@ -234,17 +271,20 @@ func NewMenuItemCallback(callback func(*MenuItem)) *core.Callback {
 
 func (item *MenuItem) SetAction(action core.Selector) *MenuItem {
 	defer runtime.KeepAlive(item)
-	// cgo's SEL representation requires a cast at this package boundary.
-	C.menuet_ns_menu_item_set_action(item.obj, (*C.struct_objc_selector)(unsafe.Pointer(action.Pointer())))
+	C.menuet_ns_menu_item_set_action(item.obj, (*C.struct_objc_selector)(action.Pointer()))
 	return item
 }
 
-// SetCallback sets the target and action. The caller must keep callback alive
-// while the menu item uses it.
+// SetCallback sets the target and action, or clears both for a nil callback.
+// The caller must keep callback alive while the menu item uses it.
 func (item *MenuItem) SetCallback(callback *core.Callback) *MenuItem {
-	callback.WithPointer(func(obj unsafe.Pointer) {
-		item.SetTarget(obj).
-			SetAction(callback.Selector())
+	var action core.Selector
+	if callback != nil {
+		action = callback.Selector()
+	}
+	callback.WithPointer(func(obj core.CallbackRef) {
+		item.SetTarget(core.ObjectRef(obj)).
+			SetAction(action)
 	})
 	return item
 }
@@ -270,5 +310,32 @@ func (item *StatusItem) SetMenu(menu *Menu) *StatusItem {
 	menu.withPointer(func(obj *C.struct_NSMenu) {
 		C.menuet_ns_status_item_set_menu(item.obj, obj)
 	})
+	return item
+}
+
+func (menu *Menu) SetAutoenablesItems(enabled bool) *Menu {
+	defer runtime.KeepAlive(menu)
+	C.menuet_ns_menu_set_autoenables_items(menu.obj, C.bool(enabled))
+	return menu
+}
+func (item *MenuItem) SetEnabled(enabled bool) *MenuItem {
+	defer runtime.KeepAlive(item)
+	C.menuet_ns_menu_item_set_enabled(item.obj, C.bool(enabled))
+	return item
+}
+
+func (item *MenuItem) Enabled() bool {
+	defer runtime.KeepAlive(item)
+	return bool(C.menuet_ns_menu_item_enabled(item.obj))
+}
+
+func (item *MenuItem) State() ControlStateValue {
+	defer runtime.KeepAlive(item)
+	return ControlStateValue(C.menuet_ns_menu_item_state(item.obj))
+}
+
+func (item *MenuItem) SetState(state ControlStateValue) *MenuItem {
+	defer runtime.KeepAlive(item)
+	C.menuet_ns_menu_item_set_state(item.obj, C.NSInteger(state))
 	return item
 }

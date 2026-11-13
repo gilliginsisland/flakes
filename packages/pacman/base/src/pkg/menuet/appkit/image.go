@@ -35,6 +35,6 @@ func ImageNamed(name string) *Image {
 	if image.obj == nil {
 		return nil
 	}
-	runtime.AddCleanup(&image, core.Release, unsafe.Pointer(image.obj))
+	runtime.AddCleanup(&image, core.Release, core.ObjectRef(image.obj))
 	return &image
 }

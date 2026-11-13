@@ -54,14 +54,14 @@ func Load() ([]*Plugin, error) {
 			return nil, fmt.Errorf("load plugin %s: %w", name, err)
 		}
 		var message *C.char
-		obj := C.pacman_plugin_new(bundle.PrincipalClass(), &message)
+		obj := C.pacman_plugin_new((*C.struct_objc_class)(bundle.PrincipalClass()), &message)
 		if message != nil {
 			err := fmt.Errorf("plugin %s: %s", name, C.GoString(message))
 			C.free(unsafe.Pointer(message))
 			return nil, err
 		}
 		plugin := &Plugin{obj: obj}
-		runtime.AddCleanup(plugin, core.Release, unsafe.Pointer(obj))
+		runtime.AddCleanup(plugin, core.Release, core.ObjectRef(obj))
 		plugins = append(plugins, plugin)
 	}
 	return plugins, nil
@@ -75,7 +75,7 @@ func (plugin *Plugin) MenuItems() []*appkit.MenuItem {
 	defer C.free(unsafe.Pointer(values.items))
 	items := make([]*appkit.MenuItem, values.count)
 	for index, obj := range unsafe.Slice(values.items, values.count) {
-		items[index] = appkit.MenuItemFromPointer(unsafe.Pointer(obj))
+		items[index] = appkit.MenuItemFromPointer(appkit.MenuItemRef(obj))
 	}
 	return items
 }

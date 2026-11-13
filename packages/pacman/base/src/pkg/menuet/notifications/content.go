@@ -40,7 +40,7 @@ type Content struct {
 
 func NewContent() *Content {
 	content := &Content{obj: C.menuet_un_content_new()}
-	runtime.AddCleanup(content, core.Release, unsafe.Pointer(content.obj))
+	runtime.AddCleanup(content, core.Release, core.ObjectRef(content.obj))
 	return content
 }
 

@@ -96,7 +96,7 @@ func (menu *systray) onAction(item *appkit.MenuItem) {
 	case actionQuit:
 		appkit.SharedApplication().Terminate()
 	case actionDisconnect, actionReset, actionCancel, actionConnect:
-		label := core.StringFromPointer(item.RepresentedObject()).String()
+		label := core.StringFromPointer(core.StringRef(item.RepresentedObject())).String()
 		menu.pacman.mu.Lock()
 		pd := menu.pacman.pool.dialers[label]
 		menu.pacman.mu.Unlock()

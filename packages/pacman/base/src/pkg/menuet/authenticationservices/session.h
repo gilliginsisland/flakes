@@ -1,6 +1,7 @@
 #import <AuthenticationServices/AuthenticationServices.h>
 #include <stdint.h>
 
+struct NSObject;
 struct ASWebAuthenticationSession;
 
 struct ASWebAuthenticationSession *
@@ -9,7 +10,7 @@ bool menuet_as_web_authentication_session_start(struct ASWebAuthenticationSessio
 void menuet_as_web_authentication_session_cancel(struct ASWebAuthenticationSession *session);
 void menuet_as_web_authentication_session_set_presentation_context_provider(
     struct ASWebAuthenticationSession *session,
-    void *provider
+    struct NSObject *provider
 );
 void menuet_as_web_authentication_session_set_prefers_ephemeral_browser_session(
     struct ASWebAuthenticationSession *session,

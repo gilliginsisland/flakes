@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #include <stddef.h>
 
+struct objc_class;
 struct NSObject;
 struct NSMenuItem;
 
@@ -10,5 +11,5 @@ typedef struct pacman_plugin_menu_item_array {
 	size_t count;
 } pacman_plugin_menu_item_array;
 
-struct NSObject *pacman_plugin_new(void *principalClass, char **message);
+struct NSObject *pacman_plugin_new(struct objc_class *principalClass, char **message);
 pacman_plugin_menu_item_array pacman_plugin_menu_items(struct NSObject *plugin);

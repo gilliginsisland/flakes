@@ -10,7 +10,6 @@ import "C"
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
@@ -23,10 +22,10 @@ type statusAnimation struct {
 
 func newStatusAnimation(status *appkit.StatusItem) *statusAnimation {
 	animation := &statusAnimation{}
-	status.WithPointer(func(obj unsafe.Pointer) {
+	status.WithPointer(func(obj appkit.StatusItemRef) {
 		animation.obj = C.pacman_status_animation_new((*C.struct_NSStatusItem)(obj))
 	})
-	runtime.AddCleanup(animation, core.Release, unsafe.Pointer(animation.obj))
+	runtime.AddCleanup(animation, core.Release, core.ObjectRef(animation.obj))
 	return animation
 }
 

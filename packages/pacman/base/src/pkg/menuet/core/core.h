@@ -3,6 +3,8 @@
 
 struct NSObject;
 struct NSString;
+struct objc_class;
+struct objc_selector;
 
 @interface MenuetCallback : NSObject
 - (void)invoke:(NSObject *)sender;

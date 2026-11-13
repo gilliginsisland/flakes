@@ -1,6 +1,30 @@
 #import "menu.h"
 #import "../core/core.h"
 
+bool menuet_ns_menu_item_enabled(struct NSMenuItem *item) {
+	__block bool result;
+	menuet_on_main(^{ result = ((__bridge NSMenuItem *)item).enabled; });
+	return result;
+}
+
+NSInteger menuet_ns_menu_item_state(struct NSMenuItem *item) {
+	__block NSInteger result;
+	menuet_on_main(^{ result = ((__bridge NSMenuItem *)item).state; });
+	return result;
+}
+
+void menuet_ns_menu_item_set_state(struct NSMenuItem *item, NSInteger state) {
+	menuet_on_main(^{ ((__bridge NSMenuItem *)item).state = state; });
+}
+
+struct NSMenu *menuet_ns_menu_item_menu(struct NSMenuItem *item) {
+	__block NSMenu *result;
+	menuet_on_main(^{
+		result = ((__bridge NSMenuItem *)item).menu;
+	});
+	return (__bridge_retained struct NSMenu *)result;
+}
+
 struct NSMenu *menuet_ns_menu_new(void) {
 	__block NSMenu *result;
 	menuet_on_main(^{
@@ -32,6 +56,8 @@ void menuet_ns_menu_cancel_tracking(struct NSMenu *menu) {
 		[(__bridge NSMenu *)menu cancelTracking];
 	});
 }
+
+
 
 menuet_ns_menu_item_array menuet_ns_menu_items(struct NSMenu *menu) {
 	__block menuet_ns_menu_item_array result;
@@ -76,6 +102,15 @@ void menuet_ns_menu_item_set_title(struct NSMenuItem *item, const char *title) {
 	});
 }
 
+void menuet_ns_menu_item_set_title_font(struct NSMenuItem *item, double size, double weight) {
+	menuet_on_main(^{
+		NSMenuItem *value = (__bridge NSMenuItem *)item;
+		value.attributedTitle = [[NSAttributedString alloc] initWithString:value.title attributes:@{
+			NSFontAttributeName: [NSFont systemFontOfSize:size weight:weight],
+		}];
+	});
+}
+
 void menuet_ns_menu_item_set_image(struct NSMenuItem *item, struct NSImage *image) {
 	menuet_on_main(^{
 		((__bridge NSMenuItem *)item).image = (__bridge NSImage *)image;
@@ -93,13 +128,17 @@ void menuet_ns_menu_item_set_badge(struct NSMenuItem *item, const char *badge) {
 	});
 }
 
+void menuet_ns_menu_item_set_tool_tip(struct NSMenuItem *item, const char *text) {
+ menuet_on_main(^{ ((__bridge NSMenuItem *)item).toolTip = [NSString stringWithUTF8String:text]; });
+}
+
 void menuet_ns_menu_item_set_hidden(struct NSMenuItem *item, bool hidden) {
 	menuet_on_main(^{
 		((__bridge NSMenuItem *)item).hidden = hidden;
 	});
 }
 
-void menuet_ns_menu_item_set_view(struct NSMenuItem *item, void *view) {
+void menuet_ns_menu_item_set_view(struct NSMenuItem *item, struct NSView *view) {
 	menuet_on_main(^{
 		((__bridge NSMenuItem *)item).view = (__bridge NSView *)view;
 	});
@@ -122,15 +161,15 @@ void menuet_ns_menu_item_pop_up_menu(struct NSMenuItem *item, struct NSStatusIte
 	});
 }
 
-void *menuet_ns_menu_item_represented_object(struct NSMenuItem *item) {
+struct NSObject *menuet_ns_menu_item_represented_object(struct NSMenuItem *item) {
 	__block id result;
 	menuet_on_main(^{
 		result = ((__bridge NSMenuItem *)item).representedObject;
 	});
-	return (__bridge_retained void *)result;
+	return (__bridge_retained struct NSObject *)result;
 }
 
-void menuet_ns_menu_item_set_represented_object(struct NSMenuItem *item, void *object) {
+void menuet_ns_menu_item_set_represented_object(struct NSMenuItem *item, struct NSObject *object) {
 	menuet_on_main(^{
 		((__bridge NSMenuItem *)item).representedObject = (__bridge id)object;
 	});
@@ -164,7 +203,7 @@ void menuet_ns_menu_item_set_submenu(struct NSMenuItem *item, struct NSMenu *men
 	});
 }
 
-void menuet_ns_menu_item_set_target(struct NSMenuItem *item, void *target) {
+void menuet_ns_menu_item_set_target(struct NSMenuItem *item, struct NSObject *target) {
 	menuet_on_main(^{
 		((__bridge NSMenuItem *)item).target = (__bridge id)target;
 	});
@@ -203,4 +242,11 @@ void menuet_ns_status_item_set_menu(struct NSStatusItem *item, struct NSMenu *me
 	menuet_on_main(^{
 		((__bridge NSStatusItem *)item).menu = (__bridge NSMenu *)menu;
 	});
+}
+
+void menuet_ns_menu_set_autoenables_items(struct NSMenu *menu, bool enabled) {
+ menuet_on_main(^{ ((__bridge NSMenu *)menu).autoenablesItems = enabled; });
+}
+void menuet_ns_menu_item_set_enabled(struct NSMenuItem *item, bool enabled) {
+ menuet_on_main(^{ ((__bridge NSMenuItem *)item).enabled = enabled; });
 }

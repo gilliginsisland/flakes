@@ -15,13 +15,13 @@ void menuet_wk_web_view_set_autoresizing_mask(struct WKWebView *view, NSAutoresi
 	});
 }
 
-void menuet_wk_web_view_set_under_page_background_color(struct WKWebView *view, void *color) {
+void menuet_wk_web_view_set_under_page_background_color(struct WKWebView *view, struct NSColor *color) {
 	menuet_on_main(^{
 		((__bridge WKWebView *)view).underPageBackgroundColor = (__bridge NSColor *)color;
 	});
 }
 
-void menuet_wk_web_view_load_html_string(struct WKWebView *view, const char *html, void *baseURL) {
+void menuet_wk_web_view_load_html_string(struct WKWebView *view, const char *html, struct NSURL *baseURL) {
 	menuet_on_main(^{
 		// Convert and hand the HTML to WebKit before Go frees the C string.
 		[(__bridge WKWebView *)view loadHTMLString:[NSString stringWithUTF8String:html] baseURL:(__bridge NSURL *)baseURL];

@@ -46,7 +46,7 @@ void menuet_as_web_authentication_session_cancel(struct ASWebAuthenticationSessi
 
 void menuet_as_web_authentication_session_set_presentation_context_provider(
     struct ASWebAuthenticationSession *session,
-    void *provider
+    struct NSObject *provider
 ) {
 	menuet_on_main(^{
 		((__bridge ASWebAuthenticationSession *)session).presentationContextProvider =

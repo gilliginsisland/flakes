@@ -17,7 +17,7 @@ void menuet_ns_window_set_title(struct NSWindow *window, const char *title) {
 	});
 }
 
-void menuet_ns_window_set_content_view(struct NSWindow *window, void *view) {
+void menuet_ns_window_set_content_view(struct NSWindow *window, struct NSView *view) {
 	menuet_on_main(^{
 		((__bridge NSWindow *)window).contentView = (__bridge NSView *)view;
 	});

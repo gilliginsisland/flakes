@@ -27,7 +27,7 @@ type Response struct {
 
 func newResponse(obj *C.struct_UNNotificationResponse) *Response {
 	response := &Response{obj: obj}
-	runtime.AddCleanup(response, core.Release, unsafe.Pointer(obj))
+	runtime.AddCleanup(response, core.Release, core.ObjectRef(obj))
 	return response
 }
 

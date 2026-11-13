@@ -39,10 +39,10 @@ bool menuet_ns_bundle_load(struct NSBundle *bundle, char **message) {
 	return loaded;
 }
 
-void *menuet_ns_bundle_principal_class(struct NSBundle *bundle) {
+struct objc_class *menuet_ns_bundle_principal_class(struct NSBundle *bundle) {
 	__block Class result;
 	menuet_on_main(^{
 		result = ((__bridge NSBundle *)bundle).principalClass;
 	});
-	return (__bridge void *)result;
+	return (__bridge struct objc_class *)result;
 }

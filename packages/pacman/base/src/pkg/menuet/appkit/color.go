@@ -10,10 +10,11 @@ import "C"
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 )
+
+type ColorRef = *C.struct_NSColor
 
 type Color struct {
 	obj *C.struct_NSColor
@@ -21,6 +22,17 @@ type Color struct {
 
 func ClearColor() *Color {
 	color := &Color{obj: C.menuet_ns_color_clear()}
-	runtime.AddCleanup(color, core.Release, unsafe.Pointer(color.obj))
+	runtime.AddCleanup(color, core.Release, core.ObjectRef(color.obj))
 	return color
+}
+
+// WithPointer borrows the native color synchronously, keeping its owner alive.
+// A nil color passes nil to fn.
+func (color *Color) WithPointer(fn func(ColorRef)) {
+	defer runtime.KeepAlive(color)
+	var ref ColorRef
+	if color != nil {
+		ref = color.obj
+	}
+	fn(ref)
 }

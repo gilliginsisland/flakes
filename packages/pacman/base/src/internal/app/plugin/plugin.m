@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct NSObject *pacman_plugin_new(void *principalClass, char **message) {
+struct NSObject *pacman_plugin_new(struct objc_class *principalClass, char **message) {
 	__block NSObject<PACmanPlugin> *result;
 	menuet_on_main(^{
 		Class cls = (__bridge Class)principalClass;
