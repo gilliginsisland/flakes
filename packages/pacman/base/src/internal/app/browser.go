@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/url"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/authenticationservices"
+	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 )
 
 // Browser keeps an interactive authentication session open until ctx is cancelled.
@@ -37,7 +37,7 @@ func (pacman *PACMan) Browser(ctx context.Context, uri string) error {
 		return errors.New("create browser authentication session")
 	}
 	defer session.Cancel()
-	anchor.WithPointer(func(pointer unsafe.Pointer) { session.SetPresentationContextProvider(pointer) })
+	anchor.WithPointer(func(pointer appkit.WindowRef) { session.SetPresentationContextProvider(core.ObjectRef(pointer)) })
 	session.SetPrefersEphemeralWebBrowserSession(false)
 	anchor.MakeKeyAndOrderFront()
 	if !session.Start() {

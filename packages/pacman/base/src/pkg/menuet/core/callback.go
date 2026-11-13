@@ -9,7 +9,6 @@ import "C"
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/syncutil"
 )
@@ -18,13 +17,15 @@ type Sender struct {
 	obj *C.struct_NSObject
 }
 
-func (sender Sender) Pointer() *C.struct_NSObject {
+func (sender Sender) Pointer() ObjectRef {
 	return sender.obj
 }
 
 // CallbackFunc owns the sender's retained reference and must release it or
 // transfer it to a wrapper with cleanup.
 type CallbackFunc func(Sender)
+
+type CallbackRef = *C.struct_MenuetCallback
 
 type Callback struct {
 	obj *C.struct_MenuetCallback
@@ -38,18 +39,18 @@ func NewCallback(fn CallbackFunc) *Callback {
 	runtime.AddCleanup(callback, func(obj *C.struct_MenuetCallback) {
 		// Remove the mapping before release allows the native address to be reused.
 		callbacks.Delete(obj)
-		Release(unsafe.Pointer(obj))
+		Release(ObjectRef(obj))
 	}, callback.obj)
 	return callback
 }
 
 // WithPointer calls fn synchronously while keeping the callback alive.
 // A nil callback passes a nil pointer to fn.
-func (callback *Callback) WithPointer(fn func(unsafe.Pointer)) {
+func (callback *Callback) WithPointer(fn func(CallbackRef)) {
 	defer runtime.KeepAlive(callback)
-	var obj unsafe.Pointer
+	var obj CallbackRef
 	if callback != nil {
-		obj = unsafe.Pointer(callback.obj)
+		obj = callback.obj
 	}
 	fn(obj)
 }
@@ -62,7 +63,7 @@ func (callback *Callback) Selector() Selector {
 func menuet_core_invoke_callback(pointer *C.struct_MenuetCallback, value *C.struct_NSObject) {
 	callback, ok := callbacks.Load(pointer)
 	if !ok {
-		Release(unsafe.Pointer(value))
+		Release(value)
 		return
 	}
 	callback(Sender{obj: value})

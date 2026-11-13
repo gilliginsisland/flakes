@@ -35,6 +35,8 @@ type WindowOptions struct {
 	Defer       bool
 }
 
+type WindowRef = *C.struct_NSWindow
+
 type Window struct {
 	obj *C.struct_NSWindow
 }
@@ -49,13 +51,13 @@ func NewWindow(options WindowOptions) *Window {
 
 func newWindow(obj *C.struct_NSWindow) *Window {
 	window := &Window{obj: obj}
-	runtime.AddCleanup(window, core.Release, unsafe.Pointer(window.obj))
+	runtime.AddCleanup(window, core.Release, core.ObjectRef(window.obj))
 	return window
 }
 
 // WindowFromPointer takes ownership of a retained Objective-C window.
-func WindowFromPointer(obj unsafe.Pointer) *Window {
-	return newWindow((*C.struct_NSWindow)(obj))
+func WindowFromPointer(obj WindowRef) *Window {
+	return newWindow(obj)
 }
 
 func (window *Window) SetTitle(title string) *Window {
@@ -66,7 +68,7 @@ func (window *Window) SetTitle(title string) *Window {
 	return window
 }
 
-func (window *Window) SetContentView(view unsafe.Pointer) *Window {
+func (window *Window) SetContentView(view ViewRef) *Window {
 	defer runtime.KeepAlive(window)
 	C.menuet_ns_window_set_content_view(window.obj, view)
 	return window
@@ -89,11 +91,11 @@ func (window *Window) Close() {
 
 // WithPointer calls fn synchronously while keeping the window alive.
 // A nil window passes a nil pointer to fn.
-func (window *Window) WithPointer(fn func(unsafe.Pointer)) {
+func (window *Window) WithPointer(fn func(WindowRef)) {
 	defer runtime.KeepAlive(window)
-	var obj unsafe.Pointer
+	var obj WindowRef
 	if window != nil {
-		obj = unsafe.Pointer(window.obj)
+		obj = window.obj
 	}
 	fn(obj)
 }

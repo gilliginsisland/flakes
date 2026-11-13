@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 
 #import "core.h"
+#import <objc/runtime.h>
 #include <string.h>
 
 void menuet_on_main(void (^block)(void)) {

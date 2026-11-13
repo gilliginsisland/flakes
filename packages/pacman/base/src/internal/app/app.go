@@ -12,7 +12,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"golang.org/x/net/proxy"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
+	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 	"github.com/gilliginsisland/pacman/pkg/menuet/notifications"
 	"github.com/gilliginsisland/pacman/pkg/notify"
 	"github.com/gilliginsisland/pacman/pkg/xdg"
@@ -48,8 +48,8 @@ func Run(config Path, l net.Listener) error {
 			center := notifications.CurrentCenter()
 			center.RemoveAllPendingRequests()
 			center.RemoveAllDeliveredNotifications()
-			notificationDelegate.WithPointer(func(obj unsafe.Pointer) {
-				center.SetDelegate(obj)
+			notificationDelegate.WithPointer(func(obj notifications.DelegateRef) {
+				center.SetDelegate(core.ObjectRef(obj))
 			})
 			center.SetCategories([]*notifications.Category{inputNotificationCategory, failureNotificationCategory})
 			center.RequestAuthorization(notifications.AuthorizationOptionAlert |
@@ -61,8 +61,8 @@ func Run(config Path, l net.Listener) error {
 		})
 	// NSApplication keeps only a weak reference to its delegate.
 	defer runtime.KeepAlive(delegate)
-	delegate.WithPointer(func(obj unsafe.Pointer) {
-		app.SetDelegate(obj)
+	delegate.WithPointer(func(obj appkit.AppDelegateRef) {
+		app.SetDelegate(core.ObjectRef(obj))
 	})
 	app.SetActivationPolicy(appkit.ActivationPolicyAccessory)
 	go func() {

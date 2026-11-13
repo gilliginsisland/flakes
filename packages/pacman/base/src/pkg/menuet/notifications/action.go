@@ -43,7 +43,7 @@ type TextInputActionContent struct {
 
 func newAction(obj *C.struct_UNNotificationAction) *Action {
 	action := &Action{obj: obj}
-	runtime.AddCleanup(action, core.Release, unsafe.Pointer(obj))
+	runtime.AddCleanup(action, core.Release, core.ObjectRef(obj))
 	return action
 }
 

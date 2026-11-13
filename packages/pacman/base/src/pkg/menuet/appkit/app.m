@@ -29,7 +29,7 @@ void menuet_ns_application_show_help(struct NSApplication *application) {
 	});
 }
 
-void menuet_ns_application_set_delegate(struct NSApplication *application, void *delegate) {
+void menuet_ns_application_set_delegate(struct NSApplication *application, struct NSObject *delegate) {
 	menuet_on_main(^{
 		((__bridge NSApplication *)application).delegate = (__bridge id<NSApplicationDelegate>)delegate;
 	});

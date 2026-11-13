@@ -9,6 +9,8 @@ import "C"
 
 import "unsafe"
 
+type SelectorRef = *C.struct_objc_selector
+
 type Selector struct {
 	sel C.SEL
 }
@@ -19,6 +21,6 @@ func SEL(name string) Selector {
 	return Selector{sel: C.menuet_selector(value)}
 }
 
-func (selector Selector) Pointer() C.SEL {
-	return selector.sel
+func (selector Selector) Pointer() SelectorRef {
+	return (*C.struct_objc_selector)(selector.sel)
 }

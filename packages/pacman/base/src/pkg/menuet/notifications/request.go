@@ -30,6 +30,6 @@ func NewRequest(options RequestOptions) *Request {
 	value := C.CString(options.Identifier)
 	defer C.free(unsafe.Pointer(value))
 	request := &Request{obj: C.menuet_un_request_new(value, options.Content.obj)}
-	runtime.AddCleanup(request, core.Release, unsafe.Pointer(request.obj))
+	runtime.AddCleanup(request, core.Release, core.ObjectRef(request.obj))
 	return request
 }

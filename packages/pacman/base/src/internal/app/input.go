@@ -68,7 +68,7 @@ func (pd *PooledDialer) input(ctx context.Context, status *appkit.StatusItem, pr
 		pd.menu.input.SetHidden(true)
 		pd.menu.input.header.SetHidden(true)
 		pd.menu.CancelTracking()
-		pd.menu.input.view.SetStringValue("")
+		pd.menu.input.SetStringValue("")
 	}()
 
 	responses, cleanup := notify.NotifyCh(notify.Notification{
@@ -83,7 +83,7 @@ func (pd *PooledDialer) input(ctx context.Context, status *appkit.StatusItem, pr
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
-		case result := <-pd.menu.input.view.Results():
+		case result := <-pd.menu.input.Results():
 			return result, nil
 		case response, ok := <-responses:
 			// Notification responses are one-shot. A body click transfers the

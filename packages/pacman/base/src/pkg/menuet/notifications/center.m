@@ -6,7 +6,7 @@ struct UNUserNotificationCenter *menuet_un_center_current(void) {
 	}
 }
 
-void menuet_un_center_set_delegate(struct UNUserNotificationCenter *center, void *delegate) {
+void menuet_un_center_set_delegate(struct UNUserNotificationCenter *center, struct NSObject *delegate) {
 	@autoreleasepool {
 		((__bridge UNUserNotificationCenter *)center).delegate = (__bridge id<UNUserNotificationCenterDelegate>)delegate;
 	}

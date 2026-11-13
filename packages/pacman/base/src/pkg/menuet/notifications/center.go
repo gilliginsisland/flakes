@@ -31,15 +31,15 @@ type Center struct {
 
 var CurrentCenter = sync.OnceValue(func() *Center {
 	center := &Center{obj: C.menuet_un_center_current()}
-	runtime.AddCleanup(center, core.Release, unsafe.Pointer(center.obj))
+	runtime.AddCleanup(center, core.Release, core.ObjectRef(center.obj))
 	return center
 })
 
 // SetDelegate assigns a weak native reference. Keep the Go delegate alive and
 // install it before the application finishes launching.
-func (center *Center) SetDelegate(delegate unsafe.Pointer) *Center {
+func (center *Center) SetDelegate(delegate core.ObjectRef) *Center {
 	defer runtime.KeepAlive(center)
-	C.menuet_un_center_set_delegate(center.obj, delegate)
+	C.menuet_un_center_set_delegate(center.obj, (*C.struct_NSObject)(delegate))
 	return center
 }
 

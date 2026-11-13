@@ -14,7 +14,6 @@ import "C"
 import (
 	"runtime"
 	"sync"
-	"unsafe"
 
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 )
@@ -38,7 +37,7 @@ func init() {
 
 var sharedApplication = sync.OnceValue(func() *Application {
 	application := &Application{obj: C.menuet_ns_application_shared()}
-	runtime.AddCleanup(application, core.Release, unsafe.Pointer(application.obj))
+	runtime.AddCleanup(application, core.Release, core.ObjectRef(application.obj))
 	return application
 })
 
@@ -64,9 +63,9 @@ func (application *Application) ShowHelp() {
 
 // SetDelegate assigns a weak Objective-C reference. The caller must keep its
 // Go delegate wrapper alive while the application uses it.
-func (application *Application) SetDelegate(delegate unsafe.Pointer) *Application {
+func (application *Application) SetDelegate(delegate core.ObjectRef) *Application {
 	defer runtime.KeepAlive(application)
-	C.menuet_ns_application_set_delegate(application.obj, delegate)
+	C.menuet_ns_application_set_delegate(application.obj, (*C.struct_NSObject)(delegate))
 	return application
 }
 

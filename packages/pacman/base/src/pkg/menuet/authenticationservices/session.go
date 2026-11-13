@@ -46,7 +46,7 @@ func NewSession(url string, callbackURLScheme string, completion func(callbackUR
 		// Keep the native reference until its callback mapping has been removed.
 		completions.Delete(obj)
 		C.menuet_as_web_authentication_session_cancel(obj)
-		core.Release(unsafe.Pointer(obj))
+		core.Release(core.ObjectRef(obj))
 	}, obj)
 	return &session
 }
@@ -80,9 +80,9 @@ func (session *Session) Cancel() {
 
 // SetPresentationContextProvider assigns a weak native reference. The caller must
 // keep the provider's Go wrapper alive while the session uses it.
-func (session *Session) SetPresentationContextProvider(provider unsafe.Pointer) *Session {
+func (session *Session) SetPresentationContextProvider(provider core.ObjectRef) *Session {
 	defer runtime.KeepAlive(session)
-	C.menuet_as_web_authentication_session_set_presentation_context_provider(session.obj, provider)
+	C.menuet_as_web_authentication_session_set_presentation_context_provider(session.obj, (*C.struct_NSObject)(provider))
 	return session
 }
 

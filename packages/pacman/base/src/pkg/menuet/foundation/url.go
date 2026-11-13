@@ -16,6 +16,8 @@ import (
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
 )
 
+type URLRef = *C.struct_NSURL
+
 type URL struct {
 	obj *C.struct_NSURL
 }
@@ -28,6 +30,17 @@ func URLWithString(value string) *URL {
 		return nil
 	}
 	url := &URL{obj: obj}
-	runtime.AddCleanup(url, core.Release, unsafe.Pointer(obj))
+	runtime.AddCleanup(url, core.Release, core.ObjectRef(obj))
 	return url
+}
+
+// WithPointer borrows the native URL synchronously, keeping its owner alive.
+// A nil URL passes nil to fn.
+func (url *URL) WithPointer(fn func(URLRef)) {
+	defer runtime.KeepAlive(url)
+	var ref URLRef
+	if url != nil {
+		ref = url.obj
+	}
+	fn(ref)
 }

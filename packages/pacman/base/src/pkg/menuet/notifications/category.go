@@ -44,6 +44,6 @@ func NewCategory(content CategoryContent) *Category {
 		values[index] = action.obj
 	}
 	category := &Category{obj: C.menuet_un_category_new(id, unsafe.SliceData(values), C.size_t(len(values)), C.UNNotificationCategoryOptions(content.Options))}
-	runtime.AddCleanup(category, core.Release, unsafe.Pointer(category.obj))
+	runtime.AddCleanup(category, core.Release, core.ObjectRef(category.obj))
 	return category
 }

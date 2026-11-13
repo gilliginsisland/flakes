@@ -27,7 +27,7 @@ func newBundle(obj *C.struct_NSBundle) *Bundle {
 		return nil
 	}
 	bundle := &Bundle{obj: obj}
-	runtime.AddCleanup(bundle, core.Release, unsafe.Pointer(obj))
+	runtime.AddCleanup(bundle, core.Release, core.ObjectRef(obj))
 	return bundle
 }
 
@@ -60,7 +60,7 @@ func (bundle *Bundle) Load() error {
 
 // PrincipalClass returns the runtime class, not an owned instance.
 // Loaded bundles are not unloaded when their Go wrappers are collected.
-func (bundle *Bundle) PrincipalClass() unsafe.Pointer {
+func (bundle *Bundle) PrincipalClass() core.ClassRef {
 	defer runtime.KeepAlive(bundle)
-	return C.menuet_ns_bundle_principal_class(bundle.obj)
+	return core.ClassRef(C.menuet_ns_bundle_principal_class(bundle.obj))
 }

@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"golang.org/x/net/proxy"
 
@@ -65,9 +64,8 @@ type PooledDialer struct {
 		*appkit.MenuItem
 		*appkit.Menu
 		input struct {
-			*appkit.MenuItem
+			*appkit.InputMenuItem
 			header *appkit.MenuItem
-			view   *appkit.InputView
 		}
 		connect    *appkit.MenuItem
 		cancel     *appkit.MenuItem
@@ -90,40 +88,36 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 		updates:   make(chan dialer.StateUpdate),
 		animation: pool.animation,
 	}
-	core.NewString(l).WithPointer(func(obj unsafe.Pointer) {
+	core.NewString(l).WithPointer(func(obj core.StringRef) {
 		pd.menu.MenuItem = appkit.NewMenuItem().
 			SetTag(int(actionDialer)).
-			SetRepresentedObject(obj)
+			SetRepresentedObject(core.ObjectRef(obj))
 		// Keep each action's identity fixed, including for queued clicks.
 		pd.menu.connect = appkit.NewMenuItem().
 			SetTitle("Connect").
 			SetTag(int(actionConnect)).
-			SetRepresentedObject(obj).
+			SetRepresentedObject(core.ObjectRef(obj)).
 			SetCallback(pool.callback)
 		pd.menu.cancel = appkit.NewMenuItem().
 			SetTitle("Cancel").
 			SetTag(int(actionCancel)).
-			SetRepresentedObject(obj).
+			SetRepresentedObject(core.ObjectRef(obj)).
 			SetCallback(pool.callback)
 		pd.menu.disconnect = appkit.NewMenuItem().
 			SetTitle("Disconnect").
 			SetTag(int(actionDisconnect)).
-			SetRepresentedObject(obj).
+			SetRepresentedObject(core.ObjectRef(obj)).
 			SetCallback(pool.callback)
 		pd.menu.reset = appkit.NewMenuItem().
 			SetTitle("Reset").
 			SetTag(int(actionReset)).
-			SetRepresentedObject(obj).
+			SetRepresentedObject(core.ObjectRef(obj)).
 			SetCallback(pool.callback)
 	})
-	pd.menu.input.view = appkit.NewInputView("Enter authentication input")
+	pd.menu.input.InputMenuItem = appkit.NewInputMenuItem("Enter authentication input")
 	pd.menu.input.header = appkit.NewMenuItemSectionHeader("").
 		SetHidden(true)
-	pd.menu.input.MenuItem = appkit.NewMenuItem().
-		SetHidden(true)
-	pd.menu.input.view.WithPointer(func(obj unsafe.Pointer) {
-		pd.menu.input.SetView(obj)
-	})
+	pd.menu.input.SetHidden(true)
 	pd.menu.Menu = appkit.NewMenu().
 		Append(pd.menu.input.header, pd.menu.input.MenuItem, pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset)
 	pd.menu.SetSubmenu(pd.menu.Menu)
