@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/gilliginsisland/pacman/internal/app/plugin"
+	"github.com/gilliginsisland/pacman/internal/app/systemproxy"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/dialer/oc"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
@@ -26,13 +27,14 @@ import (
 )
 
 type PACMan struct {
-	config   Path
-	pool     DialerPool
-	dialer   dialer.ByHost
-	listener net.Listener
-	server   *ProxyServer
-	menu     *systray
-	mu       sync.Mutex
+	config      Path
+	pool        DialerPool
+	dialer      dialer.ByHost
+	listener    net.Listener
+	server      *ProxyServer
+	menu        *systray
+	systemProxy *systemproxy.Proxy
+	mu          sync.Mutex
 }
 
 func Run(config Path, l net.Listener) error {
@@ -119,8 +121,14 @@ func run(config Path, l net.Listener) error {
 	oc.DefaultInputProvider = &pacman
 	oc.DefaultBrowserProvider = &pacman
 	pacman.menu = newAppKitMenu(&pacman, plugins)
+	pacman.systemProxy, err = systemproxy.New(pacman.menu.proxySwitch.Switch, pacman.listener.Addr())
+	if err != nil {
+		slog.Error("Could not initialize the system proxy", "error", err)
+	} else {
+		pacman.menu.proxySwitch.Switch.SetEnabled(true)
+	}
 	pacman.pool.callback = pacman.menu.callback
-	pacman.pool.animation = newStatusAnimation(pacman.menu.status)
+	pacman.pool.animation = newStatusAnimation(pacman.menu.StatusItem)
 	pacman.server = NewProxyServer(&pacman.dialer)
 	if err = pacman.LoadConfig(cfg); err != nil {
 		return err

@@ -32,7 +32,7 @@ Once a connection is no longer in use, PACman can disconnect it after its idle t
 
 ### Using the Menu Bar
 
-Click the PACman menu-bar icon to see the local server address and your configured proxies. Each proxy shows its own status and offers the action that applies at that moment:
+Click the PACman menu-bar icon to see your configured proxies and the system proxy control. Each proxy shows its own status and offers the action that applies at that moment:
 
 | Status | Meaning | Available action |
 |--------|---------|------------------|
@@ -42,6 +42,14 @@ Click the PACman menu-bar icon to see the local server address and your configur
 | 🔴 Failed | Connection setup failed and automatic attempts are paused. | **Reset** to allow another attempt. |
 
 The menu-bar icon animates while a connection is being established. A failure changes it to a ghost, so you can see that a proxy needs attention. Open the menu to find the affected proxy; once all failures are reset, the icon returns to its normal appearance or resumes the connection animation.
+
+Turn on the **PACman** switch at the top of the menu to set PACman's Automatic Proxy Configuration URL for the enabled network services in your current macOS network location. This does not create or switch network locations. Applications that use the system proxy will then use PACman's PAC file.
+
+If another PAC URL or an inline configuration script is saved, or other proxy modes are active, PACman explains the conflicts in one confirmation dialog. Choose **Set** to replace the PAC configuration and disable the other proxy modes, or **Cancel** to leave the settings unchanged. Their saved proxy addresses and ports are preserved. macOS may also ask for administrator authorization. The switch is disabled and shows a spinner while PACman processes the request or refreshes its status.
+
+Turn the switch off to disable and remove PACman's PAC URL from services that still use it. This leaves unrelated proxy settings in place. PACman monitors effective proxy settings while it is running and updates the switch to match. If it changes the switch from On to Off because the settings no longer match PACman, it notifies you. It does not automatically repair or re-enable the proxy. Quitting PACman leaves the system proxy settings as they are; turn the switch off before quitting if you want to disable the PAC setting.
+
+The current proxy server address is shown under **Settings > Server Address**.
 
 Under **Settings**, choose **Edit** to open your configuration, then **Reload** to apply your changes. **Help** opens this guide.
 
@@ -458,7 +466,7 @@ Two options for browser proxy routing on macOS:
    - Set manual SOCKS5 proxy to host `127.0.0.1`, port `11078` (or custom address if `listen` changed).
    - Sends all traffic through PACman, potentially slower for non-proxied traffic.
 
-For system-wide setup:
+For system-wide setup, turn on the **PACman** switch in its menu, or configure it manually:
 - Go to **System Settings > Network > [Active Network] > Details > Proxies**.
 - Enable "Automatic Proxy Configuration" with `http://127.0.0.1:11078/proxy.pac`, or set SOCKS5 proxy to `127.0.0.1:11078`.
 

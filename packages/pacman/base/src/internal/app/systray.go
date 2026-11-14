@@ -25,22 +25,27 @@ const (
 )
 
 type systray struct {
-	pacman   *PACMan
-	callback *core.Callback
-	status   *appkit.StatusItem
-	menu     *appkit.Menu
-	dialers  []*appkit.MenuItem
+	*appkit.StatusItem
+	*appkit.Menu
+
+	pacman      *PACMan
+	callback    *core.Callback
+	dialers     []*appkit.MenuItem
+	proxySwitch *appkit.SwitchMenuItem
 }
 
 func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
-	menu := &systray{
-		pacman: pacman,
-		status: appkit.NewStatusItem(),
-		menu:   appkit.NewMenu(),
+	tray := &systray{
+		StatusItem:  appkit.NewStatusItem(),
+		Menu:        appkit.NewMenu().SetAutoenablesItems(false),
+		pacman:      pacman,
+		proxySwitch: appkit.NewSwitchMenuItem("PACman"),
 	}
-
-	menu.callback = appkit.NewMenuItemCallback(menu.onAction)
-	menu.dialers = pacman.pool.MenuItems()
+	tray.callback = appkit.NewMenuItemCallback(tray.onAction)
+	tray.proxySwitch.Switch.SetEnabled(false)
+	tray.proxySwitch.Switch.SetSpinning(true)
+	tray.Append(tray.proxySwitch.MenuItem)
+	tray.dialers = pacman.pool.MenuItems()
 	var pluginItems []*appkit.MenuItem
 	for _, plugin := range plugins {
 		pluginItems = append(pluginItems, plugin.MenuItems()...)
@@ -49,39 +54,42 @@ func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
 		pluginItems = append([]*appkit.MenuItem{appkit.NewMenuItemSeparator()}, pluginItems...)
 	}
 
-	menu.status.SetTitle("PACman").
-		SetImage(appkit.ImageNamed("menuicon.pdf")).
-		SetMenu(menu.menu.
-			Append(appkit.NewMenuItemSectionHeader("Server Address")).
-			Append(appkit.NewMenuItem().
-				SetTitle(menu.pacman.listener.Addr().String())).
-			Append(appkit.NewMenuItemSeparator()).
-			Append(appkit.NewMenuItemSectionHeader("Proxies")).
-			Append(menu.dialers...).
-			Append(appkit.NewMenuItemSeparator()).
-			Append(appkit.NewMenuItem().
-				SetTitle("Settings").
-				SetSubmenu(appkit.NewMenu().
-					Append(appkit.NewMenuItem().
-						SetTitle("Edit").
-						SetTag(int(actionEdit)).
-						SetCallback(menu.callback)).
-					Append(appkit.NewMenuItem().
-						SetTitle("Reload").
-						SetTag(int(actionReload)).
-						SetCallback(menu.callback)).
-					Append(appkit.NewMenuItemSeparator()).
-					Append(appkit.NewMenuItem().
-						SetTitle("Help").
-						SetTag(int(actionHelp)).
-						SetCallback(menu.callback)).
-					Append(pluginItems...))).
-			Append(appkit.NewMenuItem().
-				SetTitle("Quit").
-				SetTag(int(actionQuit)).
-				SetCallback(menu.callback)))
+	tray.Append(appkit.NewMenuItemSeparator()).
+		Append(appkit.NewMenuItemSectionHeader("Proxies").SetTitleFont(13, appkit.FontWeightSemibold)).
+		Append(tray.dialers...).
+		Append(appkit.NewMenuItemSeparator()).
+		Append(appkit.NewMenuItem().
+			SetTitle("Settings").
+			SetSubmenu(appkit.NewMenu().
+				Append(appkit.NewMenuItemSectionHeader("Server Address").SetTitleFont(13, appkit.FontWeightSemibold)).
+				Append(appkit.NewMenuItem().
+					SetTitle(tray.pacman.listener.Addr().String())).
+				Append(appkit.NewMenuItemSeparator()).
+				Append(appkit.NewMenuItem().
+					SetTitle("Edit").
+					SetTag(int(actionEdit)).
+					SetCallback(tray.callback)).
+				Append(appkit.NewMenuItem().
+					SetTitle("Reload").
+					SetTag(int(actionReload)).
+					SetCallback(tray.callback)).
+				Append(appkit.NewMenuItemSeparator()).
+				Append(appkit.NewMenuItem().
+					SetTitle("Help").
+					SetTag(int(actionHelp)).
+					SetCallback(tray.callback)).
+				Append(pluginItems...))).
+		Append(appkit.NewMenuItemSeparator()).
+		Append(appkit.NewMenuItem().
+			SetTitle("Quit PACman").
+			SetTag(int(actionQuit)).
+			SetCallback(tray.callback))
 
-	return menu
+	tray.SetTitle("PACman").
+		SetImage(appkit.ImageNamed("menuicon.pdf")).
+		SetMenu(tray.Menu)
+
+	return tray
 }
 
 func (menu *systray) onAction(item *appkit.MenuItem) {
@@ -114,15 +122,15 @@ func (menu *systray) updateDialers(pool *DialerPool) {
 		if slices.Contains(items, item) {
 			current = append(current, item)
 		} else {
-			menu.menu.Remove(item)
+			menu.Menu.Remove(item)
 		}
 	}
 	for index, item := range items {
 		if len(current) > 0 && current[0] == item {
 			current = current[1:]
 		} else {
-			// Dialer rows follow the address section and Proxies header.
-			menu.menu.Insert(item, 4+index)
+			// Dialer rows follow the PACman switch, separator, and Proxies header.
+			menu.Menu.Insert(item, 3+index)
 		}
 	}
 	menu.dialers = items

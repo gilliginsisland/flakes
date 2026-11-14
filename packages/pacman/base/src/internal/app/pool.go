@@ -42,7 +42,7 @@ type DialerPool struct {
 func (pool *DialerPool) MenuItems() []*appkit.MenuItem {
 	if len(pool.dialers) == 0 {
 		return []*appkit.MenuItem{
-			appkit.NewMenuItem().SetTitle("No Proxies Configured"),
+			appkit.NewMenuItem().SetTitle("No Proxies Configured").SetEnabled(false),
 		}
 	}
 	items := make([]*appkit.MenuItem, 0, len(pool.dialers))

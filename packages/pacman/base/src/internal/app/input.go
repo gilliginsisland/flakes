@@ -52,7 +52,7 @@ func (pacman *PACMan) Input(ctx context.Context, u *url.URL, input oc.InputType)
 	}
 	pacman.pool.animation.addInput(1)
 	defer pacman.pool.animation.addInput(-1)
-	token, err := pd.input(ctx, pacman.menu.status, "YubiKey OTP")
+	token, err := pd.input(ctx, pacman.menu.StatusItem, "YubiKey OTP")
 	if err != nil {
 		return "", err
 	}
