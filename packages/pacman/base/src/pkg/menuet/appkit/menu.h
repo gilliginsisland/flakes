@@ -35,6 +35,7 @@ struct NSMenuItem *menuet_ns_menu_item_separator(void);
 struct NSMenuItem *menuet_ns_menu_item_section_header(const char *title);
 
 void menuet_ns_menu_item_set_title(struct NSMenuItem *item, const char *title);
+void menuet_ns_menu_item_set_subtitle(struct NSMenuItem *item, const char *subtitle);
 void menuet_ns_menu_item_set_image(struct NSMenuItem *item, struct NSImage *image);
 void menuet_ns_menu_item_set_badge(struct NSMenuItem *item, const char *badge);
 void menuet_ns_menu_item_set_tool_tip(struct NSMenuItem *item, const char *text);

@@ -243,9 +243,9 @@ func (d *Lazy) monitor() {
 			if err != nil {
 				d.notify(Failed, err)
 			} else {
-				// Online means shared setup succeeded; stateless dialers may
+				// Connected means shared setup succeeded; stateless dialers may
 				// not contact their upstream until DialContext is called.
-				d.notify(Online, nil)
+				d.notify(Connected, nil)
 			}
 		case err := <-d.wait.Current():
 			if !d.retire() {

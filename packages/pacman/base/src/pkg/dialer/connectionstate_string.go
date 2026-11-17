@@ -11,12 +11,12 @@ func _() {
 	_ = x[Idle-0]
 	_ = x[Connecting-1]
 	_ = x[Failed-2]
-	_ = x[Online-3]
+	_ = x[Connected-3]
 }
 
-const _ConnectionState_name = "IdleConnectingFailedOnline"
+const _ConnectionState_name = "IdleConnectingFailedConnected"
 
-var _ConnectionState_index = [...]uint8{0, 4, 14, 20, 26}
+var _ConnectionState_index = [...]uint8{0, 4, 14, 20, 29}
 
 func (i ConnectionState) String() string {
 	idx := int(i) - 0

@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/gilliginsisland/pacman/internal/app/plugin"
+	"github.com/gilliginsisland/pacman/internal/version"
 	"github.com/gilliginsisland/pacman/pkg/dialer"
 	"github.com/gilliginsisland/pacman/pkg/menuet/appkit"
 	"github.com/gilliginsisland/pacman/pkg/menuet/core"
@@ -42,6 +43,7 @@ func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
 		proxySwitch: appkit.NewSwitchMenuItem("PACman"),
 	}
 	tray.callback = appkit.NewMenuItemCallback(tray.onAction)
+	tray.proxySwitch.SetSubtitle(version.Version + " · " + tray.pacman.listener.Addr().String())
 	tray.proxySwitch.Switch.SetEnabled(false)
 	tray.proxySwitch.Switch.SetSpinning(true)
 	tray.Append(tray.proxySwitch.MenuItem)
@@ -55,33 +57,34 @@ func newAppKitMenu(pacman *PACMan, plugins []*plugin.Plugin) *systray {
 	}
 
 	tray.Append(appkit.NewMenuItemSeparator()).
-		Append(appkit.NewMenuItemSectionHeader("Proxies").SetTitleFont(13, appkit.FontWeightSemibold)).
+		Append(appkit.NewMenuItemSectionHeader("Proxies")).
 		Append(tray.dialers...).
 		Append(appkit.NewMenuItemSeparator()).
 		Append(appkit.NewMenuItem().
 			SetTitle("Settings").
+			SetImage(menuSymbol("gearshape")).
 			SetSubmenu(appkit.NewMenu().
-				Append(appkit.NewMenuItemSectionHeader("Server Address").SetTitleFont(13, appkit.FontWeightSemibold)).
-				Append(appkit.NewMenuItem().
-					SetTitle(tray.pacman.listener.Addr().String())).
-				Append(appkit.NewMenuItemSeparator()).
 				Append(appkit.NewMenuItem().
 					SetTitle("Edit").
+					SetImage(menuSymbol("square.and.pencil")).
 					SetTag(int(actionEdit)).
 					SetCallback(tray.callback)).
 				Append(appkit.NewMenuItem().
 					SetTitle("Reload").
+					SetImage(menuSymbol("arrow.clockwise")).
 					SetTag(int(actionReload)).
 					SetCallback(tray.callback)).
 				Append(appkit.NewMenuItemSeparator()).
 				Append(appkit.NewMenuItem().
 					SetTitle("Help").
+					SetImage(menuSymbol("questionmark.circle")).
 					SetTag(int(actionHelp)).
 					SetCallback(tray.callback)).
 				Append(pluginItems...))).
 		Append(appkit.NewMenuItemSeparator()).
 		Append(appkit.NewMenuItem().
 			SetTitle("Quit PACman").
+			SetImage(menuSymbol("power")).
 			SetTag(int(actionQuit)).
 			SetCallback(tray.callback))
 
@@ -134,4 +137,8 @@ func (menu *systray) updateDialers(pool *DialerPool) {
 		}
 	}
 	menu.dialers = items
+}
+
+func menuSymbol(name string) *appkit.Image {
+	return appkit.ImageSystemSymbol(name, appkit.SymbolColorDefault)
 }

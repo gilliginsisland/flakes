@@ -7,7 +7,7 @@ const (
 	Idle ConnectionState = iota
 	Connecting
 	Failed
-	Online
+	Connected
 )
 
 type StateUpdate struct {

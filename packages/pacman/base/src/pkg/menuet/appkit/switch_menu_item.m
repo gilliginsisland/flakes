@@ -2,14 +2,15 @@
 #import "switch.h"
 #import "../core/core.h"
 
-// Match MacControlCenterUI's vertical padding and platform-specific menu widths.
+// Match MacControlCenterUI's vertical padding.
 static const CGFloat MenuetControlCenterVerticalPadding = 4;
-static const CGFloat MenuetControlCenterWidth = 310;
-static const CGFloat MenuetControlCenterLegacyWidth = 300;
 
 @interface MenuetSwitchMenuItem : NSMenuItem
 @property(nonatomic, strong) MenuetSwitch *control;
+@property(nonatomic, strong) NSTextField *titleLabel;
+@property(nonatomic, strong) NSTextField *subtitleLabel;
 - (instancetype)initWithTitle:(NSString *)title;
+- (void)sizeToFit;
 @end
 
 @interface MenuetSwitchView : NSView
@@ -24,6 +25,28 @@ static const CGFloat MenuetControlCenterLegacyWidth = 300;
 @end
 
 @implementation MenuetSwitchMenuItem
+- (void)setTitle:(NSString *)title {
+	[super setTitle:title];
+	self.titleLabel.stringValue = title;
+	self.control.accessibilityLabel = title;
+	[self sizeToFit];
+}
+
+- (void)setSubtitle:(NSString *)subtitle {
+	[super setSubtitle:subtitle];
+	self.subtitleLabel.stringValue = subtitle ?: @"";
+	self.subtitleLabel.hidden = subtitle.length == 0;
+	[self sizeToFit];
+}
+
+- (void)sizeToFit {
+	NSView *view = self.view;
+	if (view) {
+		[view setFrameSize:view.fittingSize];
+		[view layoutSubtreeIfNeeded];
+	}
+}
+
 - (void)setEnabled:(BOOL)enabled {
 	[super setEnabled:enabled];
 	self.control.enabled = enabled;
@@ -46,10 +69,28 @@ static const CGFloat MenuetControlCenterLegacyWidth = 300;
 		view.autoresizingMask = NSViewWidthSizable;
 
 		NSTextField *label = [NSTextField labelWithString:text];
+		self.titleLabel = label;
 		label.font = [NSFontManager.sharedFontManager convertFont:sizingMenu.font toHaveTrait:NSBoldFontMask];
 		label.textColor = NSColor.labelColor;
 		label.translatesAutoresizingMaskIntoConstraints = NO;
-		[view addSubview:label];
+
+		NSTextField *subtitle = [NSTextField labelWithString:self.subtitle ?: @""];
+		self.subtitleLabel = subtitle;
+		subtitle.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+		subtitle.textColor = NSColor.secondaryLabelColor;
+		subtitle.lineBreakMode = NSLineBreakByTruncatingTail;
+		subtitle.hidden = subtitle.stringValue.length == 0;
+		subtitle.translatesAutoresizingMaskIntoConstraints = NO;
+		[subtitle setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow
+		                                  forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+		NSStackView *labels = [NSStackView stackViewWithViews:@[label, subtitle]];
+		labels.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+		labels.alignment = NSLayoutAttributeFirstBaseline;
+		labels.spacing = 8;
+		labels.detachesHiddenViews = YES;
+		labels.translatesAutoresizingMaskIntoConstraints = NO;
+		[view addSubview:labels];
 
 		self.control = [MenuetSwitch new];
 		NSSwitch *control = self.control;
@@ -72,28 +113,21 @@ static const CGFloat MenuetControlCenterLegacyWidth = 300;
 
 		// Keep Control Center's header height while aligning with native menu rows.
 		[NSLayoutConstraint activateConstraints:@[
-			[label.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:leadingPadding],
-			[control.leadingAnchor constraintGreaterThanOrEqualToSystemSpacingAfterAnchor:label.trailingAnchor multiplier:1],
+			[labels.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:leadingPadding],
+			[control.leadingAnchor constraintGreaterThanOrEqualToSystemSpacingAfterAnchor:labels.trailingAnchor multiplier:1],
 			[control.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-trailingPadding],
 			[control.topAnchor constraintEqualToAnchor:view.topAnchor constant:MenuetControlCenterVerticalPadding],
 			[control.bottomAnchor constraintEqualToAnchor:view.bottomAnchor constant:-MenuetControlCenterVerticalPadding],
-			[label.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
-			[label.topAnchor constraintGreaterThanOrEqualToAnchor:view.topAnchor constant:MenuetControlCenterVerticalPadding],
-			[label.bottomAnchor constraintLessThanOrEqualToAnchor:view.bottomAnchor constant:-MenuetControlCenterVerticalPadding],
+			[labels.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
+			[labels.topAnchor constraintGreaterThanOrEqualToAnchor:view.topAnchor constant:MenuetControlCenterVerticalPadding],
+			[labels.bottomAnchor constraintLessThanOrEqualToAnchor:view.bottomAnchor constant:-MenuetControlCenterVerticalPadding],
 			[spinner.centerXAnchor constraintEqualToAnchor:control.centerXAnchor],
 			[spinner.centerYAnchor constraintEqualToAnchor:control.centerYAnchor],
 			[spinner.widthAnchor constraintEqualToConstant:spinner.frame.size.width],
 			[spinner.heightAnchor constraintEqualToConstant:spinner.frame.size.height],
 		]];
-		CGFloat width;
-		if (@available(macOS 26, *)) {
-			width = MenuetControlCenterWidth;
-		} else {
-			width = MenuetControlCenterLegacyWidth;
-		}
-		[view setFrameSize:NSMakeSize(width, view.fittingSize.height)];
-		[view layoutSubtreeIfNeeded];
 		self.view = view;
+		[self sizeToFit];
 	}
 	return self;
 }

@@ -10,7 +10,8 @@ import "C"
 
 import "unsafe"
 
-// SwitchMenuItem is a menu header with a bold title, native switch, and spinner.
+// SwitchMenuItem is a menu header with a bold title, optional inline subtitle,
+// native switch, and spinner. SetSubtitle updates the secondary text.
 // Its menu-item state and embedded switch state are independent.
 type SwitchMenuItem struct {
 	*MenuItem
