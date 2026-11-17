@@ -16,4 +16,8 @@ static inline void menuet_cf_dictionary_remove_value(CFMutableDictionaryRef dict
     CFDictionaryRemoveValue(dictionary, key);
 }
 
+static inline CFTypeRef menuet_cf_array_get_value(CFArrayRef array, CFIndex index) {
+    return CFArrayGetValueAtIndex(array, index);
+}
+
 #endif

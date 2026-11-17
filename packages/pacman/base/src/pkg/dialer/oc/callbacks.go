@@ -9,17 +9,19 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gilliginsisland/pacman/pkg/openconnect"
 	"github.com/gilliginsisland/pacman/pkg/openconnect/hostscan"
 )
 
 type callbacks struct {
-	url    *url.URL
-	ctx    context.Context
-	cp     openconnect.CredentialsProcessor
-	label  string
-	cancel context.CancelCauseFunc
+	url      *url.URL
+	ctx      context.Context
+	cp       openconnect.CredentialsProcessor
+	label    string
+	cancel   context.CancelCauseFunc
+	accepted func() error
 }
 
 func (cb *callbacks) Progress(level openconnect.LogLevel, message string) {
@@ -64,22 +66,46 @@ func (cb *callbacks) ProcessForm(form *openconnect.AuthForm) error {
 		return errors.New(form.Error)
 	}
 
-	cb.cp.Username = cb.url.User.Username()
+	if cb.cp.Username == "" {
+		cb.cp.Username = cb.url.User.Username()
+	}
+	request := InputRequest{Username: cb.cp.Username}
+	for _, option := range form.Options {
+		switch option.Type {
+		case openconnect.FormOptionPassword:
+			request.NeedPassword = true
+		case openconnect.FormOptionSSOUser:
+			request.NeedUsername = true
+		case openconnect.FormOptionText:
+			if strings.HasPrefix(strings.ToLower(option.Name), "user") {
+				request.NeedUsername = true
+			}
+		}
+	}
+	if !request.NeedUsername && !request.NeedPassword {
+		return cb.cp.ProcessForm(form)
+	}
 	if DefaultInputProvider == nil {
 		return errors.New("authentication input provider is not configured")
 	}
-	password, err := DefaultInputProvider.Input(cb.ctx, cb.url, InputPassword)
+	input, err := DefaultInputProvider.Input(cb.ctx, cb.url, request)
 	if err != nil {
 		cb.DebugLog("Auth form input failed", slog.Any("error", err))
 		return err
 	}
-	cb.cp.Password = password
-
-	err = cb.cp.ProcessForm(form)
-	if err != nil {
+	if input.Username != "" {
+		cb.cp.Username = input.Username
+	}
+	cb.cp.Password = input.Password
+	defer func() { cb.cp.Password = "" }()
+	if err = cb.cp.ProcessForm(form); err != nil {
 		cb.DebugLog("CredentialsProcessor", slog.Any("error", err))
 		return err
 	}
+	if request.NeedPassword {
+		cb.accepted = input.Accepted
+	}
+
 	cb.DebugLog("CredentialsProcessor", slog.String("result", "ok"))
 	return nil
 }

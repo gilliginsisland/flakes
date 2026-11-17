@@ -58,6 +58,13 @@ func NewDialer(ctx context.Context, u *url.URL) (_ *Dialer, err error) {
 		},
 		CookieObtained: func(string) {
 			browserClose()
+			if cb.accepted != nil {
+				accepted := cb.accepted
+				cb.accepted = nil
+				if err := accepted(); err != nil {
+					slog.WarnContext(cb.ctx, "Could not save VPN password", slog.String("proxy", cb.label), slog.Any("error", err))
+				}
+			}
 		},
 		ValidatePeerCert: func(cert string) bool {
 			return true

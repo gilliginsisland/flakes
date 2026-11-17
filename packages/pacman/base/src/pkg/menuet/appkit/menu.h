@@ -62,3 +62,6 @@ void menuet_ns_menu_item_set_enabled(struct NSMenuItem *item, bool enabled);
 bool menuet_ns_menu_item_enabled(struct NSMenuItem *item);
 NSInteger menuet_ns_menu_item_state(struct NSMenuItem *item);
 void menuet_ns_menu_item_set_state(struct NSMenuItem *item, NSInteger state);
+
+struct MenuetCallback;
+void menuet_ns_menu_set_will_open(struct NSMenu *menu, struct MenuetCallback *callback);

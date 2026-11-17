@@ -18,7 +18,8 @@ import (
 )
 
 type Menu struct {
-	obj *C.struct_NSMenu
+	obj      *C.struct_NSMenu
+	willOpen *core.Callback
 }
 
 type MenuItemRef = *C.struct_NSMenuItem
@@ -346,4 +347,22 @@ func (item *MenuItem) SetState(state ControlStateValue) *MenuItem {
 	defer runtime.KeepAlive(item)
 	C.menuet_ns_menu_item_set_state(item.obj, C.NSInteger(state))
 	return item
+}
+
+// SetWillOpen runs fn asynchronously when menu tracking begins. Callers should
+// use weak references when fn refers back to the menu's owner.
+func (menu *Menu) SetWillOpen(fn func()) *Menu {
+	defer runtime.KeepAlive(menu)
+	var callback *core.Callback
+	if fn != nil {
+		callback = core.NewCallback(func(sender core.Sender) {
+			defer core.Release(sender.Pointer())
+			go fn()
+		})
+	}
+	callback.WithPointer(func(ref core.CallbackRef) {
+		C.menuet_ns_menu_set_will_open(menu.obj, (*C.struct_MenuetCallback)(ref))
+	})
+	menu.willOpen = callback
+	return menu
 }

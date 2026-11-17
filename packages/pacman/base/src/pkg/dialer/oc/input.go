@@ -5,18 +5,25 @@ import (
 	"net/url"
 )
 
-type InputType int
-
-const (
-	InputPassword InputType = iota
-)
-
-// InputProvider supplies the complete authentication value for the requested
-// input type and URL being connected.
-type InputProvider interface {
-	Input(ctx context.Context, u *url.URL, input InputType) (string, error)
+// InputRequest describes the credentials requested by the current VPN form.
+// Username carries the account already supplied by config or an earlier form.
+type InputRequest struct {
+	Username     string
+	NeedUsername bool
+	NeedPassword bool
 }
 
-// DefaultInputProvider must be registered before dialing. A nil provider cannot
-// fulfill authentication forms that require input.
+// InputResult holds credentials and an optional action after authentication.
+type InputResult struct {
+	Username string
+	Password string
+	// Accepted persists only the reusable password after cookie acquisition.
+	Accepted func() error
+}
+
+type InputProvider interface {
+	Input(ctx context.Context, u *url.URL, request InputRequest) (InputResult, error)
+}
+
+// DefaultInputProvider must be registered before dialing.
 var DefaultInputProvider InputProvider

@@ -19,10 +19,11 @@ const (
 	actionQuit
 	actionDialer
 	// Dialer actions follow the static tags and preserve their ResetAction values.
-	actionCancel     = actionDialer + appkitAction(dialer.Cancel)
-	actionDisconnect = actionDialer + appkitAction(dialer.Disconnect)
-	actionReset      = actionDialer + appkitAction(dialer.Reset)
-	actionConnect    = actionDialer + appkitAction(dialer.Connect)
+	actionCancel      = actionDialer + appkitAction(dialer.Cancel)
+	actionDisconnect  = actionDialer + appkitAction(dialer.Disconnect)
+	actionReset       = actionDialer + appkitAction(dialer.Reset)
+	actionConnect     = actionDialer + appkitAction(dialer.Connect)
+	actionEditAccount = actionConnect + 1
 )
 
 type systray struct {
@@ -106,7 +107,7 @@ func (menu *systray) onAction(item *appkit.MenuItem) {
 		appkit.SharedApplication().ShowHelp()
 	case actionQuit:
 		appkit.SharedApplication().Terminate()
-	case actionDisconnect, actionReset, actionCancel, actionConnect:
+	case actionDisconnect, actionReset, actionCancel, actionConnect, actionEditAccount:
 		label := core.StringFromPointer(core.StringRef(item.RepresentedObject())).String()
 		menu.pacman.mu.Lock()
 		pd := menu.pacman.pool.dialers[label]
@@ -114,7 +115,11 @@ func (menu *systray) onAction(item *appkit.MenuItem) {
 		if pd == nil {
 			return
 		}
-		pd.dialer.Reset(dialer.ResetAction(action - actionDialer))
+		if action == actionEditAccount {
+			go pd.editSavedAccount()
+		} else {
+			pd.dialer.Reset(dialer.ResetAction(action - actionDialer))
+		}
 	}
 }
 

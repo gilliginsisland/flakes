@@ -1,4 +1,5 @@
 #import "menu.h"
+#import <objc/runtime.h>
 #import "../core/core.h"
 
 // Keep SDK 26 builds compatible with the public macOS 27 visibility API.
@@ -269,4 +270,25 @@ void menuet_ns_menu_set_autoenables_items(struct NSMenu *menu, bool enabled) {
 }
 void menuet_ns_menu_item_set_enabled(struct NSMenuItem *item, bool enabled) {
  menuet_on_main(^{ ((__bridge NSMenuItem *)item).enabled = enabled; });
+}
+
+@interface MenuetMenuDelegate : NSObject <NSMenuDelegate>
+@property(nonatomic, strong) MenuetCallback *callback;
+@end
+@implementation MenuetMenuDelegate
+- (void)menuWillOpen:(NSMenu *)menu { [self.callback invoke:menu]; }
+@end
+
+void menuet_ns_menu_set_will_open(struct NSMenu *menu, struct MenuetCallback *callback) {
+    menuet_on_main(^{
+        static char delegateKey;
+        NSMenu *value = (__bridge NSMenu *)menu;
+        MenuetMenuDelegate *delegate = nil;
+        if (callback) {
+            delegate = [MenuetMenuDelegate new];
+            delegate.callback = (__bridge MenuetCallback *)callback;
+        }
+        objc_setAssociatedObject(value, &delegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        value.delegate = delegate;
+    });
 }

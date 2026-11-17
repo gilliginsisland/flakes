@@ -1,23 +1,20 @@
 listen: 127.0.0.1:11078
 proxies:
   # Example proxies (uncomment and edit):
+  # VPN accounts are requested when needed and can be saved in Keychain.
   # cisco_vpn:
-  #   username: user
-  #   password: pass
   #   protocol: anyconnect
   #   host: vpn.example.com
   #   path: usergroup
   #   options:
-  #     token: totp
+  #     token: otp
   #     timeout: 0
   # global_protect:
-  #   username: admin
-  #   password: secret
   #   protocol: gp
   #   host: gateway.example.com
   #   path: employee-group
   #   options:
-  #     token: totp
+  #     token: otp
   #     timeout: 7200
   # socks_proxy:
   #   username: proxyuser

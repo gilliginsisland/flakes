@@ -51,3 +51,24 @@ func (value *MutableDictionary) Remove(key StringRef) {
 	defer runtime.KeepAlive(value)
 	C.menuet_cf_dictionary_remove_value(C.CFMutableDictionaryRef(value.ref), key)
 }
+
+// SetValue retains a borrowed native CF reference in the dictionary.
+func (value *MutableDictionary) SetValue(key StringRef, ref TypeRef) {
+	defer runtime.KeepAlive(value)
+	C.menuet_cf_dictionary_set_value(C.CFMutableDictionaryRef(value.ref), key, C.CFTypeRef(ref))
+}
+
+func (value *MutableDictionary) SetInt(key StringRef, number int) {
+	defer runtime.KeepAlive(value)
+	n := C.int64_t(number)
+	ref := C.CFNumberCreate(0, C.kCFNumberSInt64Type, unsafe.Pointer(&n))
+	defer C.CFRelease(C.CFTypeRef(ref))
+	C.menuet_cf_dictionary_set_value(C.CFMutableDictionaryRef(value.ref), key, C.CFTypeRef(ref))
+}
+
+func (value *MutableDictionary) SetData(key StringRef, data []byte) {
+	defer runtime.KeepAlive(value)
+	ref := C.CFDataCreate(0, (*C.UInt8)(unsafe.Pointer(unsafe.SliceData(data))), C.CFIndex(len(data)))
+	defer C.CFRelease(C.CFTypeRef(ref))
+	C.menuet_cf_dictionary_set_value(C.CFMutableDictionaryRef(value.ref), key, C.CFTypeRef(ref))
+}

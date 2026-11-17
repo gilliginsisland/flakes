@@ -186,7 +186,9 @@ host: proxy.example.com:1080
 
 **Default:** no username.
 
-Username used to authenticate to the proxy or VPN server. Set it when the server requires username authentication.
+Username used to authenticate to the proxy or VPN server. For VPNs without an
+inline password, omit this to discover the username from Keychain; an optional
+username selects a specific saved account.
 
 **Example:**
 
@@ -200,7 +202,11 @@ username: alice
 
 **Default:** no password.
 
-Password used to authenticate to the proxy or VPN server. For VPNs with `options.token: otp`, PACman appends the entered token to this password during authentication.
+Password used to authenticate to the proxy or VPN server. For `anyconnect` and
+`gp`, omitting the password uses macOS Keychain automatically when a VPN form
+requests credentials. An explicit nonempty password takes precedence. For VPNs
+with `options.token: otp`, PACman appends the entered token to the reusable
+password during authentication.
 
 **Example:**
 
@@ -255,6 +261,57 @@ Closes an idle proxy connection after this interval. Use `0` to disable idle dis
 options:
   timeout: 7200
 ```
+
+##### VPN accounts in Keychain (trial)
+
+`anyconnect` and `gp` discover accounts in macOS Keychain automatically when no
+nonempty password is supplied in the config. No Keychain option is needed; both
+username and password can live in Keychain. An optional configured username
+selects a specific saved account, and an explicit inline password takes precedence.
+
+```yaml
+proxies:
+  work:
+    protocol: anyconnect
+    host: vpn.example.com
+    options:
+      token: otp # omit when no OTP is required
+```
+
+Equivalent URL: `anyconnect://vpn.example.com/?token=otp`.
+
+Credential lookup and prompting happen only when the VPN form requests them.
+A username-only form reads account attributes, never the password. When there is
+one matching account it is selected automatically; multiple accounts produce an
+account chooser. With no matching account, the native sign-in dialog asks for a
+username and password. Browser-only authentication does not request a Keychain
+password.
+
+Select **Remember account in Keychain** to save after the VPN obtains an
+authentication cookie. Only the reusable password is saved; a YubiKey OTP is
+requested separately for each password authentication.
+
+Accounts are ordinary HTTPS internet-password items matching the lowercased VPN
+hostname and port (default `443`), empty path and security domain, and default
+authentication type. VPNs using the same server and account share credentials.
+This uses Keychain Services directly rather than the Passwords app's AutoFill UI.
+
+The VPN menu shows **Edit Account…** only when matching saved accounts are
+detected. Discovery refreshes when the submenu opens and after a save; it reads
+account attributes without password data or Keychain authentication UI. The action
+is enabled when idle or failed; disconnect an active VPN first. Failure
+notifications offer editing when saved accounts have been detected.
+
+Editing explicitly bypasses the saved password for the next attempt. Remember
+is selected by default, and the saved account is updated only after successful
+authentication. A bad password, bad OTP, or cancellation never erases the existing
+credential. Uncheck Remember to connect once without changing Keychain. Ordinary
+**Reset** retries the saved credentials.
+
+A denied or unavailable Keychain fails authentication rather than silently
+creating another credential. Save failures are logged without preventing a
+successful VPN connection. Reset or cancellation dismisses the sign-in dialog.
+Rebuilt or differently signed trial binaries may need macOS access approval again.
 
 <a id="token"></a>
 
@@ -390,9 +447,8 @@ Example YAML configuration for PACman with proxies and rules.
 listen: 127.0.0.1:11078
 
 proxies:
+  # VPN accounts are discovered from Keychain or requested at sign-in.
   cisco_vpn:
-    username: user
-    password: pass
     protocol: anyconnect
     host: vpn.example.com
     path: usergroup
@@ -400,8 +456,6 @@ proxies:
       token: otp
       timeout: 0
   global_protect:
-    username: admin
-    password: secret
     protocol: gp
     host: gateway.example.com
     path: employee-group

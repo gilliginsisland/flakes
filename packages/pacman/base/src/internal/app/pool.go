@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"weak"
 
 	"golang.org/x/net/proxy"
 
@@ -26,6 +27,15 @@ var failureNotificationCategory = notifications.NewCategory(notifications.Catego
 			Identifier: "proxy-reset",
 			Title:      "Reset",
 		}),
+	},
+	Options: notifications.CategoryOptionCustomDismiss,
+})
+
+var authFailureNotificationCategory = notifications.NewCategory(notifications.CategoryContent{
+	Identifier: "proxy-auth-failed",
+	Actions: []*notifications.Action{
+		notifications.NewAction(notifications.ActionContent{Identifier: "proxy-reset", Title: "Reset"}),
+		notifications.NewAction(notifications.ActionContent{Identifier: "proxy-edit-account", Title: "Edit Account…"}),
 	},
 	Options: notifications.CategoryOptionCustomDismiss,
 })
@@ -57,20 +67,25 @@ type PooledDialer struct {
 	URL     *url.URL
 	updates chan dialer.StateUpdate
 
-	dialer         *dialer.Lazy
-	animation      *statusAnimation
-	notificationID string
-	menu           struct {
+	dialer             *dialer.Lazy
+	animation          *statusAnimation
+	notificationID     string
+	replaceCredentials atomic.Bool
+	hasAccounts        atomic.Bool
+	refreshingAccounts atomic.Bool
+	state              atomic.Int32
+	menu               struct {
 		*appkit.MenuItem
 		*appkit.Menu
 		input struct {
 			*appkit.InputMenuItem
 			header *appkit.MenuItem
 		}
-		connect    *appkit.MenuItem
-		cancel     *appkit.MenuItem
-		disconnect *appkit.MenuItem
-		reset      *appkit.MenuItem
+		connect     *appkit.MenuItem
+		cancel      *appkit.MenuItem
+		disconnect  *appkit.MenuItem
+		reset       *appkit.MenuItem
+		editAccount *appkit.MenuItem
 	}
 }
 
@@ -113,13 +128,32 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 			SetTag(int(actionReset)).
 			SetRepresentedObject(core.ObjectRef(obj)).
 			SetCallback(pool.callback)
+		if usesKeychain(u) {
+			pd.menu.editAccount = appkit.NewMenuItem().
+				SetTitle("Edit Account…").
+				SetHidden(true).
+				SetTag(int(actionEditAccount)).
+				SetRepresentedObject(core.ObjectRef(obj)).
+				SetCallback(pool.callback)
+		}
 	})
 	pd.menu.input.InputMenuItem = appkit.NewInputMenuItem("Enter authentication input")
 	pd.menu.input.header = appkit.NewMenuItemSectionHeader("").
 		SetHidden(true)
 	pd.menu.input.SetHidden(true)
-	pd.menu.Menu = appkit.NewMenu().
+	pd.menu.Menu = appkit.NewMenu().SetAutoenablesItems(false).
 		Append(pd.menu.input.header, pd.menu.input.MenuItem, pd.menu.connect, pd.menu.cancel, pd.menu.disconnect, pd.menu.reset)
+	if pd.menu.editAccount != nil {
+		pd.menu.Append(pd.menu.editAccount)
+	}
+	if usesKeychain(u) {
+		target := weak.Make(&pd)
+		pd.menu.Menu.SetWillOpen(func() {
+			if pd := target.Value(); pd != nil {
+				pd.refreshAccounts()
+			}
+		})
+	}
 	pd.menu.SetSubmenu(pd.menu.Menu)
 	pd.updateMenu(dialer.Idle)
 	pd.dialer = dialer.NewLazy(
@@ -140,6 +174,7 @@ func (pool *DialerPool) NewPooledDialer(l string, u *url.URL) *PooledDialer {
 
 func (pd *PooledDialer) run() {
 	state := dialer.Idle
+	pd.refreshAccounts()
 	defer func() {
 		notify.Remove(pd.notificationID)
 		pd.animation.updateState(state, dialer.Idle)
@@ -164,6 +199,7 @@ func (pd *PooledDialer) run() {
 }
 
 func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
+	pd.state.Store(int32(state))
 	pd.menu.SetTitle(pd.Label).
 		SetImage(pd.icon(state)).
 		SetBadge(state.String())
@@ -171,6 +207,9 @@ func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
 	pd.menu.cancel.SetHidden(state != dialer.Connecting)
 	pd.menu.disconnect.SetHidden(state != dialer.Connected)
 	pd.menu.reset.SetHidden(state != dialer.Failed)
+	if pd.menu.editAccount != nil {
+		pd.menu.editAccount.SetEnabled(state == dialer.Idle || state == dialer.Failed)
+	}
 }
 
 func (pd *PooledDialer) Close() {
@@ -221,6 +260,9 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 		notif.Body = ""
 		if err != nil {
 			notif.CategoryIdentifier = "proxy-failed"
+			if pd.hasAccounts.Load() {
+				notif.CategoryIdentifier = "proxy-auth-failed"
+			}
 		}
 	default:
 		notif.Subtitle = "Unknown connection state"
@@ -233,14 +275,17 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 		notif.Body += err.Error()
 	}
 	switch notif.CategoryIdentifier {
-	case "proxy-failed":
+	case "proxy-failed", "proxy-auth-failed":
 		responses, cleanup := notify.NotifyCh(notif)
 		go func() {
 			defer cleanup()
 			select {
 			case response := <-responses:
-				if response.ActionIdentifier == "proxy-reset" {
+				switch response.ActionIdentifier {
+				case "proxy-reset":
 					pd.dialer.Reset(dialer.Reset)
+				case "proxy-edit-account":
+					pd.editSavedAccount()
 				}
 			case <-pd.dialer.Done():
 			}
@@ -248,4 +293,43 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	default:
 		notify.Notify(notif)
 	}
+}
+
+// Replacement is explicitly requested by the user. A failed attempt never
+// mutates Keychain; Input commits the change after cookie acquisition.
+func (pd *PooledDialer) editSavedAccount() {
+	if !usesKeychain(pd.URL) {
+		return
+	}
+	state := dialer.ConnectionState(pd.state.Load())
+	if state != dialer.Idle && state != dialer.Failed {
+		return
+	}
+	pd.replaceCredentials.Store(true)
+	pd.dialer.Reset(dialer.Reset)
+	pd.dialer.Reset(dialer.Connect)
+}
+
+// Inline passwords take precedence. Otherwise VPN credentials come from
+// Keychain when requested by an authentication form, without a config switch.
+func usesKeychain(u *url.URL) bool {
+	password, _ := u.User.Password()
+	return (u.Scheme == "anyconnect" || u.Scheme == "gp") && password == ""
+}
+
+// Refresh only account attributes, never password data. Called at startup,
+// when this submenu opens, and after a successful credential save.
+func (pd *PooledDialer) refreshAccounts() {
+	if pd.menu.editAccount == nil || !pd.refreshingAccounts.CompareAndSwap(false, true) {
+		return
+	}
+	defer pd.refreshingAccounts.Store(false)
+	item, err := vpnAccount(pd.URL, pd.URL.User.Username())
+	found := false
+	if err == nil {
+		accounts, err := item.Accounts()
+		found = err == nil && len(accounts) != 0
+	}
+	pd.hasAccounts.Store(found)
+	pd.menu.editAccount.SetHidden(!found)
 }

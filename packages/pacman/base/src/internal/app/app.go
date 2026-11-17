@@ -53,7 +53,7 @@ func Run(config Path, l net.Listener) error {
 			notificationDelegate.WithPointer(func(obj notifications.DelegateRef) {
 				center.SetDelegate(core.ObjectRef(obj))
 			})
-			center.SetCategories([]*notifications.Category{inputNotificationCategory, failureNotificationCategory})
+			center.SetCategories([]*notifications.Category{inputNotificationCategory, failureNotificationCategory, authFailureNotificationCategory})
 			center.RequestAuthorization(notifications.AuthorizationOptionAlert |
 				notifications.AuthorizationOptionSound |
 				notifications.AuthorizationOptionBadge)

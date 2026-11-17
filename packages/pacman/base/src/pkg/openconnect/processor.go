@@ -41,6 +41,10 @@ func (cp *CredentialsProcessor) ProcessForm(form *AuthForm) error {
 					return err
 				}
 			}
+		case FormOptionSSOUser:
+			if err := opt.SetValue(cp.Username); err != nil {
+				return err
+			}
 		case FormOptionPassword:
 			if err := opt.SetValue(cp.Password); err != nil {
 				return err

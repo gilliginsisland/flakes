@@ -3,7 +3,7 @@ package corefoundation
 
 /*
 #cgo LDFLAGS: -framework CoreFoundation
-#include <CoreFoundation/CoreFoundation.h>
+#include "native.h"
 */
 import "C"
 
@@ -79,4 +79,37 @@ func (value *Type) WithPointer(fn func(TypeRef)) {
 		ref = value.ref
 	}
 	fn(ref)
+}
+
+// Data copies a CFData value into Go-owned memory.
+func (value *Type) Data() []byte {
+	defer runtime.KeepAlive(value)
+	if value == nil || C.CFGetTypeID(value.ref) != C.CFDataGetTypeID() {
+		return nil
+	}
+	ref := C.CFDataRef(value.ref)
+	return C.GoBytes(unsafe.Pointer(C.CFDataGetBytePtr(ref)), C.int(C.CFDataGetLength(ref)))
+}
+
+// Dictionary retains a dictionary value independently of its generic owner.
+func (value *Type) Dictionary() *Dictionary {
+	defer runtime.KeepAlive(value)
+	if value == nil || C.CFGetTypeID(value.ref) != C.CFDictionaryGetTypeID() {
+		return nil
+	}
+	return OwnDictionary(Retain(DictionaryRef(value.ref)))
+}
+
+// Array retains each array element independently of the array's lifetime.
+func (value *Type) Array() []*Type {
+	defer runtime.KeepAlive(value)
+	if value == nil || C.CFGetTypeID(value.ref) != C.CFArrayGetTypeID() {
+		return nil
+	}
+	ref := C.CFArrayRef(value.ref)
+	values := make([]*Type, int(C.CFArrayGetCount(ref)))
+	for i := range values {
+		values[i] = OwnType(Retain(C.menuet_cf_array_get_value(ref, C.CFIndex(i))))
+	}
+	return values
 }
