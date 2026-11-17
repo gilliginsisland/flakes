@@ -1,6 +1,16 @@
 #import "menu.h"
 #import "../core/core.h"
 
+// Keep SDK 26 builds compatible with the public macOS 27 visibility API.
+#if __MAC_OS_X_VERSION_MAX_ALLOWED < 270000
+typedef NS_ENUM(NSInteger, NSMenuItemImageVisibility) {
+	NSMenuItemImageVisibilityVisible = 1,
+};
+@interface NSMenuItem (MenuetImageVisibility)
+@property NSMenuItemImageVisibility preferredImageVisibility;
+@end
+#endif
+
 bool menuet_ns_menu_item_enabled(struct NSMenuItem *item) {
 	__block bool result;
 	menuet_on_main(^{ result = ((__bridge NSMenuItem *)item).enabled; });
@@ -113,7 +123,17 @@ void menuet_ns_menu_item_set_title_font(struct NSMenuItem *item, double size, do
 
 void menuet_ns_menu_item_set_image(struct NSMenuItem *item, struct NSImage *image) {
 	menuet_on_main(^{
-		((__bridge NSMenuItem *)item).image = (__bridge NSImage *)image;
+		NSMenuItem *value = (__bridge NSMenuItem *)item;
+		value.image = (__bridge NSImage *)image;
+		if (@available(macOS 27, *)) {
+			value.preferredImageVisibility = NSMenuItemImageVisibilityVisible;
+		}
+	});
+}
+
+void menuet_ns_menu_item_set_subtitle(struct NSMenuItem *item, const char *subtitle) {
+	menuet_on_main(^{
+		((__bridge NSMenuItem *)item).subtitle = [NSString stringWithUTF8String:subtitle];
 	});
 }
 

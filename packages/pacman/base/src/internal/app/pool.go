@@ -156,7 +156,7 @@ func (pd *PooledDialer) run() {
 		}
 		pd.animation.updateState(state, update.State)
 		pd.updateMenu(update.State)
-		if update.State != dialer.Idle || state == dialer.Online {
+		if update.State != dialer.Idle || state == dialer.Connected {
 			pd.notification(update.State, update.Err)
 		}
 		state = update.State
@@ -169,7 +169,7 @@ func (pd *PooledDialer) updateMenu(state dialer.ConnectionState) {
 		SetBadge(state.String())
 	pd.menu.connect.SetHidden(state != dialer.Idle)
 	pd.menu.cancel.SetHidden(state != dialer.Connecting)
-	pd.menu.disconnect.SetHidden(state != dialer.Online)
+	pd.menu.disconnect.SetHidden(state != dialer.Connected)
 	pd.menu.reset.SetHidden(state != dialer.Failed)
 }
 
@@ -179,19 +179,23 @@ func (pd *PooledDialer) Close() {
 
 func (pd *PooledDialer) icon(state dialer.ConnectionState) *appkit.Image {
 	var name string
+	color := appkit.SymbolColorDefault
 	switch state {
 	case dialer.Idle:
-		name = "NSStatusNone"
-	case dialer.Online:
-		name = "NSStatusAvailable"
+		name = "circle"
+	case dialer.Connected:
+		name = "checkmark.circle.fill"
+		color = appkit.SymbolColorGreen
 	case dialer.Failed:
-		name = "NSStatusUnavailable"
+		name = "exclamationmark.circle.fill"
+		color = appkit.SymbolColorRed
 	case dialer.Connecting:
-		name = "NSStatusPartiallyAvailable"
+		name = "ellipsis.circle"
+		color = appkit.SymbolColorOrange
 	default:
 		return nil
 	}
-	return appkit.ImageNamed(name)
+	return appkit.ImageSystemSymbol(name, color)
 }
 
 func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
@@ -209,7 +213,7 @@ func (pd *PooledDialer) notification(state dialer.ConnectionState, err error) {
 	case dialer.Connecting:
 		notif.Subtitle = "Connecting to proxy"
 		notif.Body = "The connection to the proxy is being established."
-	case dialer.Online:
+	case dialer.Connected:
 		notif.Subtitle = "Proxy connected"
 		notif.Body = "The proxy connection has been established."
 	case dialer.Failed:

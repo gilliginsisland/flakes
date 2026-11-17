@@ -143,6 +143,14 @@ func (item *MenuItem) SetTitle(title string) *MenuItem {
 	return item
 }
 
+func (item *MenuItem) SetSubtitle(subtitle string) *MenuItem {
+	defer runtime.KeepAlive(item)
+	value := C.CString(subtitle)
+	defer C.free(unsafe.Pointer(value))
+	C.menuet_ns_menu_item_set_subtitle(item.obj, value)
+	return item
+}
+
 type FontWeight float64
 
 var FontWeightSemibold = FontWeight(C.NSFontWeightSemibold)
