@@ -1,3 +1,11 @@
+# v3.4
+
+* Add menubar switch to enable or disable PACman in system proxy settings
+* PACman lets you know if another app or a change in your Mac's settings turns its proxy off
+* See your PACman version and server address at the top of the menu
+* A cleaner menu with familiar Mac icons and clearer connection indicators
+* Improved how VPN connections handle traffic and close when you're done
+___
 # v3.3.2
 
 * VPN browser authentication on macOS now uses a dedicated authentication window that closes when sign-in finishes, without opening extra browser tabs
